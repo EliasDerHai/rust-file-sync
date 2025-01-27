@@ -25,3 +25,18 @@ obv. a lot of similar community plugins exist - eg.:
  - or probably the best option [git](https://github.com/Vinzent03/obsidian-git)
 
 for the UI probably writing a similar plugin would make the best UX (see [obsidians docs](https://docs.obsidian.md/))
+
+
+
+## Details
+
+### Client's Requirements
+ - watches files under tracking
+ - diffs them (possibly file-size, last-updated date, etc.)
+ - recognizes change and communicates the change as precise as possible to the server (for create and update this includes an upload of the new data)
+
+### Server's Requirements
+ - owns master data (meaning he has the data that is considered origin)
+ - keeps record of every change across the system (event-sourcing)
+ - comes up with a strategy on how to flash the current "true" state onto a device that is out of sync (*the tricky part*)
+
