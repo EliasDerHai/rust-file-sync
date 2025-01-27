@@ -1,12 +1,17 @@
-mod read;
-
 use std::{
-    path::{Path, PathBuf},
+    path::Path,
     sync::LazyLock,
 };
 
-use axum::{debug_handler, http::StatusCode, routing::get, Json, Router};
-use read::{get_files_of_dir, init_directory, FileDescription};
+use axum::{Json, Router, routing::get};
+use axum::http::StatusCode;
+
+use read::init_directory;
+
+use crate::read::{FileDescription, get_files_of_dir};
+
+mod read;
+mod file_event;
 
 static DATA_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data"));
 
@@ -25,7 +30,6 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-#[debug_handler]
 async fn scan_disk() -> Result<Json<Vec<FileDescription>>, StatusCode> {
     match get_files_of_dir(&DATA_PATH) {
         Ok(descriptions) => Ok(Json(descriptions)),

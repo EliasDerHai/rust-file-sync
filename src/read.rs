@@ -2,13 +2,11 @@ use std::{fs, io, path::Path};
 
 use serde::Serialize;
 
-
 #[derive(Debug, Serialize, Clone)]
 pub struct FileDescription {
     name: String,
     size_in_kb: u32,
     file_type: String,
-    // created:
 }
 
 pub fn init_directory(path: &Path) -> io::Result<()> {
@@ -29,7 +27,7 @@ pub fn get_files_of_dir(path: &Path) -> io::Result<Vec<FileDescription>> {
         if path.is_file() {
             let metadata = entry.metadata()?;
             let file_size_in_bytes = metadata.len();
-            let size_in_kb =  file_size_in_bytes / 1024;
+            let size_in_kb = file_size_in_bytes / 1024;
             let name = path.file_name()
                 .and_then(|os| os.to_str())
                 .unwrap_or("[invalid utf8]")

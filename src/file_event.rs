@@ -1,0 +1,107 @@
+use std::fmt::Debug;
+
+use serde::Serializer;
+use uuid::Uuid;
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum FileEventType {
+    CreateEvent,
+    UpdateEvent,
+    DeleteEvent,
+}
+
+impl FileEventType {
+    fn serialize_to_string(&self) -> String {
+        match self {
+            FileEventType::CreateEvent => String::from("create"),
+            FileEventType::UpdateEvent => String::from("update"),
+            FileEventType::DeleteEvent => String::from("delete"),
+        }
+    }
+}
+
+impl TryFrom<&str> for FileEventType {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "create" => Ok(FileEventType::CreateEvent),
+            "update" => Ok(FileEventType::UpdateEvent),
+            "delete" => Ok(FileEventType::DeleteEvent),
+            _ => Err(format!("Could not parse '{}'", value)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct FileEventDetails {
+    id: Uuid,
+    utc_millis: u64,
+    relative_path: String,
+    size_in_bytes: u64,
+    event_type: FileEventType,
+}
+
+
+impl FileEventDetails {
+    /// produces csv line with ; as separator
+    fn serialize_to_csv_line(&self) -> String {
+        let parts = vec![
+            self.id.to_string(),
+            self.utc_millis.to_string(),
+            self.relative_path.clone(),
+            self.event_type.serialize_to_string(),
+        ];
+
+        parts.join(";")
+    }
+
+    fn new(
+        id: Uuid,
+        utc_millis: u64,
+        relative_path: String,
+        size_in_bytes: u64,
+        event_type: FileEventType,
+    ) -> Self {
+        FileEventDetails {
+            id,
+            utc_millis,
+            relative_path,
+            size_in_bytes,
+            event_type,
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use chrono::Utc;
+
+    use super::*;
+    use super::FileEventType::{CreateEvent, DeleteEvent, UpdateEvent};
+
+    #[test]
+    fn should_serialize_event_to_csv_line() {
+        let uuid = Uuid::new_v4();
+        let millis = Utc::now().timestamp_millis() as u64;
+        let create = FileEventDetails::new(
+            uuid,
+            millis,
+            "./foo/bar/file.txt".to_string(),
+            1024 * 1024 * 1024,
+            CreateEvent,
+        );
+
+        let expected = format!("{uuid};{millis};./foo/bar/file.txt;create");
+        assert_eq!(expected, create.serialize_to_csv_line());
+    }
+
+    #[test]
+    fn should_parse_string_to_event_type() {
+        assert_eq!(Ok(CreateEvent), FileEventType::try_from("create"));
+        assert_eq!(Ok(UpdateEvent), FileEventType::try_from("update"));
+        assert_eq!(Ok(DeleteEvent), FileEventType::try_from("delete"));
+        assert!(FileEventType::try_from("foobar").is_err());
+    }
+}
