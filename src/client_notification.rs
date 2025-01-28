@@ -5,7 +5,7 @@ use crate::file_event::FileEventType::DeleteEvent;
 
 /// What the client sends upon detecting a change in his file-system
 #[derive(Debug)]
-pub struct ClientFileNotification {
+pub struct ClientFileEvent {
     utc_millis: u64,
     /// relative path of the file on client side from the tracked root dir
     relative_path: String,
@@ -13,26 +13,26 @@ pub struct ClientFileNotification {
     file_bytes: Option<Bytes>,
 }
 
-pub struct ClientFileNotificationDto {
+pub struct ClientFileEventDto {
     pub(crate) utc_millis: Option<u64>,
     pub(crate) relative_path: Option<String>,
     pub(crate) file_event_type: Option<FileEventType>,
     pub(crate) file_bytes: Option<Bytes>,
 }
 
-impl TryFrom<ClientFileNotificationDto> for ClientFileNotification {
+impl TryFrom<ClientFileEventDto> for ClientFileEvent {
     type Error = String;
 
-    fn try_from(dto: ClientFileNotificationDto) -> Result<Self, Self::Error> {
-        let notification = ClientFileNotification {
+    fn try_from(dto: ClientFileEventDto) -> Result<Self, Self::Error> {
+        let event = ClientFileEvent {
             utc_millis: dto.utc_millis.ok_or("Missing field 'utc_millis'")?,
             relative_path: dto.relative_path.ok_or("Missing field 'relative_path'")?,
             event_type: dto.file_event_type.ok_or("Missing field 'file_event_type'")?,
             file_bytes: dto.file_bytes,
         };
-        if notification.event_type != DeleteEvent && notification.file_bytes.is_none() {
+        if event.event_type != DeleteEvent && event.file_bytes.is_none() {
             return Err("Missing field 'file'".to_string());
         }
-        Ok(notification)
+        Ok(event)
     }
 }

@@ -538,7 +538,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "rust-household"
+name = "rust-file-sync"
 version = "0.1.0"
 dependencies = [
  "axum",

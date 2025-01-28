@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::sync::{Arc, Mutex};
 
 use tokio::time::Instant;
 use uuid::Uuid;
@@ -37,7 +38,7 @@ impl TryFrom<&str> for FileEventType {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-struct FileEvent {
+pub struct FileEvent {
     /// probably not needed
     id: Uuid,
     /// time of event on client side
@@ -61,7 +62,7 @@ impl FileEvent {
         parts.join(";")
     }
 
-    fn new(
+    pub fn new(
         id: Uuid,
         utc_millis: u64,
         relative_path: String,
@@ -78,13 +79,18 @@ impl FileEvent {
     }
 }
 
-/// multiple [`FileEvent`]s represent a history which allows to draw conclusions for synchronization of clients
-pub struct FileHistory {
-    /// key = rel. file path - value = events (chronological) of given path
-    inner: HashMap<String, Vec<FileEvent>>,
+pub trait FileHistory: Send + Sync {
+    fn sanity_check(&self);
 }
 
-impl From<Vec<FileEvent>> for FileHistory {
+/// multiple [`FileEvent`]s represent a history which allows to draw conclusions for synchronization of clients
+#[derive(Default)]
+pub struct InMemoryFileHistory {
+    /// key = rel. file path - value = events (chronological) of given path
+    store: Arc<Mutex<HashMap<String, Vec<FileEvent>>>>,
+}
+
+impl From<Vec<FileEvent>> for InMemoryFileHistory {
     fn from(mut value: Vec<FileEvent>) -> Self {
         let i = Instant::now();
         if !value.is_sorted_by_key(|e| e.utc_millis) {
@@ -105,17 +111,17 @@ impl From<Vec<FileEvent>> for FileHistory {
                 acc
             });
 
-        let history = FileHistory { inner };
+        let history = InMemoryFileHistory { store: Arc::new(Mutex::new(inner)) };
         history.sanity_check();
         println!("History successfully initialized - took {}ms", i.elapsed().as_millis());
         history
     }
 }
 
-impl FileHistory {
+impl FileHistory for InMemoryFileHistory {
     /// might panic if there is a programmatic error (sorting / grouping)
     fn sanity_check(&self) {
-        for (key, value) in self.inner.iter() {
+        for (key, value) in self.store.lock().unwrap().iter() {
             if let Some(false_path) = value.iter()
                 .find(|e| &e.relative_path != key)
                 .map(|e| e.relative_path.as_str()) {
@@ -172,8 +178,14 @@ mod tests {
                 )
             ).collect();
 
-        let history = FileHistory::from(events);
+        let history = InMemoryFileHistory::from(events);
+        let events_in_history = history.store
+            .lock()
+            .unwrap()
+            .get("./foo/bar/file.txt")
+            .unwrap()
+            .len();
 
-        assert_eq!(500, history.inner.get("./foo/bar/file.txt").unwrap().len());
+        assert_eq!(500, events_in_history);
     }
 }
