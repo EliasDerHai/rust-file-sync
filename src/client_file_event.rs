@@ -4,13 +4,13 @@ use crate::file_event::FileEventType;
 use crate::file_event::FileEventType::DeleteEvent;
 
 /// What the client sends upon detecting a change in his file-system
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ClientFileEvent {
-    utc_millis: u64,
+    pub utc_millis: u64,
     /// relative path of the file on client side from the tracked root dir
-    relative_path: String,
-    event_type: FileEventType,
-    file_bytes: Option<Bytes>,
+    pub relative_path: String,
+    pub event_type: FileEventType,
+    pub file_bytes: Option<Bytes>,
 }
 
 pub struct ClientFileEventDto {

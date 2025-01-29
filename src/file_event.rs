@@ -1,9 +1,8 @@
-use std::collections::HashMap;
 use std::fmt::Debug;
-use std::sync::{Arc, Mutex};
 
-use tokio::time::Instant;
 use uuid::Uuid;
+
+use crate::client_file_event::ClientFileEvent;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum FileEventType {
@@ -40,13 +39,13 @@ impl TryFrom<&str> for FileEventType {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct FileEvent {
     /// probably not needed
-    id: Uuid,
+    pub id: Uuid,
     /// time of event on client side
-    utc_millis: u64,
+    pub utc_millis: u64,
     /// relative path of the file on client side from the tracked root dir
-    relative_path: String,
-    size_in_bytes: u64,
-    event_type: FileEventType,
+    pub relative_path: String,
+    pub size_in_bytes: u64,
+    pub event_type: FileEventType,
 }
 
 impl FileEvent {
@@ -79,58 +78,16 @@ impl FileEvent {
     }
 }
 
-pub trait FileHistory: Send + Sync {
-    fn sanity_check(&self);
-}
-
-/// multiple [`FileEvent`]s represent a history which allows to draw conclusions for synchronization of clients
-#[derive(Default)]
-pub struct InMemoryFileHistory {
-    /// key = rel. file path - value = events (chronological) of given path
-    store: Arc<Mutex<HashMap<String, Vec<FileEvent>>>>,
-}
-
-impl From<Vec<FileEvent>> for InMemoryFileHistory {
-    fn from(mut value: Vec<FileEvent>) -> Self {
-        let i = Instant::now();
-        if !value.is_sorted_by_key(|e| e.utc_millis) {
-            println!("History not chronological - correcting order...");
-            value.sort_by_key(|e| e.utc_millis);
-        }
-        let inner = value
-            .into_iter()
-            .fold(HashMap::new(), |mut acc, curr| {
-                match acc.get_mut(&curr.relative_path) {
-                    None => {
-                        acc.insert(curr.relative_path.clone(), vec![curr]);
-                    }
-                    Some(events) => {
-                        events.push(curr);
-                    }
-                }
-                acc
-            });
-
-        let history = InMemoryFileHistory { store: Arc::new(Mutex::new(inner)) };
-        history.sanity_check();
-        println!("History successfully initialized - took {}ms", i.elapsed().as_millis());
-        history
-    }
-}
-
-impl FileHistory for InMemoryFileHistory {
-    /// might panic if there is a programmatic error (sorting / grouping)
-    fn sanity_check(&self) {
-        for (key, value) in self.store.lock().unwrap().iter() {
-            if let Some(false_path) = value.iter()
-                .find(|e| &e.relative_path != key)
-                .map(|e| e.relative_path.as_str()) {
-                panic!("History invalid - should be grouped by relative_path - key: {} - found: {}", key, false_path);
-            }
-            if !value.is_sorted_by_key(|e| e.utc_millis) {
-                panic!("History invalid - should be sorted by time - key: {} ", key);
-            }
-        }
+impl From<ClientFileEvent> for FileEvent {
+    fn from(value: ClientFileEvent) -> Self {
+        FileEvent::new(
+            Uuid::new_v4(),
+            value.utc_millis,
+            value.relative_path,
+            // deleted files will have size=0 which is fine
+            value.file_bytes.map(|b| b.len() as u64).unwrap_or(0),
+            value.event_type,
+        )
     }
 }
 
@@ -163,29 +120,5 @@ mod tests {
         assert_eq!(Ok(UpdateEvent), FileEventType::try_from("update"));
         assert_eq!(Ok(DeleteEvent), FileEventType::try_from("delete"));
         assert!(FileEventType::try_from("foobar").is_err());
-    }
-
-    #[test]
-    fn should_build_history() {
-        let events: Vec<FileEvent> = (0..500)
-            .map(|i|
-                FileEvent::new(
-                    Uuid::new_v4(),
-                    i,
-                    "./foo/bar/file.txt".to_string(),
-                    1024 * 1024 * 1024,
-                    CreateEvent,
-                )
-            ).collect();
-
-        let history = InMemoryFileHistory::from(events);
-        let events_in_history = history.store
-            .lock()
-            .unwrap()
-            .get("./foo/bar/file.txt")
-            .unwrap()
-            .len();
-
-        assert_eq!(500, events_in_history);
     }
 }
