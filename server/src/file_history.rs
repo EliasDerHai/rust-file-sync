@@ -26,23 +26,26 @@ impl From<Vec<FileEvent>> for InMemoryFileHistory {
             println!("History not chronological - correcting order...");
             value.sort_by_key(|e| e.utc_millis);
         }
-        let inner = value
-            .into_iter()
-            .fold(HashMap::new(), |mut acc, curr| {
-                match acc.get_mut(&curr.relative_path) {
-                    None => {
-                        acc.insert(curr.relative_path.clone(), vec![curr]);
-                    }
-                    Some(events) => {
-                        events.push(curr);
-                    }
+        let inner = value.into_iter().fold(HashMap::new(), |mut acc, curr| {
+            match acc.get_mut(&curr.relative_path) {
+                None => {
+                    acc.insert(curr.relative_path.clone(), vec![curr]);
                 }
-                acc
-            });
+                Some(events) => {
+                    events.push(curr);
+                }
+            }
+            acc
+        });
 
-        let history = InMemoryFileHistory { store: Arc::new(Mutex::new(inner)) };
+        let history = InMemoryFileHistory {
+            store: Arc::new(Mutex::new(inner)),
+        };
         history.sanity_check();
-        println!("History successfully initialized - took {}ms", i.elapsed().as_millis());
+        println!(
+            "History successfully initialized - took {}ms",
+            i.elapsed().as_millis()
+        );
         history
     }
 }
@@ -54,7 +57,7 @@ impl FileHistory for InMemoryFileHistory {
             None => {
                 guard.insert(event.relative_path.clone(), vec![event]);
             }
-            Some(vec) => { vec.push(event) }
+            Some(vec) => vec.push(event),
         }
     }
 
@@ -63,16 +66,23 @@ impl FileHistory for InMemoryFileHistory {
     }
 
     fn get_latest_event(&self, path: &str) -> Option<FileEvent> {
-        self.get_events(path).map(|vec| vec.get(0).cloned()).flatten()
+        self.get_events(path)
+            .map(|vec| vec.get(0).cloned())
+            .flatten()
     }
 
     /// might panic if there is a programmatic error (sorting / grouping)
     fn sanity_check(&self) {
         for (key, value) in self.store.lock().unwrap().iter() {
-            if let Some(false_path) = value.iter()
+            if let Some(false_path) = value
+                .iter()
                 .find(|e| &e.relative_path != key)
-                .map(|e| e.relative_path.as_str()) {
-                panic!("History invalid - should be grouped by relative_path - key: {} - found: {}", key, false_path);
+                .map(|e| e.relative_path.as_str())
+            {
+                panic!(
+                    "History invalid - should be grouped by relative_path - key: {} - found: {}",
+                    key, false_path
+                );
             }
             if !value.is_sorted_by_key(|e| e.utc_millis) {
                 panic!("History invalid - should be sorted by time - key: {} ", key);
@@ -80,7 +90,6 @@ impl FileHistory for InMemoryFileHistory {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -94,7 +103,7 @@ mod tests {
     #[test]
     fn should_build_history() {
         let events: Vec<FileEvent> = (0..500)
-            .map(|i|
+            .map(|i| {
                 FileEvent::new(
                     Uuid::new_v4(),
                     i,
@@ -102,10 +111,12 @@ mod tests {
                     1024 * 1024 * 1024,
                     CreateEvent,
                 )
-            ).collect();
+            })
+            .collect();
 
         let history = InMemoryFileHistory::from(events);
-        let events_in_history = history.store
+        let events_in_history = history
+            .store
             .lock()
             .unwrap()
             .get("./foo/bar/file.txt")

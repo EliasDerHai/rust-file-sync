@@ -27,7 +27,9 @@ impl TryFrom<ClientFileEventDto> for ClientFileEvent {
         let event = ClientFileEvent {
             utc_millis: dto.utc_millis.ok_or("Missing field 'utc_millis'")?,
             relative_path: dto.relative_path.ok_or("Missing field 'relative_path'")?,
-            event_type: dto.file_event_type.ok_or("Missing field 'file_event_type'")?,
+            event_type: dto
+                .file_event_type
+                .ok_or("Missing field 'file_event_type'")?,
             file_bytes: dto.file_bytes,
         };
         if event.event_type != DeleteEvent && event.file_bytes.is_none() {
@@ -39,7 +41,10 @@ impl TryFrom<ClientFileEventDto> for ClientFileEvent {
         }
         if !event.relative_path.starts_with("./") && !event.relative_path.starts_with(".\\") {
             println!("Denying relative_path '{}'", &event.relative_path);
-            return Err(format!("Forbidden: '{}' is not a relative path (make sure to prefix with './' or '.\\'", event.relative_path));
+            return Err(format!(
+                "Forbidden: '{}' is not a relative path (make sure to prefix with './' or '.\\'",
+                event.relative_path
+            ));
         }
         Ok(event)
     }

@@ -9,6 +9,5 @@ pub fn schedule_data_backups(data_path: &Path, backup_path: &Path) {
 }
 
 pub fn create_all_dir_and_write(path: &PathBuf, bytes: &Bytes) -> Result<(), std::io::Error> {
-    create_dir_all(path.parent().unwrap_or(Path::new("./")))
-        .and_then(|()| fs::write(&path, bytes))
+    create_dir_all(path.parent().unwrap_or(Path::new("./"))).and_then(|()| fs::write(&path, bytes))
 }

@@ -15,11 +15,7 @@ pub struct FileDescription {
     last_updated_utc_millis: u64,
 }
 
-pub fn init_directories(
-    upload_path: &Path,
-    backup_path: &Path,
-    csv_path: &Path,
-) -> io::Result<()> {
+pub fn init_directories(upload_path: &Path, backup_path: &Path, csv_path: &Path) -> io::Result<()> {
     if !upload_path.exists() {
         fs::create_dir_all(upload_path)?;
     }
@@ -53,8 +49,8 @@ pub fn get_files_of_dir(path: &Path) -> Result<Vec<FileDescription>, String> {
                 .and_then(|os| os.to_str())
                 .unwrap_or("")
                 .to_string();
-            let last_updated_utc_millis = get_last_updated(metadata)
-                .ok_or("Could not determine last updated".to_string())?;
+            let last_updated_utc_millis =
+                get_last_updated(metadata).ok_or("Could not determine last updated".to_string())?;
             descriptions.push(FileDescription {
                 name,
                 size_in_kb: size_in_kb as u32,

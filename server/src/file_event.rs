@@ -95,8 +95,8 @@ impl From<ClientFileEvent> for FileEvent {
 mod tests {
     use chrono::Utc;
 
-    use super::*;
     use super::FileEventType::{CreateEvent, DeleteEvent, UpdateEvent};
+    use super::*;
 
     #[test]
     fn should_serialize_event_to_csv_line() {

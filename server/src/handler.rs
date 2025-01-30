@@ -6,11 +6,11 @@ use axum::extract::{Multipart, State};
 use axum::http::StatusCode;
 use axum::Json;
 
-use crate::{AppState, write};
 use crate::client_file_event::{ClientFileEvent, ClientFileEventDto};
 use crate::file_event::{FileEvent, FileEventType};
 use crate::file_history::FileHistory;
-use crate::read::{FileDescription, get_files_of_dir};
+use crate::read::{get_files_of_dir, FileDescription};
+use crate::{write, AppState};
 
 /// expecting no payload
 /// returning list of file meta infos
@@ -45,14 +45,24 @@ pub async fn upload_handler(
     while let Some(field) = multipart.next_field().await.unwrap() {
         match field.name() {
             None => eprintln!("No field name in upload handler!"),
-            Some("utc_millis") => utc_millis = field.text()
-                .await.map(|t| t.parse::<u64>().ok()).ok().flatten(),
-            Some("relative_path") => relative_path = field.text()
-                .await.map(|t| t.to_string()).ok(),
-            Some("event_type") => file_event_type = field.text()
-                .await.map(|t| FileEventType::try_from(t.as_str()).ok()).ok().flatten(),
-            Some("file") => file_bytes = field.bytes()
-                .await.ok(),
+            Some("utc_millis") => {
+                utc_millis = field
+                    .text()
+                    .await
+                    .map(|t| t.parse::<u64>().ok())
+                    .ok()
+                    .flatten()
+            }
+            Some("relative_path") => relative_path = field.text().await.map(|t| t.to_string()).ok(),
+            Some("event_type") => {
+                file_event_type = field
+                    .text()
+                    .await
+                    .map(|t| FileEventType::try_from(t.as_str()).ok())
+                    .ok()
+                    .flatten()
+            }
+            Some("file") => file_bytes = field.bytes().await.ok(),
             Some(other) => eprintln!("Unknown field name '{other}' in upload handler"),
         }
     }
@@ -66,15 +76,16 @@ pub async fn upload_handler(
     }) {
         Err(e) => Err((StatusCode::BAD_REQUEST, e)),
         Ok(event) => {
-            let utc_millis_of_latest_history_event = state.history.get_latest_event(&event.relative_path)
+            let utc_millis_of_latest_history_event = state
+                .history
+                .get_latest_event(&event.relative_path)
                 .map(|e| e.utc_millis)
                 .unwrap_or(0);
 
             if event.utc_millis < utc_millis_of_latest_history_event {
-                eprintln!("Dropping event for {} - event ({}) older than latest history state event ({})",
-                          &event.relative_path,
-                          utc_millis_of_latest_history_event,
-                          event.utc_millis
+                eprintln!(
+                    "Dropping event for {} - event ({}) older than latest history state event ({})",
+                    &event.relative_path, utc_millis_of_latest_history_event, event.utc_millis
                 );
                 return Err((StatusCode::BAD_REQUEST, "not latest".to_string()));
             } else {
@@ -86,7 +97,7 @@ pub async fn upload_handler(
                         let bytes = event.file_bytes.as_ref().unwrap();
                         write::create_all_dir_and_write(&path, bytes)
                     }
-                    FileEventType::DeleteEvent => fs::remove_file(&path)
+                    FileEventType::DeleteEvent => fs::remove_file(&path),
                 };
 
                 // logging success/ error and return values
@@ -94,9 +105,15 @@ pub async fn upload_handler(
                 match io_result {
                     Ok(_) => {
                         let message = match event.event_type {
-                            FileEventType::CreateEvent => format!("Created {} successfully", path_str),
-                            FileEventType::UpdateEvent => format!("Replaced {} successfully", path_str),
-                            FileEventType::DeleteEvent => format!("Deleted {} successfully", path_str),
+                            FileEventType::CreateEvent => {
+                                format!("Created {} successfully", path_str)
+                            }
+                            FileEventType::UpdateEvent => {
+                                format!("Replaced {} successfully", path_str)
+                            }
+                            FileEventType::DeleteEvent => {
+                                format!("Deleted {} successfully", path_str)
+                            }
                         };
                         println!("{message}");
                         state.history.clone().add(FileEvent::from(event));
@@ -104,9 +121,15 @@ pub async fn upload_handler(
                     }
                     Err(e) => {
                         let message = match event.event_type {
-                            FileEventType::CreateEvent => format!("Creating {} failed - {}", path_str, e),
-                            FileEventType::UpdateEvent => format!("Replacing {} failed - {}", path_str, e),
-                            FileEventType::DeleteEvent => format!("Deleting {} failed - {}", path_str, e),
+                            FileEventType::CreateEvent => {
+                                format!("Creating {} failed - {}", path_str, e)
+                            }
+                            FileEventType::UpdateEvent => {
+                                format!("Replacing {} failed - {}", path_str, e)
+                            }
+                            FileEventType::DeleteEvent => {
+                                format!("Deleting {} failed - {}", path_str, e)
+                            }
                         };
                         eprintln!("{message}");
                         Err((StatusCode::INTERNAL_SERVER_ERROR, message))

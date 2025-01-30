@@ -1,20 +1,20 @@
-use std::{path::Path, sync::LazyLock};
 use std::sync::Arc;
+use std::{path::Path, sync::LazyLock};
 
-use axum::{Router, routing::get};
 use axum::extract::{Multipart, State};
 use axum::routing::post;
+use axum::{routing::get, Router};
 
 use read::init_directories;
 
 use crate::file_history::InMemoryFileHistory;
 use crate::write::schedule_data_backups;
 
-mod read;
-mod file_event;
 mod client_file_event;
-mod handler;
+mod file_event;
 mod file_history;
+mod handler;
+mod read;
 mod write;
 
 /// base directory of all runtime data
@@ -43,19 +43,19 @@ async fn main() {
     };
 
     let app = Router::new()
-        .route("/",
-               get(|| async { "Hello, World!" }))
-        .route("/scan",
-               get(|| handler::scan_disk(&UPLOAD_PATH)))
-        .route("/upload",
-               post(|state: State<AppState>, multipart: Multipart|
-                   handler::upload_handler(&UPLOAD_PATH, state, multipart)))
+        .route("/", get(|| async { "Hello, World!" }))
+        .route("/scan", get(|| handler::scan_disk(&UPLOAD_PATH)))
+        .route(
+            "/upload",
+            post(|state: State<AppState>, multipart: Multipart| {
+                handler::upload_handler(&UPLOAD_PATH, state, multipart)
+            }),
+        )
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
         .await
         .unwrap();
-
 
     axum::serve(listener, app).await.unwrap();
 }
