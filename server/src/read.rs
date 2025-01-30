@@ -15,12 +15,21 @@ pub struct FileDescription {
     last_updated_utc_millis: u64,
 }
 
-pub fn init_directory(path: &Path) -> io::Result<()> {
-    if !path.exists() {
-        fs::create_dir(path)
-    } else {
-        Ok(())
+pub fn init_directories(
+    upload_path: &Path,
+    backup_path: &Path,
+    csv_path: &Path,
+) -> io::Result<()> {
+    if !upload_path.exists() {
+        fs::create_dir_all(upload_path)?;
     }
+    if !backup_path.exists() {
+        fs::create_dir_all(backup_path)?;
+    }
+    if !csv_path.is_file() {
+        fs::write(csv_path, b"")?;
+    }
+    Ok(())
 }
 
 pub fn get_files_of_dir(path: &Path) -> Result<Vec<FileDescription>, String> {
