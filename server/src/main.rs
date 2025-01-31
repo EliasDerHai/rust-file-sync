@@ -16,6 +16,7 @@ mod file_history;
 mod handler;
 mod read;
 mod write;
+mod matchable_path;
 
 /// base directory of all runtime data // might actually not be needed
 // static DATA_ROOT_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data"));

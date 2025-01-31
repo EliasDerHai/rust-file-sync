@@ -145,11 +145,4 @@ mod tests {
 
         assert_eq!(500, events_in_history);
     }
-    
-    #[test]
-    fn check_os_strings() {
-        let one = OsString::from("./foo/bar/file.txt");
-        let two= OsString::from(".\\foo\\bar\\file.txt");
-        assert_ne!(one, two); // would have been too nice to be true
-    }
 }
