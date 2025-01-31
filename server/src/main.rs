@@ -17,8 +17,8 @@ mod handler;
 mod read;
 mod write;
 
-/// base directory of all runtime data
-static DATA_ROOT_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data"));
+/// base directory of all runtime data // might actually not be needed
+// static DATA_ROOT_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data"));
 /// base directory for files synced from clients
 static UPLOAD_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/upload"));
 /// directory to hold zipped backup files
@@ -34,8 +34,12 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
-    tokio::spawn(async { init_directories(&UPLOAD_PATH, &BACKUP_PATH, &HISTORY_CSV_PATH) });
-    tokio::spawn(async { schedule_data_backups(&UPLOAD_PATH, &BACKUP_PATH) });
+    tokio::spawn(init_directories(
+        &UPLOAD_PATH,
+        &BACKUP_PATH,
+        &HISTORY_CSV_PATH,
+    ));
+    tokio::spawn(schedule_data_backups(&UPLOAD_PATH, &BACKUP_PATH));
 
     // todo - init from persistence aka file
     let state = AppState {
@@ -48,9 +52,10 @@ async fn main() {
         .route(
             "/upload",
             post(|state: State<AppState>, multipart: Multipart| {
-                handler::upload_handler(&UPLOAD_PATH, state, multipart)
+                handler::upload_handler(&UPLOAD_PATH, state, multipart, &HISTORY_CSV_PATH)
             }),
         )
+        .route("/sync", post(handler::sync_handler))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")

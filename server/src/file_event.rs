@@ -50,11 +50,12 @@ pub struct FileEvent {
 
 impl FileEvent {
     /// produces csv line with ; as separator
-    fn serialize_to_csv_line(&self) -> String {
+    pub fn serialize_to_csv_line(&self) -> String {
         let parts = vec![
             self.id.to_string(),
             self.utc_millis.to_string(),
             self.relative_path.clone(),
+            self.size_in_bytes.to_string(),
             self.event_type.serialize_to_string(),
         ];
 
@@ -110,7 +111,7 @@ mod tests {
             CreateEvent,
         );
 
-        let expected = format!("{uuid};{millis};./foo/bar/file.txt;create");
+        let expected = format!("{uuid};{millis};./foo/bar/file.txt;1073741824;create");
         assert_eq!(expected, create.serialize_to_csv_line());
     }
 

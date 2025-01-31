@@ -1,21 +1,22 @@
 use std::fs;
 use std::path::Path;
 
+use crate::client_file_event::{ClientFileEvent, ClientFileEventDto};
+use crate::file_event::{FileEvent, FileEventType};
+use crate::file_history::FileHistory;
+use crate::read::{get_files_of_dir_rec, FileDescription};
+use crate::{write, AppState};
 use axum::body::Bytes;
 use axum::extract::{Multipart, State};
 use axum::http::StatusCode;
 use axum::Json;
-
-use crate::client_file_event::{ClientFileEvent, ClientFileEventDto};
-use crate::file_event::{FileEvent, FileEventType};
-use crate::file_history::FileHistory;
-use crate::read::{get_files_of_dir, FileDescription};
-use crate::{write, AppState};
+use serde::{Deserialize, Serialize};
+use crate::write::append_line;
 
 /// expecting no payload
 /// returning list of file meta infos
 pub async fn scan_disk(path: &Path) -> Result<Json<Vec<FileDescription>>, StatusCode> {
-    match get_files_of_dir(path) {
+    match get_files_of_dir_rec(path) {
         Ok(descriptions) => Ok(Json(descriptions)),
         Err(err) => {
             eprintln!("IO Failure - {}", err);
@@ -35,6 +36,7 @@ pub async fn upload_handler(
     upload_root_path: &Path,
     State(state): State<AppState>,
     mut multipart: Multipart,
+    history_file_path: &Path
 ) -> Result<String, (StatusCode, String)> {
     // parse incoming request
     let mut utc_millis: Option<u64> = None;
@@ -87,7 +89,7 @@ pub async fn upload_handler(
                     "Dropping event for {} - event ({}) older than latest history state event ({})",
                     &event.relative_path, utc_millis_of_latest_history_event, event.utc_millis
                 );
-                return Err((StatusCode::BAD_REQUEST, "not latest".to_string()));
+                Err((StatusCode::BAD_REQUEST, "not latest".to_string()))
             } else {
                 // actual disk io
                 let path = upload_root_path.join(event.relative_path.as_str());
@@ -99,6 +101,8 @@ pub async fn upload_handler(
                     }
                     FileEventType::DeleteEvent => fs::remove_file(&path),
                 };
+                // write to history.csv
+                append_line(history_file_path, &FileEvent::from(event.clone()).serialize_to_csv_line());
 
                 // logging success/ error and return values
                 let path_str = path.to_string_lossy();
@@ -138,4 +142,16 @@ pub async fn upload_handler(
             }
         }
     }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ClientSyncState {
+    todo: u32,
+}
+
+/// compares incoming payload with FileHistory to determine and return a list of instructions
+/// in order for the client to achieve a synchronized state
+#[axum::debug_handler]
+pub async fn sync_handler(State(state): State<AppState>, Json(params): Json<ClientSyncState>) {
+    todo!()
 }
