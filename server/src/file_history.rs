@@ -3,12 +3,14 @@ use std::sync::{Arc, Mutex};
 
 use tokio::time::Instant;
 
-use crate::file_event::FileEvent;
+use crate::file_event::{FileEvent, FileEventType};
 
 pub trait FileHistory: Send + Sync {
     fn add(&self, event: FileEvent);
     fn get_events(&self, path: &str) -> Option<Vec<FileEvent>>;
     fn get_latest_event(&self, path: &str) -> Option<FileEvent>;
+    /// get the latest event of every path that doesn't have a deleted event as it's latest event
+    fn get_latest_non_deleted_events(&self) -> Vec<FileEvent>;
     fn sanity_check(&self);
 }
 
@@ -61,6 +63,23 @@ impl FileHistory for InMemoryFileHistory {
         }
     }
 
+    fn get_latest_non_deleted_events(&self) -> Vec<FileEvent> {
+        self.store
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(|(_, events)| {
+                events.get(0).map_or(None, |e| {
+                    if e.event_type != FileEventType::DeleteEvent {
+                        Some(e.clone())
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect()
+    }
+
     fn get_events(&self, path: &str) -> Option<Vec<FileEvent>> {
         self.store.lock().unwrap().get(path).cloned()
     }
@@ -93,6 +112,7 @@ impl FileHistory for InMemoryFileHistory {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::OsString;
     use uuid::Uuid;
 
     use crate::file_event::FileEvent;
@@ -124,5 +144,12 @@ mod tests {
             .len();
 
         assert_eq!(500, events_in_history);
+    }
+    
+    #[test]
+    fn check_os_strings() {
+        let one = OsString::from("./foo/bar/file.txt");
+        let two= OsString::from(".\\foo\\bar\\file.txt");
+        assert_ne!(one, two); // would have been too nice to be true
     }
 }

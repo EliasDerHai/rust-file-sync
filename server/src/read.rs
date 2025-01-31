@@ -5,17 +5,17 @@ use std::{
     time::UNIX_EPOCH,
 };
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct FileDescription {
     // eg. "test.txt"
-    file_name: String,
+    pub file_name: String,
     // contains file_name eg. "./dir/test.txt"
-    relative_path: String,
-    size_in_bytes: u64,
-    file_type: String,
-    last_updated_utc_millis: u64,
+    pub relative_path: String,
+    pub size_in_bytes: u64,
+    pub file_type: String,
+    pub last_updated_utc_millis: u64,
 }
 
 pub async fn init_directories(
