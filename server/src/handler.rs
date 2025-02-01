@@ -1,17 +1,18 @@
+use std::ffi::OsString;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Components, Path};
 
 use crate::client_file_event::{ClientFileEvent, ClientFileEventDto};
 use crate::file_event::{FileEvent, FileEventType};
 use crate::file_history::FileHistory;
-use crate::read::{get_files_of_dir_rec, init_directories, FileDescription};
+use crate::read::{get_files_of_dir_rec, FileDescription};
 use crate::write::append_line;
 use crate::{write, AppState};
 use axum::body::Bytes;
 use axum::extract::{Multipart, State};
 use axum::http::StatusCode;
 use axum::Json;
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 /// expecting no payload
 /// returning list of file meta infos
@@ -40,7 +41,7 @@ pub async fn upload_handler(
 ) -> Result<String, (StatusCode, String)> {
     // parse incoming request
     let mut utc_millis: Option<u64> = None;
-    let mut relative_path: Option<String> = None;
+    let mut relative_path: Option<Vec<String>> = None;
     let mut file_event_type: Option<FileEventType> = None;
     let mut file_bytes: Option<Bytes> = None;
 
@@ -55,7 +56,13 @@ pub async fn upload_handler(
                     .ok()
                     .flatten()
             }
-            Some("relative_path") => relative_path = field.text().await.map(|t| t.to_string()).ok(),
+            Some("relative_path") => {
+                relative_path = field
+                    .text()
+                    .await
+                    .map(|t| t.split(",").map(|str| str.to_string()).collect())
+                    .ok();
+            }
             Some("event_type") => {
                 file_event_type = field
                     .text()
@@ -86,13 +93,14 @@ pub async fn upload_handler(
 
             if event.utc_millis < utc_millis_of_latest_history_event {
                 eprintln!(
-                    "Dropping event for {} - event ({}) older than latest history state event ({})",
+                    "Dropping event for {:?} - event ({}) older than latest history state event ({})",
                     &event.relative_path, utc_millis_of_latest_history_event, event.utc_millis
                 );
                 Err((StatusCode::BAD_REQUEST, "not latest".to_string()))
             } else {
                 // actual disk io
-                let path = upload_root_path.join(event.relative_path.as_str());
+                let sub_path = event.relative_path.0.iter().map(|part| Component::Normal(part.as_ref()));
+                let path = upload_root_path.components().chain(sub_path).collect(); //.join(event.relative_path.as_str());
                 let io_result = match event.event_type {
                     FileEventType::CreateEvent | FileEventType::UpdateEvent => {
                         // safe to unwrap because we know it was set for Create & UpdateEvent
@@ -173,7 +181,7 @@ pub async fn sync_handler(
     let mut instructions = Vec::new();
     let target = state.history.clone().get_latest_non_deleted_events();
     // todo fix with matchable paths (OS delimiter free)
-    
+
     for event in target.clone() {
         match client_sync_state.iter().find(|client_file_description| {
             client_file_description.relative_path == event.relative_path

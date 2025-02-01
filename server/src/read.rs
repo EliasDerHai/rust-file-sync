@@ -12,7 +12,7 @@ pub struct FileDescription {
     // eg. "test.txt"
     pub file_name: String,
     // contains file_name eg. "./dir/test.txt"
-    pub relative_path: String,
+    pub relative_path: Vec<String>,
     pub size_in_bytes: u64,
     pub file_type: String,
     pub last_updated_utc_millis: u64,

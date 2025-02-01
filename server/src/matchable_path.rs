@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
-struct MatchablePath(Vec<String>);
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
+pub struct MatchablePath(pub Vec<String>);
 
 impl From<&Path> for MatchablePath {
     fn from(path: &Path) -> Self {
@@ -15,6 +15,12 @@ impl From<&Path> for MatchablePath {
             });
 
         MatchablePath(vec)
+    }
+}
+
+impl From<Vec<&str>> for MatchablePath {
+    fn from(value: Vec<&str>) -> Self {
+        MatchablePath(value.into_iter().map(|item| item.to_string()).collect())
     }
 }
 

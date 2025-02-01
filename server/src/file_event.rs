@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use uuid::Uuid;
 
-use crate::client_file_event::ClientFileEvent;
+use crate::{client_file_event::ClientFileEvent, matchable_path::MatchablePath};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum FileEventType {
@@ -43,7 +43,7 @@ pub struct FileEvent {
     /// time of event on client side
     pub utc_millis: u64,
     /// relative path of the file on client side from the tracked root dir
-    pub relative_path: String,
+    pub relative_path: MatchablePath,
     pub size_in_bytes: u64,
     pub event_type: FileEventType,
 }
@@ -54,7 +54,7 @@ impl FileEvent {
         let parts = vec![
             self.id.to_string(),
             self.utc_millis.to_string(),
-            self.relative_path.clone(),
+            self.relative_path.0.join("\\"),
             self.size_in_bytes.to_string(),
             self.event_type.serialize_to_string(),
         ];
@@ -65,7 +65,7 @@ impl FileEvent {
     pub fn new(
         id: Uuid,
         utc_millis: u64,
-        relative_path: String,
+        relative_path: MatchablePath,
         size_in_bytes: u64,
         event_type: FileEventType,
     ) -> Self {
@@ -106,7 +106,7 @@ mod tests {
         let create = FileEvent::new(
             uuid,
             millis,
-            "./foo/bar/file.txt".to_string(),
+            MatchablePath::from(vec!["foo", "bar", "file.txt"]),
             1024 * 1024 * 1024,
             CreateEvent,
         );

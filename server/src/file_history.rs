@@ -4,11 +4,12 @@ use std::sync::{Arc, Mutex};
 use tokio::time::Instant;
 
 use crate::file_event::{FileEvent, FileEventType};
+use crate::matchable_path::MatchablePath;
 
 pub trait FileHistory: Send + Sync {
     fn add(&self, event: FileEvent);
-    fn get_events(&self, path: &str) -> Option<Vec<FileEvent>>;
-    fn get_latest_event(&self, path: &str) -> Option<FileEvent>;
+    fn get_events(&self, path: &MatchablePath) -> Option<Vec<FileEvent>>;
+    fn get_latest_event(&self, path: &MatchablePath) -> Option<FileEvent>;
     /// get the latest event of every path that doesn't have a deleted event as it's latest event
     fn get_latest_non_deleted_events(&self) -> Vec<FileEvent>;
     fn sanity_check(&self);
@@ -18,7 +19,7 @@ pub trait FileHistory: Send + Sync {
 #[derive(Default, Clone)]
 pub struct InMemoryFileHistory {
     /// key = rel. file path - value = events (chronological) of given path
-    store: Arc<Mutex<HashMap<String, Vec<FileEvent>>>>,
+    store: Arc<Mutex<HashMap<MatchablePath, Vec<FileEvent>>>>,
 }
 
 impl From<Vec<FileEvent>> for InMemoryFileHistory {
@@ -80,11 +81,11 @@ impl FileHistory for InMemoryFileHistory {
             .collect()
     }
 
-    fn get_events(&self, path: &str) -> Option<Vec<FileEvent>> {
+    fn get_events(&self, path: &MatchablePath) -> Option<Vec<FileEvent>> {
         self.store.lock().unwrap().get(path).cloned()
     }
 
-    fn get_latest_event(&self, path: &str) -> Option<FileEvent> {
+    fn get_latest_event(&self, path: &MatchablePath) -> Option<FileEvent> {
         self.get_events(path)
             .map(|vec| vec.get(0).cloned())
             .flatten()

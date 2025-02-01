@@ -2,20 +2,21 @@ use axum::body::Bytes;
 
 use crate::file_event::FileEventType;
 use crate::file_event::FileEventType::DeleteEvent;
+use crate::matchable_path::MatchablePath;
 
 /// What the client sends upon detecting a change in his file-system
 #[derive(Debug, Clone)]
 pub struct ClientFileEvent {
     pub utc_millis: u64,
     /// relative path of the file on client side from the tracked root dir
-    pub relative_path: String,
+    pub relative_path: MatchablePath,
     pub event_type: FileEventType,
     pub file_bytes: Option<Bytes>,
 }
 
 pub struct ClientFileEventDto {
     pub(crate) utc_millis: Option<u64>,
-    pub(crate) relative_path: Option<String>,
+    pub(crate) relative_path: Option<Vec<String>>,
     pub(crate) file_event_type: Option<FileEventType>,
     pub(crate) file_bytes: Option<Bytes>,
 }
