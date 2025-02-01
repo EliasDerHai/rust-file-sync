@@ -54,7 +54,7 @@ impl FileEvent {
         let parts = vec![
             self.id.to_string(),
             self.utc_millis.to_string(),
-            self.relative_path.0.join("\\"),
+            self.relative_path.get().join("\\"),
             self.size_in_bytes.to_string(),
             self.event_type.serialize_to_string(),
         ];

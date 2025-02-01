@@ -6,13 +6,14 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+use crate::matchable_path::MatchablePath;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct FileDescription {
     // eg. "test.txt"
     pub file_name: String,
     // contains file_name eg. "./dir/test.txt"
-    pub relative_path: Vec<String>,
+    pub relative_path: MatchablePath,
     pub size_in_bytes: u64,
     pub file_type: String,
     pub last_updated_utc_millis: u64,
@@ -68,7 +69,7 @@ fn inner_get_files_of_dir_rec(
                 .ok_or("Could not determine last updated".to_string())?;
             descriptions.push(FileDescription {
                 file_name: name.to_string_lossy().to_string(),
-                relative_path: relative_path.to_string_lossy().to_string(),
+                relative_path: MatchablePath::from(relative_path),
                 size_in_bytes: metadata.len(),
                 file_type,
                 last_updated_utc_millis,

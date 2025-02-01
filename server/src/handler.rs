@@ -1,10 +1,10 @@
-use std::ffi::OsString;
 use std::fs;
-use std::path::{Component, Components, Path};
+use std::path::{Component, Path};
 
 use crate::client_file_event::{ClientFileEvent, ClientFileEventDto};
 use crate::file_event::{FileEvent, FileEventType};
 use crate::file_history::FileHistory;
+use crate::matchable_path::MatchablePath;
 use crate::read::{get_files_of_dir_rec, FileDescription};
 use crate::write::append_line;
 use crate::{write, AppState};
@@ -99,8 +99,12 @@ pub async fn upload_handler(
                 Err((StatusCode::BAD_REQUEST, "not latest".to_string()))
             } else {
                 // actual disk io
-                let sub_path = event.relative_path.0.iter().map(|part| Component::Normal(part.as_ref()));
-                let path = upload_root_path.components().chain(sub_path).collect(); //.join(event.relative_path.as_str());
+                let sub_path = event
+                    .relative_path
+                    .get()
+                    .iter()
+                    .map(|part| Component::Normal(part.as_ref()));
+                let path = upload_root_path.components().chain(sub_path).collect();
                 let io_result = match event.event_type {
                     FileEventType::CreateEvent | FileEventType::UpdateEvent => {
                         // safe to unwrap because we know it was set for Create & UpdateEvent
@@ -157,8 +161,8 @@ pub async fn upload_handler(
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum SyncInstruction {
-    Download(String),
-    Delete(String),
+    Download(MatchablePath),
+    Delete(MatchablePath),
 }
 
 /// compares incoming payload with FileHistory to determine and return a list of instructions
@@ -178,9 +182,10 @@ pub async fn sync_handler(
     State(state): State<AppState>,
     Json(client_sync_state): Json<Vec<FileDescription>>,
 ) -> Result<Json<Vec<SyncInstruction>>, (StatusCode, String)> {
+    println!("{client_sync_state:?}");
+    
     let mut instructions = Vec::new();
     let target = state.history.clone().get_latest_non_deleted_events();
-    // todo fix with matchable paths (OS delimiter free)
 
     for event in target.clone() {
         match client_sync_state.iter().find(|client_file_description| {
@@ -197,7 +202,7 @@ pub async fn sync_handler(
                     instructions.push(SyncInstruction::Download(event.relative_path))
                 } else {
                     // differs in size but server's version is older - client must be ahead of server
-                    return Err((StatusCode::BAD_REQUEST, format!("Client ahead of server: client's version of '{}' is newer than the respective server version", event.relative_path)));
+                    return Err((StatusCode::BAD_REQUEST, format!("Client ahead of server: client's version of '{:?}' is newer than the respective server version", event.relative_path)));
                 }
             }
         }

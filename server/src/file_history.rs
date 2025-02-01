@@ -95,17 +95,20 @@ impl FileHistory for InMemoryFileHistory {
     fn sanity_check(&self) {
         for (key, value) in self.store.lock().unwrap().iter() {
             if let Some(false_path) = value
-                .iter()
+                .into_iter()
                 .find(|e| &e.relative_path != key)
-                .map(|e| e.relative_path.as_str())
+                .map(|e| e.relative_path.clone())
             {
                 panic!(
-                    "History invalid - should be grouped by relative_path - key: {} - found: {}",
-                    key, false_path
+                    "History invalid - should be grouped by relative_path - key: {:?} - found: {:?}",
+                    key.get(), false_path
                 );
             }
             if !value.is_sorted_by_key(|e| e.utc_millis) {
-                panic!("History invalid - should be sorted by time - key: {} ", key);
+                panic!(
+                    "History invalid - should be sorted by time - key: {:?} ",
+                    key
+                );
             }
         }
     }
@@ -113,7 +116,6 @@ impl FileHistory for InMemoryFileHistory {
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::OsString;
     use uuid::Uuid;
 
     use crate::file_event::FileEvent;
@@ -128,7 +130,7 @@ mod tests {
                 FileEvent::new(
                     Uuid::new_v4(),
                     i,
-                    "./foo/bar/file.txt".to_string(),
+                    MatchablePath::from(vec!["foo", "bar", "file.txt"]),
                     1024 * 1024 * 1024,
                     CreateEvent,
                 )
@@ -140,7 +142,7 @@ mod tests {
             .store
             .lock()
             .unwrap()
-            .get("./foo/bar/file.txt")
+            .get(&MatchablePath::from(vec!["foo", "bar", "file.txt"]))
             .unwrap()
             .len();
 

@@ -27,7 +27,9 @@ impl TryFrom<ClientFileEventDto> for ClientFileEvent {
     fn try_from(dto: ClientFileEventDto) -> Result<Self, Self::Error> {
         let event = ClientFileEvent {
             utc_millis: dto.utc_millis.ok_or("Missing field 'utc_millis'")?,
-            relative_path: dto.relative_path.ok_or("Missing field 'relative_path'")?,
+            relative_path: MatchablePath::from(
+                dto.relative_path.ok_or("Missing field 'relative_path'")?,
+            ),
             event_type: dto
                 .file_event_type
                 .ok_or("Missing field 'file_event_type'")?,
@@ -36,17 +38,17 @@ impl TryFrom<ClientFileEventDto> for ClientFileEvent {
         if event.event_type != DeleteEvent && event.file_bytes.is_none() {
             return Err("Missing field 'file'".to_string());
         }
-        if event.relative_path.contains("..") {
-            println!("Denying relative_path '{}'", &event.relative_path);
-            return Err("Forbidden: Attempted directory traversal".to_string());
-        }
-        if !event.relative_path.starts_with("./") && !event.relative_path.starts_with(".\\") {
-            println!("Denying relative_path '{}'", &event.relative_path);
-            return Err(format!(
-                "Forbidden: '{}' is not a relative path (make sure to prefix with './' or '.\\'",
-                event.relative_path
-            ));
-        }
+        // if event.relative_path.contains("..") {
+        //     println!("Denying relative_path '{}'", &event.relative_path);
+        //     return Err("Forbidden: Attempted directory traversal".to_string());
+        // }
+        // if !event.relative_path.starts_with("./") && !event.relative_path.starts_with(".\\") {
+        //     println!("Denying relative_path '{}'", &event.relative_path);
+        //     return Err(format!(
+        //         "Forbidden: '{}' is not a relative path (make sure to prefix with './' or '.\\'",
+        //         event.relative_path
+        //     ));
+        // }
         Ok(event)
     }
 }
