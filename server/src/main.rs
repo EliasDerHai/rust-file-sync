@@ -1,21 +1,17 @@
 use std::sync::Arc;
 use std::{path::Path, sync::LazyLock};
 
+use crate::file_history::InMemoryFileHistory;
+use crate::write::schedule_data_backups;
 use axum::extract::{Multipart, State};
 use axum::routing::post;
 use axum::{routing::get, Router};
-
-use read::init_directories;
-
-use crate::file_history::InMemoryFileHistory;
-use crate::write::schedule_data_backups;
 
 mod client_file_event;
 mod file_event;
 mod file_history;
 mod handler;
-mod matchable_path;
-mod read;
+mod init_directories;
 mod write;
 
 /// base directory of all runtime data // might actually not be needed
@@ -35,11 +31,18 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
-    tokio::spawn(init_directories(
-        &UPLOAD_PATH,
-        &BACKUP_PATH,
-        &HISTORY_CSV_PATH,
-    ));
+    tokio::spawn(async {
+        if !UPLOAD_PATH.exists() {
+            std::fs::create_dir_all(&UPLOAD_PATH.iter().as_path())?;
+        }
+        if !BACKUP_PATH.exists() {
+            std::fs::create_dir_all(&BACKUP_PATH.iter().as_path())?;
+        }
+        if !HISTORY_CSV_PATH.is_file() {
+            std::fs::write(&HISTORY_CSV_PATH.iter().as_path(), b"")?;
+        }
+        Ok::<(), std::io::Error>(())
+    });
     tokio::spawn(schedule_data_backups(&UPLOAD_PATH, &BACKUP_PATH));
 
     // todo - init from persistence aka file

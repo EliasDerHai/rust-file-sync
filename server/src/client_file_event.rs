@@ -2,7 +2,7 @@ use axum::body::Bytes;
 
 use crate::file_event::FileEventType;
 use crate::file_event::FileEventType::DeleteEvent;
-use crate::matchable_path::MatchablePath;
+use shared::matchable_path::MatchablePath;
 
 /// What the client sends upon detecting a change in his file-system
 #[derive(Debug, Clone)]
@@ -38,17 +38,6 @@ impl TryFrom<ClientFileEventDto> for ClientFileEvent {
         if event.event_type != DeleteEvent && event.file_bytes.is_none() {
             return Err("Missing field 'file'".to_string());
         }
-        // if event.relative_path.contains("..") {
-        //     println!("Denying relative_path '{}'", &event.relative_path);
-        //     return Err("Forbidden: Attempted directory traversal".to_string());
-        // }
-        // if !event.relative_path.starts_with("./") && !event.relative_path.starts_with(".\\") {
-        //     println!("Denying relative_path '{}'", &event.relative_path);
-        //     return Err(format!(
-        //         "Forbidden: '{}' is not a relative path (make sure to prefix with './' or '.\\'",
-        //         event.relative_path
-        //     ));
-        // }
         Ok(event)
     }
 }

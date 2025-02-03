@@ -632,10 +632,18 @@ dependencies = [
  "axum",
  "chrono",
  "serde",
- "serde_json",
+ "shared",
  "tokio",
  "tokio-util",
  "uuid",
+]
+
+[[package]]
+name = "shared"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

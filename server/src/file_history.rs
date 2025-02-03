@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use tokio::time::Instant;
 
 use crate::file_event::{FileEvent, FileEventType};
-use crate::matchable_path::MatchablePath;
+use shared::matchable_path::MatchablePath;
 
 pub trait FileHistory: Send + Sync {
     fn add(&self, event: FileEvent);

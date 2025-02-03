@@ -5,16 +5,16 @@ use std::path::{Component, Path, PathBuf};
 use crate::client_file_event::{ClientFileEvent, ClientFileEventDto};
 use crate::file_event::{FileEvent, FileEventType};
 use crate::file_history::FileHistory;
-use crate::matchable_path::MatchablePath;
-use crate::read::{get_files_of_dir_rec, FileDescription};
 use crate::write::append_line;
 use crate::{write, AppState};
 use axum::body::Bytes;
 use axum::extract::{Multipart, State};
 use axum::http::StatusCode;
-use axum::Json;
 use axum::response::IntoResponse;
-use serde::{Deserialize, Serialize};
+use axum::Json;
+use shared::get_files_of_directory::{get_files_of_dir_rec, FileDescription};
+use shared::matchable_path::MatchablePath;
+use shared::sync_instruction::SyncInstruction;
 use tokio_util::io::ReaderStream;
 
 /// expecting no payload
@@ -162,12 +162,6 @@ pub async fn upload_handler(
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub enum SyncInstruction {
-    Download(MatchablePath),
-    Delete(MatchablePath),
-}
-
 /// compares incoming payload with FileHistory to determine and return a list of instructions
 /// in order for the client to achieve a synchronized state
 ///
@@ -235,8 +229,14 @@ pub async fn download(upload_root_path: &Path, payload: String) -> impl IntoResp
     let body = axum::body::Body::from_stream(stream);
 
     let headers = [
-        (axum::http::header::CONTENT_TYPE, "text; charset=utf-8".to_string()),
-        (axum::http::header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", file_name)),
+        (
+            axum::http::header::CONTENT_TYPE,
+            "text; charset=utf-8".to_string(),
+        ),
+        (
+            axum::http::header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{}\"", file_name),
+        ),
     ];
 
     Ok((headers, body))

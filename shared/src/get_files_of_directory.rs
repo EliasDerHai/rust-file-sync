@@ -1,11 +1,9 @@
-use crate::matchable_path::MatchablePath;
+use std::fs;
+use std::fs::Metadata;
+use std::path::Path;
+use std::time::UNIX_EPOCH;
 use serde::{Deserialize, Serialize};
-use std::{
-    fs::{self, Metadata},
-    io,
-    path::Path,
-    time::UNIX_EPOCH,
-};
+use crate::matchable_path::MatchablePath;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct FileDescription {
@@ -16,23 +14,6 @@ pub struct FileDescription {
     pub size_in_bytes: u64,
     pub file_type: String,
     pub last_updated_utc_millis: u64,
-}
-
-pub async fn init_directories(
-    upload_path: &Path,
-    backup_path: &Path,
-    csv_path: &Path,
-) -> io::Result<()> {
-    if !upload_path.exists() {
-        fs::create_dir_all(upload_path)?;
-    }
-    if !backup_path.exists() {
-        fs::create_dir_all(backup_path)?;
-    }
-    if !csv_path.is_file() {
-        fs::write(csv_path, b"")?;
-    }
-    Ok(())
 }
 
 pub fn get_files_of_dir_rec(path: &Path) -> Result<Vec<FileDescription>, String> {

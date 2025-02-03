@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
 use uuid::Uuid;
-
-use crate::{client_file_event::ClientFileEvent, matchable_path::MatchablePath};
+use shared::matchable_path::MatchablePath;
+use crate::client_file_event::ClientFileEvent;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum FileEventType {
