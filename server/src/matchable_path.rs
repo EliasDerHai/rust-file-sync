@@ -66,7 +66,6 @@ impl From<Vec<String>> for MatchablePath {
                 .map(|item| item.trim().to_string())
                 .filter(|item| {
                     let option = item.chars().next();
-                    println!("first: {:?}", option);
                     !item.is_empty() && !option.unwrap().is_ascii_punctuation()
                 })
                 .collect(),
@@ -120,7 +119,6 @@ mod tests {
     fn should_match_different_versions() {
         let one = MatchablePath::from(Path::new("./foo/bar/file.txt"));
         let two = MatchablePath::from(Path::new(".\\foo\\bar\\file.txt"));
-        println!("matchable_path: {:?}", one);
         assert_eq!(one, two);
     }
 

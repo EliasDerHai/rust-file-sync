@@ -1,5 +1,6 @@
+use std::ffi::OsStr;
 use std::fs;
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 
 use crate::client_file_event::{ClientFileEvent, ClientFileEventDto};
 use crate::file_event::{FileEvent, FileEventType};
@@ -12,7 +13,9 @@ use axum::body::Bytes;
 use axum::extract::{Multipart, State};
 use axum::http::StatusCode;
 use axum::Json;
+use axum::response::IntoResponse;
 use serde::{Deserialize, Serialize};
+use tokio_util::io::ReaderStream;
 
 /// expecting no payload
 /// returning list of file meta infos
@@ -177,13 +180,12 @@ pub enum SyncInstruction {
 ///		"last_updated_utc_millis": 9585834893
 ///	]
 ///
-#[axum::debug_handler]
 pub async fn sync_handler(
     State(state): State<AppState>,
     Json(client_sync_state): Json<Vec<FileDescription>>,
 ) -> Result<Json<Vec<SyncInstruction>>, (StatusCode, String)> {
     println!("{client_sync_state:?}");
-    
+
     let mut instructions = Vec::new();
     let target = state.history.clone().get_latest_non_deleted_events();
 
@@ -215,4 +217,27 @@ pub async fn sync_handler(
     }
 
     Ok(Json(instructions))
+}
+
+pub async fn download(upload_root_path: &Path, payload: String) -> impl IntoResponse {
+    let sub_path: PathBuf = MatchablePath::from(payload.split('/').collect::<Vec<&str>>())
+        .get()
+        .into_iter()
+        .map(|part| Component::Normal(OsStr::new(part)))
+        .collect();
+    let p = upload_root_path.join(sub_path);
+    let file_name = p.file_name().unwrap().to_string_lossy().to_string();
+    let file = match tokio::fs::File::open(p).await {
+        Ok(file) => file,
+        Err(err) => return Err((StatusCode::NOT_FOUND, format!("File not found: {}", err))),
+    };
+    let stream = ReaderStream::new(file);
+    let body = axum::body::Body::from_stream(stream);
+
+    let headers = [
+        (axum::http::header::CONTENT_TYPE, "text; charset=utf-8".to_string()),
+        (axum::http::header::CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", file_name)),
+    ];
+
+    Ok((headers, body))
 }

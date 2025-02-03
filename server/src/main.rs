@@ -14,9 +14,9 @@ mod client_file_event;
 mod file_event;
 mod file_history;
 mod handler;
+mod matchable_path;
 mod read;
 mod write;
-mod matchable_path;
 
 /// base directory of all runtime data // might actually not be needed
 // static DATA_ROOT_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data"));
@@ -57,6 +57,10 @@ async fn main() {
             }),
         )
         .route("/sync", post(handler::sync_handler))
+        .route(
+            "/download",
+            get(|payload: String| handler::download(&UPLOAD_PATH, payload)),
+        )
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")

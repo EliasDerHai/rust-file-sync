@@ -1,12 +1,11 @@
+use crate::matchable_path::MatchablePath;
+use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, Metadata},
     io,
     path::Path,
     time::UNIX_EPOCH,
 };
-
-use serde::{Deserialize, Serialize};
-use crate::matchable_path::MatchablePath;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct FileDescription {
