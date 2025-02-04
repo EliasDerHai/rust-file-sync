@@ -178,7 +178,6 @@ pub async fn sync_handler(
     State(state): State<AppState>,
     Json(client_sync_state): Json<Vec<FileDescription>>,
 ) -> Result<Json<Vec<SyncInstruction>>, (StatusCode, String)> {
-    println!("{client_sync_state:?}");
 
     let mut instructions = Vec::new();
     let target = state.history.clone().get_latest_non_deleted_events();
@@ -206,10 +205,11 @@ pub async fn sync_handler(
 
     for desc in client_sync_state {
         if !target.iter().any(|e| e.relative_path == desc.relative_path) {
-            instructions.push(SyncInstruction::Delete(desc.relative_path));
+            instructions.push(SyncInstruction::Upload(desc.relative_path));
         }
     }
 
+    println!("{:#?}", instructions);
     Ok(Json(instructions))
 }
 
