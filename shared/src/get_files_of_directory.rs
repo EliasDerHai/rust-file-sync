@@ -1,9 +1,9 @@
+use crate::matchable_path::MatchablePath;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::Metadata;
 use std::path::Path;
 use std::time::UNIX_EPOCH;
-use serde::{Deserialize, Serialize};
-use crate::matchable_path::MatchablePath;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct FileDescription {
@@ -16,7 +16,44 @@ pub struct FileDescription {
     pub last_updated_utc_millis: u64,
 }
 
-pub fn get_files_of_dir_rec(path: &Path) -> Result<Vec<FileDescription>, String> {
+pub fn get_file_description(
+    target: &Path,
+    reference_root: &Path,
+) -> Result<FileDescription, String> {
+    match fs::metadata(target) {
+        Ok(m) => {
+            if m.is_file() {
+                let relative_path = target
+                    .strip_prefix(reference_root)
+                    .unwrap();
+                let name = relative_path
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string();
+                let file_type = name
+                    .rfind('.')
+                    .map(|p| name[p..].to_string())
+                    .unwrap_or("".to_string());
+                let last_updated_utc_millis =
+                    get_last_updated(&m).ok_or("Could not determine last updated".to_string())?;
+                let description = FileDescription {
+                    file_name: name,
+                    relative_path: MatchablePath::from(relative_path),
+                    size_in_bytes: m.len(),
+                    file_type,
+                    last_updated_utc_millis,
+                };
+                Ok(description)
+            } else {
+                Err(format!("{:?} is not a file", target))
+            }
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+pub fn get_all_file_descriptions(path: &Path) -> Result<Vec<FileDescription>, String> {
     inner_get_files_of_dir_rec(path, path, Vec::new())
 }
 
@@ -33,13 +70,13 @@ fn inner_get_files_of_dir_rec(
         let entry_path = entry.path();
 
         if entry_path.is_file() {
-            let metadata = entry.metadata().map_err(|e| e.to_string())?;
-            let name = entry_path.file_name().unwrap().to_os_string();
             let relative_path = Path::new("./").join(
                 entry_path
                     .strip_prefix(reference_root_path)
                     .map_err(|e| e.to_string())?,
             );
+            let metadata = entry.metadata().map_err(|e| e.to_string())?;
+            let name = entry_path.file_name().unwrap().to_os_string();
             let file_type = entry_path
                 .extension()
                 .and_then(|os| os.to_str())
@@ -47,13 +84,14 @@ fn inner_get_files_of_dir_rec(
                 .to_string();
             let last_updated_utc_millis = get_last_updated(&metadata)
                 .ok_or("Could not determine last updated".to_string())?;
-            descriptions.push(FileDescription {
+            let description = FileDescription {
                 file_name: name.to_string_lossy().to_string(),
                 relative_path: MatchablePath::from(relative_path),
                 size_in_bytes: metadata.len(),
                 file_type,
                 last_updated_utc_millis,
-            });
+            };
+            descriptions.push(description);
         } else if entry_path.is_dir() {
             descriptions =
                 inner_get_files_of_dir_rec(&entry_path, reference_root_path, descriptions)?;

@@ -1,5 +1,6 @@
 use serde::{de::Error, Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
+use std::ffi::OsStr;
 use std::path::{Component, Path, PathBuf};
 
 /// Describes an OS-path but with a few additional constraints:
@@ -20,6 +21,15 @@ impl MatchablePath {
 
     pub fn get(&self) -> &Vec<String> {
         &self.0
+    }
+
+    pub fn resolve(&self, root: &Path) -> PathBuf {
+        root.join(
+            self.0
+                .iter()
+                .map(|part| OsStr::new(part))
+                .collect::<PathBuf>(),
+        )
     }
 }
 
@@ -120,17 +130,19 @@ mod tests {
         let one = MatchablePath::from(Path::new("./foo/bar/file.txt"));
         let two = MatchablePath::from(Path::new(".\\foo\\bar\\file.txt"));
         assert_eq!(one, two);
+        let three = MatchablePath::from(Path::new("foo/bar\\file.txt"));
+        assert_eq!(three, two);
     }
 
     #[test]
-    fn test_serialization() {
+    fn should_serialize() {
         let path = MatchablePath::from(Path::new("dir1/dir2/file.txt"));
         let serialized = serde_json::to_string(&path).unwrap();
         assert_eq!(serialized, "\"dir1/dir2/file.txt\"");
     }
 
     #[test]
-    fn test_deserialization() {
+    fn should_deserialize() {
         let json = "\"dir1/dir2/file.txt\"";
         let deserialized: MatchablePath = serde_json::from_str(json).unwrap();
         assert_eq!(
@@ -140,12 +152,25 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialization_with_traversal_attack() {
+    fn should_deserialize_and_deal_with_path_traversal_attack() {
         let json = "\"../dir1/dir2/file.txt\"";
         let deserialized = serde_json::from_str::<MatchablePath>(json).unwrap();
         assert_eq!(
             MatchablePath::from(Path::new("dir1/dir2/file.txt")),
             deserialized
         );
+    }
+
+    #[test]
+    fn should_resolve() {
+        let path = MatchablePath::from(Path::new("dir1/dir2/file.txt"));
+        let other = Path::new("./some/path");
+
+        let resolved = path.resolve(other);
+        
+        assert_eq!(
+            Path::new("./some/path/dir1/dir2/file.txt"),
+            resolved
+        )
     }
 }

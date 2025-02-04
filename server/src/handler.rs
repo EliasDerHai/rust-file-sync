@@ -12,7 +12,7 @@ use axum::extract::{Multipart, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
-use shared::get_files_of_directory::{get_files_of_dir_rec, FileDescription};
+use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
 use shared::matchable_path::MatchablePath;
 use shared::sync_instruction::SyncInstruction;
 use tokio_util::io::ReaderStream;
@@ -20,7 +20,7 @@ use tokio_util::io::ReaderStream;
 /// expecting no payload
 /// returning list of file meta infos
 pub async fn scan_disk(path: &Path) -> Result<Json<Vec<FileDescription>>, StatusCode> {
-    match get_files_of_dir_rec(path) {
+    match get_all_file_descriptions(path) {
         Ok(descriptions) => Ok(Json(descriptions)),
         Err(err) => {
             eprintln!("IO Failure - {}", err);
@@ -63,7 +63,7 @@ pub async fn upload_handler(
                 relative_path = field
                     .text()
                     .await
-                    .map(|t| t.split(",").map(|str| str.to_string()).collect())
+                    .map(|t| t.split("/").map(|str| str.to_string()).collect())
                     .ok();
             }
             Some("event_type") => {
@@ -107,6 +107,7 @@ pub async fn upload_handler(
                     .get()
                     .iter()
                     .map(|part| Component::Normal(part.as_ref()));
+                println!("@@@ sub-path {:?}", sub_path);
                 let path = upload_root_path.components().chain(sub_path).collect();
                 let io_result = match event.event_type {
                     FileEventType::CreateEvent | FileEventType::UpdateEvent => {
@@ -166,19 +167,19 @@ pub async fn upload_handler(
 /// in order for the client to achieve a synchronized state
 ///
 /// expects payload like:
-/// [
+/// [{
 ///     "file_name": "history.csv",
 ///		"relative_path": "./history.csv",
 ///		"size_in_bytes": 103,
 ///		"file_type": ".csv",
 ///		"last_updated_utc_millis": 9585834893
-///	]
+///	}]
 ///
 pub async fn sync_handler(
     State(state): State<AppState>,
     Json(client_sync_state): Json<Vec<FileDescription>>,
 ) -> Result<Json<Vec<SyncInstruction>>, (StatusCode, String)> {
-
+    println!("Client state received {:#?}", client_sync_state);
     let mut instructions = Vec::new();
     let target = state.history.clone().get_latest_non_deleted_events();
 
@@ -196,8 +197,11 @@ pub async fn sync_handler(
                     // differs in size and is outdated -> needs to be updated
                     instructions.push(SyncInstruction::Download(event.relative_path))
                 } else {
-                    // differs in size but server's version is older - client must be ahead of server
-                    return Err((StatusCode::BAD_REQUEST, format!("Client ahead of server: client's version of '{:?}' is newer than the respective server version", event.relative_path)));
+                    instructions.push(SyncInstruction::Upload(event.relative_path))
+                    // // differs in size but server's version is older - client must be ahead of server
+                    // let string = format!("Client ahead of server: client's version of '{:?}' is newer than the respective server version", event.relative_path);
+                    // eprintln!("{string}");
+                    // return Err((StatusCode::BAD_REQUEST, string));
                 }
             }
         }
@@ -209,10 +213,12 @@ pub async fn sync_handler(
         }
     }
 
-    println!("{:#?}", instructions);
+    println!("Instructions {:#?}", instructions);
     Ok(Json(instructions))
 }
 
+/// expects payload with plain string path (unix-delimiter) like:
+/// `some/path/to/download/file.txt`
 pub async fn download(upload_root_path: &Path, payload: String) -> impl IntoResponse {
     let sub_path: PathBuf = MatchablePath::from(payload.split('/').collect::<Vec<&str>>())
         .get()
