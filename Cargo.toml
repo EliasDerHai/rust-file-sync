@@ -2,7 +2,7 @@
 
 members = [
     "client-cli",
-    "server", 
+    "server",
     "shared",
 ]
 
@@ -11,3 +11,4 @@ tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
+futures = { version = "0.3" , features = ["std"]}

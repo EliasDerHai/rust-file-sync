@@ -63,6 +63,9 @@ async fn main() {
             "/download",
             get(|payload: String| handler::download(&UPLOAD_PATH, payload)),
         )
+        .route("/delete",
+               post(|state: State<AppState>, payload: String| handler::delete(&UPLOAD_PATH, payload, state)),
+        )
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")

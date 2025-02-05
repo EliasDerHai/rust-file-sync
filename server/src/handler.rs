@@ -1,9 +1,4 @@
-use std::ffi::OsStr;
-use std::fs;
-use std::path::{Component, Path, PathBuf};
-
 use crate::client_file_event::{ClientFileEvent, ClientFileEventDto};
-use shared::file_event::{FileEvent, FileEventType};
 use crate::file_history::FileHistory;
 use crate::write::append_line;
 use crate::{write, AppState};
@@ -13,10 +8,15 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
 use chrono::DateTime;
+use shared::file_event::{FileEvent, FileEventType};
 use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
 use shared::matchable_path::MatchablePath;
 use shared::sync_instruction::SyncInstruction;
+use std::ffi::OsStr;
+use std::fs;
+use std::path::{Component, Path, PathBuf};
 use tokio_util::io::ReaderStream;
+use uuid::Uuid;
 
 /// expecting no payload
 /// returning list of file meta infos
@@ -184,7 +184,7 @@ pub async fn sync_handler(
 ) -> Result<Json<Vec<SyncInstruction>>, (StatusCode, String)> {
     println!("Client state received {:#?}", client_sync_state);
     let mut instructions = Vec::new();
-    let target = state.history.clone().get_latest_non_deleted_events();
+    let target = state.history.clone().get_latest_events();
 
     for event in target.clone() {
         match client_sync_state.iter().find(|client_file_description| {
@@ -205,14 +205,19 @@ pub async fn sync_handler(
                     // same size - just ignore even if timestamps differ (might have been write-operation without change)
                     continue;
                 } else if client_equivalent.last_updated_utc_millis < event.utc_millis {
-                    // differs in size and is outdated -> needs to be updated
-                    instructions.push(SyncInstruction::Download(event.relative_path))
+                    // differs in size and client is outdated
+                    match event.event_type {
+                        FileEventType::ChangeEvent => {
+                            // client outdated needs to download new version
+                            instructions.push(SyncInstruction::Download(event.relative_path))
+                        }
+                        FileEventType::DeleteEvent => {
+                            // client outdated needs to delete his version
+                            instructions.push(SyncInstruction::Delete(event.relative_path))
+                        }
+                    }
                 } else {
                     instructions.push(SyncInstruction::Upload(event.relative_path))
-                    // // differs in size but server's version is older - client must be ahead of server
-                    // let string = format!("Client ahead of server: client's version of '{:?}' is newer than the respective server version", event.relative_path);
-                    // eprintln!("{string}");
-                    // return Err((StatusCode::BAD_REQUEST, string));
                 }
             }
         }
@@ -257,4 +262,37 @@ pub async fn download(upload_root_path: &Path, payload: String) -> impl IntoResp
     ];
 
     Ok((headers, body))
+}
+
+pub async fn delete(
+    upload_path: &Path,
+    payload: String,
+    state: State<AppState>,
+) -> Result<(), (StatusCode, String)> {
+    println!("Delete endpoint - payload: {}", payload);
+    let matchable_path = MatchablePath::from(payload.as_str());
+    let p = &matchable_path.resolve(upload_path);
+    match tokio::fs::remove_file(&p).await {
+        Ok(()) => {
+            println!("Deleted {} successfully", &p.to_string_lossy());
+            let millis = chrono::Utc::now().timestamp_millis() as u64;
+            let event = FileEvent::new(
+                Uuid::new_v4(),
+                millis,
+                matchable_path,
+                0,
+                FileEventType::DeleteEvent,
+            );
+            state.history.add(event);
+            println!(
+                "Added delete event with time {}",
+                get_utc_millis_as_date_string(millis)
+            );
+            Ok(())
+        }
+        Err(err) => {
+            println!("Failed to delete file: {}", err);
+            Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))
+        }
+    }
 }

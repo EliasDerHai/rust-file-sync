@@ -31,6 +31,10 @@ impl MatchablePath {
                 .collect::<PathBuf>(),
         )
     }
+
+    pub fn to_serialized_string(&self) -> String {
+        self.0.join("/")
+    }
 }
 
 impl From<&Path> for MatchablePath {
@@ -83,13 +87,19 @@ impl From<Vec<String>> for MatchablePath {
     }
 }
 
+impl From<&str> for MatchablePath {
+    fn from(value: &str) -> Self {
+        MatchablePath::from(Path::new(value))
+    }
+}
+
 impl Serialize for MatchablePath {
+    /// maybe I shouldn't do it that way but who cares...
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let as_string = self.0.join("/"); // Serialize as a Unix-like path
-        serializer.serialize_str(&as_string)
+        serializer.serialize_str(&self.to_serialized_string())
     }
 }
 
@@ -167,10 +177,7 @@ mod tests {
         let other = Path::new("./some/path");
 
         let resolved = path.resolve(other);
-        
-        assert_eq!(
-            Path::new("./some/path/dir1/dir2/file.txt"),
-            resolved
-        )
+
+        assert_eq!(Path::new("./some/path/dir1/dir2/file.txt"), resolved)
     }
 }

@@ -11,7 +11,7 @@ pub trait FileHistory: Send + Sync {
     fn get_events(&self, path: &MatchablePath) -> Option<Vec<FileEvent>>;
     fn get_latest_event(&self, path: &MatchablePath) -> Option<FileEvent>;
     /// get the latest event of every path that doesn't have a deleted event as it's latest event
-    fn get_latest_non_deleted_events(&self) -> Vec<FileEvent>;
+    fn get_latest_events(&self) -> Vec<FileEvent>;
     fn sanity_check(&self);
 }
 
@@ -74,7 +74,7 @@ impl FileHistory for InMemoryFileHistory {
             .flatten()
     }
 
-    fn get_latest_non_deleted_events(&self) -> Vec<FileEvent> {
+    fn get_latest_events(&self) -> Vec<FileEvent> {
         self.store
             .lock()
             .unwrap()
