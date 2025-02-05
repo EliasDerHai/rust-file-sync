@@ -8,7 +8,6 @@ use axum::routing::post;
 use axum::{routing::get, Router};
 
 mod client_file_event;
-mod file_event;
 mod file_history;
 mod handler;
 mod init_directories;

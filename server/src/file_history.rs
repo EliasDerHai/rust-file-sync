@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use tokio::time::Instant;
 
-use crate::file_event::{FileEvent, FileEventType};
+use shared::file_event::{FileEvent, FileEventType};
 use shared::matchable_path::MatchablePath;
 
 pub trait FileHistory: Send + Sync {
@@ -118,8 +118,8 @@ impl FileHistory for InMemoryFileHistory {
 mod tests {
     use uuid::Uuid;
 
-    use crate::file_event::FileEvent;
-    use crate::file_event::FileEventType::CreateEvent;
+    use shared::file_event::FileEvent;
+    use shared::file_event::FileEventType::ChangeEvent;
 
     use super::*;
 
@@ -132,14 +132,14 @@ mod tests {
             100,
             MatchablePath::from(vec!["dir", "file.txt"]),
             1024,
-            CreateEvent,
+            ChangeEvent,
         );
         let e2 = FileEvent::new(
             Uuid::new_v4(),
             200,
             MatchablePath::from(vec!["dir", "file.txt"]),
             1024,
-            CreateEvent,
+            ChangeEvent,
         );
 
         history.add(e1);
@@ -159,7 +159,7 @@ mod tests {
                     i,
                     MatchablePath::from(vec!["foo", "bar", "file.txt"]),
                     1024 * 1024 * 1024,
-                    CreateEvent,
+                    ChangeEvent,
                 )
             })
             .collect();

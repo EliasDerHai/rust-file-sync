@@ -1,7 +1,7 @@
 use axum::body::Bytes;
-
-use crate::file_event::FileEventType;
-use crate::file_event::FileEventType::DeleteEvent;
+use uuid::Uuid;
+use shared::file_event::{FileEvent, FileEventType};
+use shared::file_event::FileEventType::DeleteEvent;
 use shared::matchable_path::MatchablePath;
 
 /// What the client sends upon detecting a change in his file-system
@@ -19,6 +19,19 @@ pub struct ClientFileEventDto {
     pub(crate) relative_path: Option<Vec<String>>,
     pub(crate) file_event_type: Option<FileEventType>,
     pub(crate) file_bytes: Option<Bytes>,
+}
+
+impl From<ClientFileEvent> for FileEvent {
+    fn from(value: ClientFileEvent) -> Self {
+        FileEvent::new(
+            Uuid::new_v4(),
+            value.utc_millis,
+            value.relative_path,
+            // deleted files will have size=0 which is fine
+            value.file_bytes.map(|b| b.len() as u64).unwrap_or(0),
+            value.event_type,
+        )
+    }
 }
 
 impl TryFrom<ClientFileEventDto> for ClientFileEvent {

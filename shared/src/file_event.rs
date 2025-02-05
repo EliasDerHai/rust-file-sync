@@ -1,24 +1,24 @@
 use std::fmt::Debug;
 
+use crate::matchable_path::MatchablePath;
 use uuid::Uuid;
-use shared::matchable_path::MatchablePath;
-use crate::client_file_event::ClientFileEvent;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum FileEventType {
-    CreateEvent,
-    UpdateEvent,
+    ChangeEvent,
     DeleteEvent,
     // I don't think we need a 'rename' or 'move' event as both can be represented as a combination of
     // delete and create.
 }
 
+const CHANGE_STR: &'static str = "change";
+const DELETE_STR: &'static str = "delete";
+
 impl FileEventType {
-    fn serialize_to_string(&self) -> String {
+    pub fn serialize_to_string(&self) -> String {
         match self {
-            FileEventType::CreateEvent => String::from("create"),
-            FileEventType::UpdateEvent => String::from("update"),
-            FileEventType::DeleteEvent => String::from("delete"),
+            FileEventType::ChangeEvent => String::from(CHANGE_STR),
+            FileEventType::DeleteEvent => String::from(DELETE_STR),
         }
     }
 }
@@ -28,9 +28,8 @@ impl TryFrom<&str> for FileEventType {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
-            "create" => Ok(FileEventType::CreateEvent),
-            "update" => Ok(FileEventType::UpdateEvent),
-            "delete" => Ok(FileEventType::DeleteEvent),
+            CHANGE_STR => Ok(FileEventType::ChangeEvent),
+            DELETE_STR => Ok(FileEventType::DeleteEvent),
             _ => Err(format!("Could not parse '{}'", value)),
         }
     }
@@ -79,24 +78,11 @@ impl FileEvent {
     }
 }
 
-impl From<ClientFileEvent> for FileEvent {
-    fn from(value: ClientFileEvent) -> Self {
-        FileEvent::new(
-            Uuid::new_v4(),
-            value.utc_millis,
-            value.relative_path,
-            // deleted files will have size=0 which is fine
-            value.file_bytes.map(|b| b.len() as u64).unwrap_or(0),
-            value.event_type,
-        )
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use chrono::Utc;
 
-    use super::FileEventType::{CreateEvent, DeleteEvent, UpdateEvent};
+    use super::FileEventType::{ChangeEvent, DeleteEvent};
     use super::*;
 
     #[test]
@@ -108,7 +94,7 @@ mod tests {
             millis,
             MatchablePath::from(vec!["foo", "bar", "file.txt"]),
             1024 * 1024 * 1024,
-            CreateEvent,
+            ChangeEvent,
         );
 
         let expected = format!("{uuid};{millis};./foo/bar/file.txt;1073741824;create");
@@ -117,8 +103,7 @@ mod tests {
 
     #[test]
     fn should_parse_string_to_event_type() {
-        assert_eq!(Ok(CreateEvent), FileEventType::try_from("create"));
-        assert_eq!(Ok(UpdateEvent), FileEventType::try_from("update"));
+        assert_eq!(Ok(ChangeEvent), FileEventType::try_from("change"));
         assert_eq!(Ok(DeleteEvent), FileEventType::try_from("delete"));
         assert!(FileEventType::try_from("foobar").is_err());
     }

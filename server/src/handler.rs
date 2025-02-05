@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 use crate::client_file_event::{ClientFileEvent, ClientFileEventDto};
-use crate::file_event::{FileEvent, FileEventType};
+use shared::file_event::{FileEvent, FileEventType};
 use crate::file_history::FileHistory;
 use crate::write::append_line;
 use crate::{write, AppState};
@@ -12,7 +12,7 @@ use axum::extract::{Multipart, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
-use chrono::{DateTime, NaiveDateTime};
+use chrono::DateTime;
 use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
 use shared::matchable_path::MatchablePath;
 use shared::sync_instruction::SyncInstruction;
@@ -34,7 +34,7 @@ pub async fn scan_disk(path: &Path) -> Result<Json<Vec<FileDescription>>, Status
 /// {
 ///   utc_millis: 42,
 ///   relative_path: "./directory/file.txt",
-///   event_type: "create",
+///   event_type: "change",
 ///   file: @File
 /// }
 pub async fn upload_handler(
@@ -112,7 +112,7 @@ pub async fn upload_handler(
                 println!("@@@ sub-path {:?}", sub_path);
                 let path = upload_root_path.components().chain(sub_path).collect();
                 let io_result = match event.event_type {
-                    FileEventType::CreateEvent | FileEventType::UpdateEvent => {
+                    FileEventType::ChangeEvent => {
                         // safe to unwrap because we know it was set for Create & UpdateEvent
                         let bytes = event.file_bytes.as_ref().unwrap();
                         write::create_all_dir_and_write(&path, bytes)
@@ -124,11 +124,8 @@ pub async fn upload_handler(
                 match io_result {
                     Ok(_) => {
                         let message = match event.event_type {
-                            FileEventType::CreateEvent => {
-                                format!("Created {} successfully", path_str)
-                            }
-                            FileEventType::UpdateEvent => {
-                                format!("Replaced {} successfully", path_str)
+                            FileEventType::ChangeEvent => {
+                                format!("Updated {} successfully", path_str)
                             }
                             FileEventType::DeleteEvent => {
                                 format!("Deleted {} successfully", path_str)
@@ -147,11 +144,8 @@ pub async fn upload_handler(
                     }
                     Err(e) => {
                         let message = match event.event_type {
-                            FileEventType::CreateEvent => {
-                                format!("Creating {} failed - {}", path_str, e)
-                            }
-                            FileEventType::UpdateEvent => {
-                                format!("Replacing {} failed - {}", path_str, e)
+                            FileEventType::ChangeEvent => {
+                                format!("Updating {} failed - {}", path_str, e)
                             }
                             FileEventType::DeleteEvent => {
                                 format!("Deleting {} failed - {}", path_str, e)

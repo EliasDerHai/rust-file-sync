@@ -1,6 +1,7 @@
 use crate::config::read_config;
 use reqwest::multipart::Form;
 use reqwest::Client;
+use shared::file_event::FileEventType;
 use shared::get_files_of_directory::{
     get_all_file_descriptions, get_file_description, FileDescription,
 };
@@ -32,7 +33,11 @@ async fn main() {
         println!("Files scanned: {:?}", scanned);
         match send_to_server_and_receive_instructions(&client, &scanned).await {
             Ok(instructions) => {
-                println!("{} Instructions received {:?}", instructions.len(), instructions);
+                println!(
+                    "{} Instructions received {:?}",
+                    instructions.len(),
+                    instructions
+                );
                 for instruction in instructions {
                     execute(&client, instruction, dir_to_monitor.as_path())
                         .await
@@ -78,12 +83,15 @@ async fn execute(client: &Client, instruction: SyncInstruction, root: &Path) -> 
             let description = get_file_description(file_path.as_path(), root)?;
             let relative_path_to_send = description.relative_path.get().join("/");
             let form: Form = Form::new()
-                .text("utc_millis", description.last_updated_utc_millis.to_string())
                 .text(
-                    "relative_path",
-                    relative_path_to_send,
+                    "utc_millis",
+                    description.last_updated_utc_millis.to_string(),
                 )
-                .text("event_type", "create".to_string()) // todo fix later
+                .text("relative_path", relative_path_to_send)
+                .text(
+                    "event_type",
+                    FileEventType::ChangeEvent.serialize_to_string(),
+                )
                 .file("file", file_path)
                 .await
                 .map_err(|e| e.to_string())?;
