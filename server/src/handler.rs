@@ -12,6 +12,7 @@ use axum::extract::{Multipart, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
+use chrono::{DateTime, NaiveDateTime};
 use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
 use shared::matchable_path::MatchablePath;
 use shared::sync_instruction::SyncInstruction;
@@ -57,7 +58,8 @@ pub async fn upload_handler(
                     .await
                     .map(|t| t.parse::<u64>().ok())
                     .ok()
-                    .flatten()
+                    .flatten();
+                println!("UTC: {}ms", utc_millis.unwrap_or(0));
             }
             Some("relative_path") => {
                 relative_path = field
@@ -96,7 +98,7 @@ pub async fn upload_handler(
 
             if event.utc_millis < utc_millis_of_latest_history_event {
                 eprintln!(
-                    "Dropping event for {:?} - event ({}) older than latest history state event ({})",
+                    "Dropping event for {:?} - event ({:?}) older than latest history state event ({:?})",
                     &event.relative_path, utc_millis_of_latest_history_event, event.utc_millis
                 );
                 Err((StatusCode::BAD_REQUEST, "not latest".to_string()))
@@ -117,13 +119,7 @@ pub async fn upload_handler(
                     }
                     FileEventType::DeleteEvent => fs::remove_file(&path),
                 };
-                // write to history.csv
-                append_line(
-                    history_file_path,
-                    &FileEvent::from(event.clone()).serialize_to_csv_line(),
-                );
 
-                // logging success/ error and return values
                 let path_str = path.to_string_lossy();
                 match io_result {
                     Ok(_) => {
@@ -138,8 +134,15 @@ pub async fn upload_handler(
                                 format!("Deleted {} successfully", path_str)
                             }
                         };
-                        println!("{message}");
+                        // write to history.csv
+                        append_line(
+                            history_file_path,
+                            &FileEvent::from(event.clone()).serialize_to_csv_line(),
+                        );
+                        // add to in-mem state
                         state.history.clone().add(FileEvent::from(event));
+                        // log & return
+                        println!("{message}");
                         Ok(message)
                     }
                     Err(e) => {
@@ -161,6 +164,12 @@ pub async fn upload_handler(
             }
         }
     }
+}
+
+fn get_utc_millis_as_date_string(utc_millis: u64) -> String {
+    DateTime::from_timestamp_millis(utc_millis as i64)
+        .map(|t| t.format("%d.%m.%Y %H:%M:%S").to_string())
+        .unwrap_or("invalid datetime".to_string())
 }
 
 /// compares incoming payload with FileHistory to determine and return a list of instructions
@@ -190,6 +199,14 @@ pub async fn sync_handler(
             // client doesn't have the file at all
             None => instructions.push(SyncInstruction::Download(event.relative_path)),
             Some(client_equivalent) => {
+                println!(
+                    "Server has {} ({}) - client has {} ({})",
+                    get_utc_millis_as_date_string(event.utc_millis),
+                    event.utc_millis,
+                    get_utc_millis_as_date_string(client_equivalent.last_updated_utc_millis),
+                    client_equivalent.last_updated_utc_millis
+                );
+
                 if client_equivalent.size_in_bytes == event.size_in_bytes {
                     // same size - just ignore even if timestamps differ (might have been write-operation without change)
                     continue;

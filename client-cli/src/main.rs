@@ -44,19 +44,6 @@ async fn main() {
     }
 }
 
-async fn send_to_server_and_receive_instructions(
-    client: &Client,
-    scanned: &Vec<FileDescription>,
-) -> Result<Vec<SyncInstruction>, reqwest::Error> {
-    client
-        .post("http://localhost:3000/sync")
-        .json(scanned)
-        .send()
-        .await?
-        .json::<Vec<SyncInstruction>>()
-        .await
-}
-
 async fn watch_directory(dir: PathBuf, tx: Sender<Vec<FileDescription>>) {
     loop {
         match get_all_file_descriptions(dir.as_path()) {
@@ -71,6 +58,19 @@ async fn watch_directory(dir: PathBuf, tx: Sender<Vec<FileDescription>>) {
     }
 }
 
+async fn send_to_server_and_receive_instructions(
+    client: &Client,
+    scanned: &Vec<FileDescription>,
+) -> Result<Vec<SyncInstruction>, reqwest::Error> {
+    client
+        .post("http://localhost:3000/sync")
+        .json(scanned)
+        .send()
+        .await?
+        .json::<Vec<SyncInstruction>>()
+        .await
+}
+
 async fn execute(client: &Client, instruction: SyncInstruction, root: &Path) -> Result<(), String> {
     match instruction {
         SyncInstruction::Upload(p) => {
@@ -78,7 +78,7 @@ async fn execute(client: &Client, instruction: SyncInstruction, root: &Path) -> 
             let description = get_file_description(file_path.as_path(), root)?;
             let relative_path_to_send = description.relative_path.get().join("/");
             let form: Form = Form::new()
-                .text("utc_millis", description.size_in_bytes.to_string())
+                .text("utc_millis", description.last_updated_utc_millis.to_string())
                 .text(
                     "relative_path",
                     relative_path_to_send,

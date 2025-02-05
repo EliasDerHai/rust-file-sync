@@ -64,13 +64,23 @@ impl FileHistory for InMemoryFileHistory {
         }
     }
 
+    fn get_events(&self, path: &MatchablePath) -> Option<Vec<FileEvent>> {
+        self.store.lock().unwrap().get(path).cloned()
+    }
+
+    fn get_latest_event(&self, path: &MatchablePath) -> Option<FileEvent> {
+        self.get_events(path)
+            .map(|vec| vec.get(vec.len() - 1).cloned())
+            .flatten()
+    }
+
     fn get_latest_non_deleted_events(&self) -> Vec<FileEvent> {
         self.store
             .lock()
             .unwrap()
             .iter()
             .filter_map(|(_, events)| {
-                events.get(0).map_or(None, |e| {
+                events.get(events.len() - 1).map_or(None, |e| {
                     if e.event_type != FileEventType::DeleteEvent {
                         Some(e.clone())
                     } else {
@@ -79,16 +89,6 @@ impl FileHistory for InMemoryFileHistory {
                 })
             })
             .collect()
-    }
-
-    fn get_events(&self, path: &MatchablePath) -> Option<Vec<FileEvent>> {
-        self.store.lock().unwrap().get(path).cloned()
-    }
-
-    fn get_latest_event(&self, path: &MatchablePath) -> Option<FileEvent> {
-        self.get_events(path)
-            .map(|vec| vec.get(0).cloned())
-            .flatten()
     }
 
     /// might panic if there is a programmatic error (sorting / grouping)
@@ -122,6 +122,33 @@ mod tests {
     use crate::file_event::FileEventType::CreateEvent;
 
     use super::*;
+
+    #[test]
+    fn should_get_latest() {
+        let history = InMemoryFileHistory::from(Vec::new());
+
+        let e1 = FileEvent::new(
+            Uuid::new_v4(),
+            100,
+            MatchablePath::from(vec!["dir", "file.txt"]),
+            1024,
+            CreateEvent,
+        );
+        let e2 = FileEvent::new(
+            Uuid::new_v4(),
+            200,
+            MatchablePath::from(vec!["dir", "file.txt"]),
+            1024,
+            CreateEvent,
+        );
+
+        history.add(e1);
+        history.add(e2.clone());
+
+        let latest = history.get_latest_event(&MatchablePath::from(vec!["dir", "file.txt"]));
+        assert_eq!(Some(e2), latest);
+        assert_eq!(2, history.get_events(&MatchablePath::from(vec!["dir", "file.txt"])).unwrap().len());
+    }
 
     #[test]
     fn should_build_history() {
