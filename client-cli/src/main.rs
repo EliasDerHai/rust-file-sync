@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use task::spawn;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
-use tokio::task;
+use tokio::{fs, task};
 
 mod config;
 
@@ -71,9 +71,11 @@ async fn main() {
                     instructions
                 );
                 for instruction in instructions {
-                    if let SyncInstruction::Download(ref path) = &instruction
-                    {
-                        if last_deleted_files.iter().any(|deleted| deleted.relative_path == *path) {
+                    if let SyncInstruction::Download(ref path) = &instruction {
+                        if last_deleted_files
+                            .iter()
+                            .any(|deleted| deleted.relative_path == *path)
+                        {
                             // no need to follow the download instruction,
                             // because we now that this file was just deleted (breaking the loop)
                             continue;
@@ -151,7 +153,32 @@ async fn execute(client: &Client, instruction: SyncInstruction, root: &Path) -> 
             Ok(())
         }
         SyncInstruction::Download(p) => {
-            todo!()
+            let file_path = p.resolve(root);
+
+            match client
+                .get("http://localhost:3000/download")
+                .body(p.to_serialized_string())
+                .send()
+                .await
+            {
+                Ok(response) => {
+                    println!("{:?}", response);
+                    let file_content = response.bytes().await.map_err(|e| e.to_string())?;
+                    match fs::write(file_path.as_path(), file_content).await {
+                        Ok(()) => println!(
+                            "Downloaded {} successfully",
+                            file_path
+                                .file_name()
+                                .map(|osstr| osstr.to_string_lossy().to_string())
+                                .unwrap_or("?".to_string())
+                        ),
+                        Err(e) => eprint!("Could not download file from server: {}", e),
+                    }
+                }
+                Err(e) => eprint!("Could not download file from server: {}", e),
+            }
+
+            Ok(()) // todo proper returns
         }
         SyncInstruction::Delete(p) => {
             let p = &p.resolve(root);
@@ -159,7 +186,7 @@ async fn execute(client: &Client, instruction: SyncInstruction, root: &Path) -> 
                 Err(err) => {
                     eprintln!("Could not follow delete instruction - {}", err);
                     Err(err.to_string())
-                },
+                }
                 Ok(()) => {
                     println!("Deleted {} successfully", &p.to_string_lossy());
                     Ok(())

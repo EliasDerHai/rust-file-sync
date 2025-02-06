@@ -201,7 +201,7 @@ pub async fn sync_handler(
                     client_equivalent.last_updated_utc_millis
                 );
 
-                if client_equivalent.size_in_bytes == event.size_in_bytes {
+                if client_equivalent.size_in_bytes == event.size_in_bytes && event.event_type.is_change() {
                     // same size - just ignore even if timestamps differ (might have been write-operation without change)
                     continue;
                 } else if client_equivalent.last_updated_utc_millis < event.utc_millis {

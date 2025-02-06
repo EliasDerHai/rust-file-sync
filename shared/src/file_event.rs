@@ -21,6 +21,17 @@ impl FileEventType {
             FileEventType::DeleteEvent => String::from(DELETE_STR),
         }
     }
+
+    pub fn is_delete(&self) -> bool {
+        match self {
+            FileEventType::ChangeEvent => false,
+            FileEventType::DeleteEvent => true
+        }
+    }
+
+    pub fn is_change(&self) -> bool {
+        !self.is_delete()
+    }
 }
 
 impl TryFrom<&str> for FileEventType {
