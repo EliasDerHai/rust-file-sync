@@ -1,19 +1,16 @@
 use crate::config::read_config;
 use futures_util::future::join_all;
-use reqwest::multipart::Form;
 use reqwest::Client;
-use shared::file_event::FileEventType;
-use shared::get_files_of_directory::{
-    get_all_file_descriptions, get_file_description, FileDescription,
-};
+use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
 use shared::sync_instruction::SyncInstruction;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use task::spawn;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
-use tokio::{fs, task};
+use tokio::task;
 
 mod config;
+mod execute;
 
 #[tokio::main]
 async fn main() {
@@ -81,9 +78,12 @@ async fn main() {
                             continue;
                         }
                     }
-                    execute(&client, instruction, dir_to_monitor.as_path())
-                        .await
-                        .unwrap();
+                    
+                    match execute::execute(&client, instruction, dir_to_monitor.as_path()).await {
+                        Ok(msg) => println!("{msg}"),
+                        // logging is fine - if something went wrong, we just try again at next poll cycle
+                        Err(e) => eprintln!("{e}"),
+                    }
                 }
             }
         }
@@ -117,83 +117,6 @@ async fn send_to_server_and_receive_instructions(
         .await?
         .json::<Vec<SyncInstruction>>()
         .await
-}
-
-async fn execute(client: &Client, instruction: SyncInstruction, root: &Path) -> Result<(), String> {
-    match instruction {
-        SyncInstruction::Upload(p) => {
-            let file_path = p.resolve(root);
-            let description = get_file_description(file_path.as_path(), root)?;
-            let relative_path_to_send = description.relative_path.get().join("/");
-            let form: Form = Form::new()
-                .text(
-                    "utc_millis",
-                    description.last_updated_utc_millis.to_string(),
-                )
-                .text("relative_path", relative_path_to_send)
-                .text(
-                    "event_type",
-                    FileEventType::ChangeEvent.serialize_to_string(),
-                )
-                .file("file", file_path)
-                .await
-                .map_err(|e| e.to_string())?;
-
-            let x = client
-                .post("http://localhost:3000/upload")
-                .multipart(form)
-                .send()
-                .await
-                .map_err(|e| e.to_string())?;
-
-            println!(
-                "Server responded with: {}",
-                x.text().await.unwrap_or("No bueno...".to_string())
-            );
-            Ok(())
-        }
-        SyncInstruction::Download(p) => {
-            let file_path = p.resolve(root);
-
-            match client
-                .get("http://localhost:3000/download")
-                .body(p.to_serialized_string())
-                .send()
-                .await
-            {
-                Ok(response) => {
-                    println!("{:?}", response);
-                    let file_content = response.bytes().await.map_err(|e| e.to_string())?;
-                    match fs::write(file_path.as_path(), file_content).await {
-                        Ok(()) => println!(
-                            "Downloaded {} successfully",
-                            file_path
-                                .file_name()
-                                .map(|osstr| osstr.to_string_lossy().to_string())
-                                .unwrap_or("?".to_string())
-                        ),
-                        Err(e) => eprint!("Could not download file from server: {}", e),
-                    }
-                }
-                Err(e) => eprint!("Could not download file from server: {}", e),
-            }
-
-            Ok(()) // todo proper returns
-        }
-        SyncInstruction::Delete(p) => {
-            let p = &p.resolve(root);
-            match tokio::fs::remove_file(&p).await {
-                Err(err) => {
-                    eprintln!("Could not follow delete instruction - {}", err);
-                    Err(err.to_string())
-                }
-                Ok(()) => {
-                    println!("Deleted {} successfully", &p.to_string_lossy());
-                    Ok(())
-                }
-            }
-        }
-    }
 }
 
 /// on os level files are just there or not so we got to keep track of the last state
