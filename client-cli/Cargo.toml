@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 tokio = { workspace = true }
 serde = { workspace = true }
+serde_yaml = "0.9"
 shared = { path = "../shared" }
 futures = { workspace = true, features = ["std"] }
 futures-util = "0.3.31"

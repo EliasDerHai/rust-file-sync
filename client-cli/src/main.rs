@@ -1,4 +1,5 @@
 use crate::config::read_config;
+use crate::endpoints::ServerEndpoint;
 use futures_util::future::join_all;
 use reqwest::Client;
 use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
@@ -12,22 +13,53 @@ use tokio::task;
 mod config;
 mod execute;
 
+pub mod endpoints {
+    pub enum ServerEndpoint {
+        Ping,
+        Scan, // not needed
+        Sync,
+        Upload,
+        Download,
+        Delete,
+    }
+
+    impl ServerEndpoint {
+        pub fn to_uri(&self, base: &str) -> String {
+            match self {
+                ServerEndpoint::Ping => format!("http://{}/ping", base),
+                ServerEndpoint::Scan => format!("http://{}/scan", base),
+                ServerEndpoint::Sync => format!("http://{}/sync", base),
+                ServerEndpoint::Upload => format!("http://{}/upload", base),
+                ServerEndpoint::Download => format!("http://{}/download", base),
+                ServerEndpoint::Delete => format!("http://{}/delete", base),
+            }
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let (tx, mut rx) = mpsc::channel::<Vec<FileDescription>>(100);
-    let dir_to_monitor = match read_config() {
+    let config = match read_config() {
         Err(error) => {
             panic!("Critical error: {:?}", error);
         }
         Ok(path) => path,
     };
 
-    println!("Start monitoring changes in '{:?}'", dir_to_monitor);
-    spawn(watch_directory(dir_to_monitor.clone(), tx));
+    println!("Start monitoring changes in '{:?}'", config.path_to_monitor);
 
     let mut last_scan: Option<Vec<FileDescription>> = None; // maybe persist this ? needed if files are deleted between sessions
     let mut last_deleted_files: Vec<FileDescription> = Vec::new();
     let client = Client::new();
+    let hello_endpoint = ServerEndpoint::Ping.to_uri(&config.server_ip);
+    println!("Testing server at '{}'", &hello_endpoint);
+    match client.get(&hello_endpoint).send().await {
+        Err(error) => panic!("{} not reachable - {}", &hello_endpoint, error),
+        Ok(_) => println!("Server confirmed at {}!", &hello_endpoint),
+    }
+
+    spawn(watch_directory(config.path_to_monitor.clone(), tx));
 
     while let Some(scanned) = rx.recv().await {
         if let Some(last) = last_scan.clone() {
@@ -36,7 +68,7 @@ async fn main() {
                 .iter()
                 .map(|deleted| {
                     client
-                        .post("http://localhost:3000/delete")
+                        .post(ServerEndpoint::Delete.to_uri(&config.server_ip))
                         .body(deleted.relative_path.to_serialized_string())
                         .send()
                 })
@@ -55,11 +87,11 @@ async fn main() {
                 );
                 results
                     .iter()
-                    .for_each(|r| println!("Server replied: {:?}", r));
+                    .for_each(|r| println!("Server replied with: {:?}", r));
             }
         }
 
-        match send_to_server_and_receive_instructions(&client, &scanned).await {
+        match send_to_server_and_receive_instructions(&client, &scanned, &config.server_ip).await {
             Err(err) => println!("Error - failed to get instructions from server: {:?}", err),
             Ok(instructions) => {
                 println!(
@@ -78,17 +110,26 @@ async fn main() {
                             continue;
                         }
                     }
-                    
-                    match execute::execute(&client, instruction, dir_to_monitor.as_path()).await {
+
+                    match execute::execute(
+                        &client,
+                        instruction,
+                        config.path_to_monitor.as_path(),
+                        &config.server_ip,
+                    )
+                    .await
+                    {
                         Ok(msg) => println!("{msg}"),
                         // logging is fine - if something went wrong, we just try again at next poll cycle
                         Err(e) => eprintln!("{e}"),
                     }
                 }
+
+                // last_scan state should only be updated when everything runs through otherwise we
+                // risk losing information (delete)
+                last_scan = Some(scanned);
             }
         }
-
-        last_scan = Some(scanned);
     }
 }
 
@@ -109,9 +150,10 @@ async fn watch_directory(dir: PathBuf, tx: Sender<Vec<FileDescription>>) {
 async fn send_to_server_and_receive_instructions(
     client: &Client,
     scanned: &Vec<FileDescription>,
+    base: &str,
 ) -> Result<Vec<SyncInstruction>, reqwest::Error> {
     client
-        .post("http://localhost:3000/sync")
+        .post(ServerEndpoint::Sync.to_uri(base))
         .json(scanned)
         .send()
         .await?

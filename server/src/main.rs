@@ -13,8 +13,6 @@ mod handler;
 mod init_directories;
 mod write;
 
-/// base directory of all runtime data // might actually not be needed
-// static DATA_ROOT_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data"));
 /// base directory for files synced from clients
 static UPLOAD_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/upload"));
 /// directory to hold zipped backup files
@@ -24,7 +22,6 @@ static HISTORY_CSV_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/hi
 
 #[derive(Clone)]
 struct AppState {
-    // history: Arc<dyn FileHistory>, // todo figure out how to use trait objects 😭
     history: Arc<InMemoryFileHistory>,
 }
 
@@ -50,7 +47,7 @@ async fn main() {
     };
 
     let app = Router::new()
-        .route("/", get(|| async { "Hello, World!" }))
+        .route("/ping", get(|| async { "pong" }))
         .route("/scan", get(|| handler::scan_disk(&UPLOAD_PATH)))
         .route(
             "/upload",
@@ -63,8 +60,11 @@ async fn main() {
             "/download",
             get(|payload: String| handler::download(&UPLOAD_PATH, payload)),
         )
-        .route("/delete",
-               post(|state: State<AppState>, payload: String| handler::delete(&UPLOAD_PATH, payload, state)),
+        .route(
+            "/delete",
+            post(|state: State<AppState>, payload: String| {
+                handler::delete(&UPLOAD_PATH, payload, state)
+            }),
         )
         .with_state(state);
 

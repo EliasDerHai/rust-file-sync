@@ -1,22 +1,33 @@
+use serde::Deserialize;
+use serde_yaml;
 use std::fs;
 use std::path::PathBuf;
 
-pub fn read_config() -> Result<PathBuf, String> {
-    let content = fs::read_to_string("config")
-        .map_err(|e| format!("Config file not found - {}", e))?
-        .trim()
-        .to_string();
-    let path_buf = PathBuf::from(content);
+#[derive(Debug, Deserialize)]
+pub struct Config {
+    pub server_ip: String,
+    pub path_to_monitor: PathBuf,
+}
 
-    if !path_buf.exists() {
-        return Err(format!("Configured path ('{:?}') does not exist", path_buf));
-    }
-    if !path_buf.is_dir() {
+pub fn read_config() -> Result<Config, String> {
+    let content = fs::read_to_string("config.yaml")
+        .or(fs::read_to_string("config.yml"))
+        .map_err(|e| format!("Config file not found - {}", e))?;
+
+    let config: Config =
+        serde_yaml::from_str(&content).map_err(|e| format!("Failed to parse YAML: {}", e))?;
+
+    if !config.path_to_monitor.exists() {
         return Err(format!(
-            "Configured path ('{:?}') does not point to directory",
-            path_buf
+            "Configured vault_path ('{:?}') does not exist",
+            config.path_to_monitor
         ));
     }
-
-    Ok(path_buf)
+    if !config.path_to_monitor.is_dir() {
+        return Err(format!(
+            "Configured vault_path ('{:?}') is not a directory",
+            config.path_to_monitor
+        ));
+    }
+    Ok(config)
 }

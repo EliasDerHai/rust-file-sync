@@ -6,12 +6,14 @@ use shared::sync_instruction::SyncInstruction;
 use std::path::Path;
 use tokio::fs;
 use tokio::fs::remove_file;
+use crate::endpoints::ServerEndpoint;
 
 /// executes an instruction of the server (see [`SyncInstruction`])
 pub async fn execute(
     client: &Client,
     instruction: SyncInstruction,
     root: &Path,
+    base: &str
 ) -> Result<String, String> {
     match instruction {
         SyncInstruction::Upload(p) => {
@@ -33,7 +35,7 @@ pub async fn execute(
                 .map_err(|e| e.to_string())?;
 
             client
-                .post("http://localhost:3000/upload")
+                .post(ServerEndpoint::Upload.to_uri(base))
                 .multipart(form)
                 .send()
                 .await
@@ -48,7 +50,7 @@ pub async fn execute(
             let file_path = p.resolve(root);
 
             let response = client
-                .get("http://localhost:3000/download")
+                .get(ServerEndpoint::Download.to_uri(base))
                 .body(p.to_serialized_string())
                 .send()
                 .await
