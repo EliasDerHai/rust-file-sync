@@ -1,6 +1,6 @@
-use std::fmt::Debug;
-
 use crate::matchable_path::MatchablePath;
+use std::fmt::Debug;
+use std::path::Path;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -25,7 +25,7 @@ impl FileEventType {
     pub fn is_delete(&self) -> bool {
         match self {
             FileEventType::ChangeEvent => false,
-            FileEventType::DeleteEvent => true
+            FileEventType::DeleteEvent => true,
         }
     }
 
@@ -64,7 +64,7 @@ impl FileEvent {
         let parts = vec![
             self.id.to_string(),
             self.utc_millis.to_string(),
-            self.relative_path.get().join("\\"),
+            self.relative_path.get().join("/"),
             self.size_in_bytes.to_string(),
             self.event_type.serialize_to_string(),
         ];
@@ -89,6 +89,55 @@ impl FileEvent {
     }
 }
 
+impl TryFrom<&str> for FileEvent {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        if value.lines().count() > 1 {
+            return Err(format!(
+                "Parsing error - expected single CSV line but got {} lines: {:?}",
+                value.lines().count(),
+                value
+            ));
+        }
+
+        let parts: Vec<&str> = value.split(';').collect();
+        if parts.len() != 5 {
+            return Err(format!(
+                "Parsing error - expected 5 parts (id;utc_millis;relative_path;size_in_bytes;event_type) but found {} in {:?}",
+                parts.len(),
+                value
+            ));
+        }
+
+        let id = Uuid::parse_str(parts[0])
+            .map_err(|e| format!("Parsing error - invalid UUID '{}': {}", parts[0], e))?;
+
+        let utc_millis = parts[1]
+            .parse::<u64>()
+            .map_err(|e| format!("Parsing error - invalid utc_millis '{}': {}", parts[1], e))?;
+
+        let relative_path = MatchablePath::from(Path::new(parts[2]));
+
+        let size_in_bytes = parts[3].parse::<u64>().map_err(|e| {
+            format!(
+                "Parsing error - invalid size_in_bytes '{}': {}",
+                parts[3], e
+            )
+        })?;
+
+        let event_type = FileEventType::try_from(parts[4])?;
+
+        Ok(FileEvent {
+            id,
+            utc_millis,
+            relative_path,
+            size_in_bytes,
+            event_type,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::Utc;
@@ -100,7 +149,7 @@ mod tests {
     fn should_serialize_event_to_csv_line() {
         let uuid = Uuid::new_v4();
         let millis = Utc::now().timestamp_millis() as u64;
-        let create = FileEvent::new(
+        let event = FileEvent::new(
             uuid,
             millis,
             MatchablePath::from(vec!["foo", "bar", "file.txt"]),
@@ -108,8 +157,104 @@ mod tests {
             ChangeEvent,
         );
 
-        let expected = format!("{uuid};{millis};./foo/bar/file.txt;1073741824;create");
-        assert_eq!(expected, create.serialize_to_csv_line());
+        let expected = format!("{uuid};{millis};foo/bar/file.txt;1073741824;change");
+        assert_eq!(expected, event.serialize_to_csv_line());
+    }
+    #[test]
+    fn test_serialize_deserialize_round_trip() {
+        let original_event = FileEvent {
+            id: Uuid::new_v4(),
+            utc_millis: 1234567890,
+            relative_path: MatchablePath::from(vec!["folder", "subfolder", "file.txt"]),
+            size_in_bytes: 1024,
+            event_type: ChangeEvent,
+        };
+
+        let csv_line = original_event.serialize_to_csv_line();
+        let parsed_event =
+            FileEvent::try_from(csv_line.as_str()).expect("Failed to parse valid CSV line");
+
+        assert_eq!(original_event, parsed_event, "Round-trip mismatch!");
+    }
+
+    #[test]
+    fn test_parse_err_invalid_uuid() {
+        let invalid_uuid = "not-a-uuid;1234567;some/path;300;change";
+        let result = FileEvent::try_from(invalid_uuid);
+        assert!(result.is_err(), "Parsing invalid UUID should fail");
+        assert!(
+            result.unwrap_err().contains("invalid UUID"),
+            "Error should mention invalid UUID"
+        );
+    }
+
+    #[test]
+    fn test_parse_err_invalid_utc_millis() {
+        let invalid_utc = format!("{};abc;some/path;300;change", Uuid::new_v4());
+        let result = FileEvent::try_from(invalid_utc.as_str());
+        assert!(result.is_err(), "Parsing invalid utc_millis should fail");
+        assert!(
+            result.unwrap_err().contains("invalid utc_millis"),
+            "Error should mention invalid utc_millis"
+        );
+    }
+
+    #[test]
+    fn test_parse_err_invalid_size_in_bytes() {
+        let invalid_size = format!("{};123456;some/path;not-a-number;change", Uuid::new_v4());
+        let result = FileEvent::try_from(invalid_size.as_str());
+        assert!(result.is_err(), "Parsing invalid size_in_bytes should fail");
+        assert!(
+            result.unwrap_err().contains("invalid size_in_bytes"),
+            "Error should mention invalid size_in_bytes"
+        );
+    }
+
+    #[test]
+    fn test_parse_err_invalid_event_type() {
+        let invalid_event_type = format!("{};1234567;some/path;300;foo-bar", Uuid::new_v4());
+        let result = FileEvent::try_from(invalid_event_type.as_str());
+        assert!(result.is_err(), "Parsing invalid event_type should fail");
+        assert!(
+            result.unwrap_err().contains("Could not parse"),
+            "Error should mention that event_type couldn't be parsed"
+        );
+    }
+
+    #[test]
+    fn test_parse_err_multiple_lines() {
+        let multi_line = format!(
+            "{};123456;some/path;300;change\nAnotherLine",
+            Uuid::new_v4()
+        );
+        let result = FileEvent::try_from(multi_line.as_str());
+        assert!(result.is_err(), "Multiple lines should fail");
+        assert!(
+            result.unwrap_err().contains("expected single CSV line"),
+            "Error should mention multiple lines"
+        );
+    }
+
+    #[test]
+    fn test_parse_err_incorrect_parts_too_few() {
+        let too_few = format!("{};123456;some/path;300", Uuid::new_v4()); // only 4 parts
+        let result = FileEvent::try_from(too_few.as_str());
+        assert!(result.is_err(), "Fewer than 5 parts should fail");
+        assert!(
+            result.unwrap_err().contains("expected 5 parts"),
+            "Error should mention 5 parts"
+        );
+    }
+
+    #[test]
+    fn test_parse_err_incorrect_parts_too_many() {
+        let too_many = format!("{};123456;some/path;300;change;extra", Uuid::new_v4()); // 6 parts
+        let result = FileEvent::try_from(too_many.as_str());
+        assert!(result.is_err(), "More than 5 parts should fail");
+        assert!(
+            result.unwrap_err().contains("expected 5 parts"),
+            "Error should mention 5 parts"
+        );
     }
 
     #[test]

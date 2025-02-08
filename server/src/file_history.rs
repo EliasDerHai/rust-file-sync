@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use tokio::time::Instant;
@@ -50,6 +52,32 @@ impl From<Vec<FileEvent>> for InMemoryFileHistory {
             i.elapsed().as_millis()
         );
         history
+    }
+}
+
+impl TryFrom<&Path> for InMemoryFileHistory {
+    type Error = std::io::Error;
+
+    fn try_from(value: &Path) -> Result<Self, Self::Error> {
+        let content = fs::read_to_string(value)?;
+
+        let events: Vec<FileEvent> = content
+            .lines()
+            .filter_map(|line| {
+                let result = FileEvent::try_from(line);
+
+                if result.is_err() {
+                    println!(
+                        "Deserialization error while parsing event history: {:?}",
+                        result
+                    );
+                }
+
+                result.ok()
+            })
+            .collect();
+
+        Ok(InMemoryFileHistory::from(events))
     }
 }
 
@@ -147,7 +175,13 @@ mod tests {
 
         let latest = history.get_latest_event(&MatchablePath::from(vec!["dir", "file.txt"]));
         assert_eq!(Some(e2), latest);
-        assert_eq!(2, history.get_events(&MatchablePath::from(vec!["dir", "file.txt"])).unwrap().len());
+        assert_eq!(
+            2,
+            history
+                .get_events(&MatchablePath::from(vec!["dir", "file.txt"]))
+                .unwrap()
+                .len()
+        );
     }
 
     #[test]

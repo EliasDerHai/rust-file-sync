@@ -29,21 +29,25 @@ struct AppState {
 async fn main() {
     tokio::spawn(async {
         if !UPLOAD_PATH.exists() {
-            std::fs::create_dir_all(&UPLOAD_PATH.iter().as_path())?;
+            std::fs::create_dir_all(UPLOAD_PATH.iter().as_path())?;
         }
         if !BACKUP_PATH.exists() {
-            std::fs::create_dir_all(&BACKUP_PATH.iter().as_path())?;
+            std::fs::create_dir_all(BACKUP_PATH.iter().as_path())?;
         }
         if !HISTORY_CSV_PATH.is_file() {
-            std::fs::write(&HISTORY_CSV_PATH.iter().as_path(), b"")?;
+            std::fs::write(HISTORY_CSV_PATH.iter().as_path(), b"")?;
         }
         Ok::<(), std::io::Error>(())
     });
     tokio::spawn(schedule_data_backups(&UPLOAD_PATH, &BACKUP_PATH));
 
-    // todo - init from persistence aka file
+    let history =
+        InMemoryFileHistory::try_from(HISTORY_CSV_PATH.iter().as_path()).unwrap_or_else(|err| {
+            eprintln!("Failed to load history: {}", err);
+            InMemoryFileHistory::from(Vec::new())
+        });
     let state = AppState {
-        history: Arc::new(InMemoryFileHistory::from(vec![])),
+        history: Arc::new(history),
     };
 
     let app = Router::new()
@@ -68,9 +72,7 @@ async fn main() {
         )
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
 
     axum::serve(listener, app).await.unwrap();
 }
