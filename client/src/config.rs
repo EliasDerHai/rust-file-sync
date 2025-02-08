@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
-    pub server_ip: String,
+    pub server_url: String,
     pub path_to_monitor: PathBuf,
 }
 

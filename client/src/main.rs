@@ -52,7 +52,7 @@ async fn main() {
     let mut last_scan: Option<Vec<FileDescription>> = None; // maybe persist this ? needed if files are deleted between sessions
     let mut last_deleted_files: Vec<FileDescription> = Vec::new();
     let client = Client::new();
-    let hello_endpoint = ServerEndpoint::Ping.to_uri(&config.server_ip);
+    let hello_endpoint = ServerEndpoint::Ping.to_uri(&config.server_url);
     println!("Testing server at '{}'", &hello_endpoint);
     match client.get(&hello_endpoint).send().await {
         Err(error) => panic!("{} not reachable - {}", &hello_endpoint, error),
@@ -68,7 +68,7 @@ async fn main() {
                 .iter()
                 .map(|deleted| {
                     client
-                        .post(ServerEndpoint::Delete.to_uri(&config.server_ip))
+                        .post(ServerEndpoint::Delete.to_uri(&config.server_url))
                         .body(deleted.relative_path.to_serialized_string())
                         .send()
                 })
@@ -91,7 +91,7 @@ async fn main() {
             }
         }
 
-        match send_to_server_and_receive_instructions(&client, &scanned, &config.server_ip).await {
+        match send_to_server_and_receive_instructions(&client, &scanned, &config.server_url).await {
             Err(err) => println!("Error - failed to get instructions from server: {:?}", err),
             Ok(instructions) => {
                 println!(
@@ -115,7 +115,7 @@ async fn main() {
                         &client,
                         instruction,
                         config.path_to_monitor.as_path(),
-                        &config.server_ip,
+                        &config.server_url,
                     )
                     .await
                     {

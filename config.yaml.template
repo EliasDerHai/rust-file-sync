@@ -1,2 +1,2 @@
-server_ip: "localhost:3000"
+server_url: "localhost:3000"
 path_to_monitor: "./data/source"

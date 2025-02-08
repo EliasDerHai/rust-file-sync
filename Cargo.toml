@@ -1,7 +1,7 @@
 [workspace]
 
 members = [
-    "client-cli",
+    "client",
     "server",
     "shared",
 ]

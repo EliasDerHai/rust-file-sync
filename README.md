@@ -1,3 +1,7 @@
+## Release
+
+`cargo build --release --target=aarch64-unknown-linux-gnueabihf`
+
 ## Idea
 
 file sync for obsidian or exchange for files?
