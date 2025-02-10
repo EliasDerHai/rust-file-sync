@@ -6,6 +6,8 @@ use crate::write::schedule_data_backups;
 use axum::extract::{Multipart, State};
 use axum::routing::post;
 use axum::{routing::get, Router};
+use tracing::log::warn;
+use tracing::{error, info};
 
 mod client_file_event;
 mod file_history;
@@ -27,6 +29,8 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt().init();
+
     tokio::spawn(async {
         if !UPLOAD_PATH.exists() {
             std::fs::create_dir_all(UPLOAD_PATH.iter().as_path())?;
@@ -43,7 +47,7 @@ async fn main() {
 
     let history =
         InMemoryFileHistory::try_from(HISTORY_CSV_PATH.iter().as_path()).unwrap_or_else(|err| {
-            eprintln!("Failed to load history: {}", err);
+            error!("Failed to load history: {}", err);
             InMemoryFileHistory::from(Vec::new())
         });
     let state = AppState {

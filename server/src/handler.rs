@@ -16,6 +16,7 @@ use std::ffi::OsStr;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use tokio_util::io::ReaderStream;
+use tracing::{error, info};
 use uuid::Uuid;
 
 /// expecting no payload
@@ -24,7 +25,7 @@ pub async fn scan_disk(path: &Path) -> Result<Json<Vec<FileDescription>>, Status
     match get_all_file_descriptions(path) {
         Ok(descriptions) => Ok(Json(descriptions)),
         Err(err) => {
-            eprintln!("IO Failure - {}", err);
+            error!("IO Failure - {}", err);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -51,7 +52,7 @@ pub async fn upload_handler(
 
     while let Some(field) = multipart.next_field().await.unwrap() {
         match field.name() {
-            None => eprintln!("No field name in upload handler!"),
+            None => error!("No field name in upload handler!"),
             Some("utc_millis") => {
                 utc_millis = field
                     .text()
@@ -59,7 +60,7 @@ pub async fn upload_handler(
                     .map(|t| t.parse::<u64>().ok())
                     .ok()
                     .flatten();
-                println!("UTC: {}ms", utc_millis.unwrap_or(0));
+                info!("UTC: {}ms", utc_millis.unwrap_or(0));
             }
             Some("relative_path") => {
                 relative_path = field
@@ -77,7 +78,7 @@ pub async fn upload_handler(
                     .flatten()
             }
             Some("file") => file_bytes = field.bytes().await.ok(),
-            Some(other) => eprintln!("Unknown field name '{other}' in upload handler"),
+            Some(other) => error!("Unknown field name '{other}' in upload handler"),
         }
     }
 
@@ -97,7 +98,7 @@ pub async fn upload_handler(
                 .unwrap_or(0);
 
             if event.utc_millis < utc_millis_of_latest_history_event {
-                eprintln!(
+                error!(
                     "Dropping event for {:?} - event ({:?}) older than latest history state event ({:?})",
                     &event.relative_path, utc_millis_of_latest_history_event, event.utc_millis
                 );
@@ -109,7 +110,7 @@ pub async fn upload_handler(
                     .get()
                     .iter()
                     .map(|part| Component::Normal(part.as_ref()));
-                println!("@@@ sub-path {:?}", sub_path);
+                info!("@@@ sub-path {:?}", sub_path);
                 let path = upload_root_path.components().chain(sub_path).collect();
                 let io_result = match event.event_type {
                     FileEventType::ChangeEvent => {
@@ -139,7 +140,7 @@ pub async fn upload_handler(
                         // add to in-mem state
                         state.history.clone().add(FileEvent::from(event));
                         // log & return
-                        println!("{message}");
+                        info!("{message}");
                         Ok(message)
                     }
                     Err(e) => {
@@ -151,7 +152,7 @@ pub async fn upload_handler(
                                 format!("Deleting {} failed - {}", path_str, e)
                             }
                         };
-                        eprintln!("{message}");
+                        error!("{message}");
                         Err((StatusCode::INTERNAL_SERVER_ERROR, message))
                     }
                 }
@@ -182,7 +183,7 @@ pub async fn sync_handler(
     State(state): State<AppState>,
     Json(client_sync_state): Json<Vec<FileDescription>>,
 ) -> Result<Json<Vec<SyncInstruction>>, (StatusCode, String)> {
-    println!("Client state received {:#?}", client_sync_state);
+    info!("Client state received {:#?}", client_sync_state);
     let mut instructions = Vec::new();
     let target = state.history.clone().get_latest_events();
 
@@ -193,7 +194,7 @@ pub async fn sync_handler(
             // client doesn't have the file at all
             None => instructions.push(SyncInstruction::Download(event.relative_path)),
             Some(client_equivalent) => {
-                println!(
+                info!(
                     "Server has {} ({}) - client has {} ({})",
                     get_utc_millis_as_date_string(event.utc_millis),
                     event.utc_millis,
@@ -229,7 +230,7 @@ pub async fn sync_handler(
         }
     }
 
-    println!("Instructions {:#?}", instructions);
+    info!("Instructions {:#?}", instructions);
     Ok(Json(instructions))
 }
 
@@ -269,12 +270,12 @@ pub async fn delete(
     payload: String,
     state: State<AppState>,
 ) -> Result<(), (StatusCode, String)> {
-    println!("Delete endpoint - payload: {}", payload);
+    info!("Delete endpoint - payload: {}", payload);
     let matchable_path = MatchablePath::from(payload.as_str());
     let p = &matchable_path.resolve(upload_path);
     match tokio::fs::remove_file(&p).await {
         Ok(()) => {
-            println!("Deleted {} successfully", &p.to_string_lossy());
+            info!("Deleted {} successfully", &p.to_string_lossy());
             let millis = chrono::Utc::now().timestamp_millis() as u64;
             let event = FileEvent::new(
                 Uuid::new_v4(),
@@ -284,14 +285,14 @@ pub async fn delete(
                 FileEventType::DeleteEvent,
             );
             state.history.add(event);
-            println!(
+            info!(
                 "Added delete event with time {}",
                 get_utc_millis_as_date_string(millis)
             );
             Ok(())
         }
         Err(err) => {
-            println!("Failed to delete file: {}", err);
+            info!("Failed to delete file: {}", err);
             Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))
         }
     }

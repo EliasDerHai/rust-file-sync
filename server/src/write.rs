@@ -7,9 +7,10 @@ use std::io::prelude::*;
 use axum::body::Bytes;
 use chrono::{Local, NaiveTime};
 use tokio::time::{sleep_until, Instant};
+use tracing::{error, info};
 
 pub async fn schedule_data_backups(data_path: &Path, backup_path: &Path) {
-    println!("Scheduling backups");
+    info!("Scheduling backups");
     loop {
         let backup_time = NaiveTime::from_hms_opt(2, 0, 0).unwrap();
         let now = Local::now().naive_local();
@@ -27,7 +28,7 @@ pub async fn schedule_data_backups(data_path: &Path, backup_path: &Path) {
             .to_std()
             .unwrap();
 
-        println!(
+        info!(
             "Next backup scheduled for: {} (in {:?})",
             next_run, next_run_duration
         );
@@ -39,7 +40,7 @@ pub async fn schedule_data_backups(data_path: &Path, backup_path: &Path) {
 }
 
 async fn perform_backup(data_path: &Path, backup_path: &Path) {
-    println!("Executing daily backup...");
+    info!("Executing daily backup...");
 }
 
 pub fn create_all_dir_and_write(path: &PathBuf, bytes: &Bytes) -> Result<(), std::io::Error> {
@@ -54,6 +55,6 @@ pub fn append_line(file_path: &Path, line: &str) {
         .unwrap();
 
     if let Err(e) = writeln!(file, "{line}") {
-        eprintln!("Couldn't append to file: {}", e);
+        error!("Couldn't append to file: {}", e);
     }
 }

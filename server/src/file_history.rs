@@ -4,7 +4,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use tokio::time::Instant;
-
+use tracing::info;
 use shared::file_event::{FileEvent, FileEventType};
 use shared::matchable_path::MatchablePath;
 
@@ -28,7 +28,7 @@ impl From<Vec<FileEvent>> for InMemoryFileHistory {
     fn from(mut value: Vec<FileEvent>) -> Self {
         let i = Instant::now();
         if !value.is_sorted_by_key(|e| e.utc_millis) {
-            println!("History not chronological - correcting order...");
+            info!("History not chronological - correcting order...");
             value.sort_by_key(|e| e.utc_millis);
         }
         let inner = value.into_iter().fold(HashMap::new(), |mut acc, curr| {
@@ -47,7 +47,7 @@ impl From<Vec<FileEvent>> for InMemoryFileHistory {
             store: Arc::new(Mutex::new(inner)),
         };
         history.sanity_check();
-        println!(
+        info!(
             "History successfully initialized - took {}ms",
             i.elapsed().as_millis()
         );
@@ -67,7 +67,7 @@ impl TryFrom<&Path> for InMemoryFileHistory {
                 let result = FileEvent::try_from(line);
 
                 if result.is_err() {
-                    println!(
+                    info!(
                         "Deserialization error while parsing event history: {:?}",
                         result
                     );

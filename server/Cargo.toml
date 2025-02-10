@@ -11,3 +11,5 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 tokio-util = { version = "0.7.13", features = ["io"] }
 shared = { path = "../shared" }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["ansi"] }

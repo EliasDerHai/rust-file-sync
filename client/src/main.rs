@@ -9,6 +9,7 @@ use task::spawn;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
 use tokio::task;
+use tracing::{error, info};
 
 mod config;
 mod execute;
@@ -39,6 +40,8 @@ pub mod endpoints {
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt().init();
+    
     let (tx, mut rx) = mpsc::channel::<Vec<FileDescription>>(100);
     let config = match read_config() {
         Err(error) => {
@@ -47,16 +50,16 @@ async fn main() {
         Ok(path) => path,
     };
 
-    println!("Start monitoring changes in '{:?}'", config.path_to_monitor);
+    info!("Start monitoring changes in '{:?}'", config.path_to_monitor);
 
     let mut last_scan: Option<Vec<FileDescription>> = None; // maybe persist this ? needed if files are deleted between sessions
     let mut last_deleted_files: Vec<FileDescription> = Vec::new();
     let client = Client::new();
     let hello_endpoint = ServerEndpoint::Ping.to_uri(&config.server_url);
-    println!("Testing server at '{}'", &hello_endpoint);
+    info!("Testing server at '{}'", &hello_endpoint);
     match client.get(&hello_endpoint).send().await {
         Err(error) => panic!("{} not reachable - {}", &hello_endpoint, error),
-        Ok(_) => println!("Server confirmed at {}!", &hello_endpoint),
+        Ok(_) => info!("Server confirmed at {}!", &hello_endpoint),
     }
 
     spawn(watch_directory(config.path_to_monitor.clone(), tx));
@@ -76,7 +79,7 @@ async fn main() {
             let results = join_all(futures).await;
             let c = last_deleted_files.len();
             if c > 0 {
-                println!(
+                info!(
                     "Sent {} delete events to server: [{}]",
                     c,
                     last_deleted_files
@@ -87,14 +90,14 @@ async fn main() {
                 );
                 results
                     .iter()
-                    .for_each(|r| println!("Server replied with: {:?}", r));
+                    .for_each(|r| info!("Server replied with: {:?}", r));
             }
         }
 
         match send_to_server_and_receive_instructions(&client, &scanned, &config.server_url).await {
-            Err(err) => println!("Error - failed to get instructions from server: {:?}", err),
+            Err(err) => info!("Error - failed to get instructions from server: {:?}", err),
             Ok(instructions) => {
-                println!(
+                info!(
                     "{} Instructions received {:?}",
                     instructions.len(),
                     instructions
@@ -119,9 +122,9 @@ async fn main() {
                     )
                     .await
                     {
-                        Ok(msg) => println!("{msg}"),
+                        Ok(msg) => info!("{msg}"),
                         // logging is fine - if something went wrong, we just try again at next poll cycle
-                        Err(e) => eprintln!("{e}"),
+                        Err(e) => error!("{e}"),
                     }
                 }
 
@@ -136,10 +139,10 @@ async fn main() {
 async fn watch_directory(dir: PathBuf, tx: Sender<Vec<FileDescription>>) {
     loop {
         match get_all_file_descriptions(dir.as_path()) {
-            Err(error) => eprintln!("Could not scan dir - {}", error),
+            Err(error) => error!("Could not scan dir - {}", error),
             Ok(descriptions) => match tx.send(descriptions).await {
-                Err(error) => eprintln!("Error while scanning {}", error),
-                Ok(()) => println!("Scanned dir successfully"),
+                Err(error) => error!("Error while scanning {}", error),
+                Ok(()) => info!("Scanned dir successfully"),
             },
         }
 
