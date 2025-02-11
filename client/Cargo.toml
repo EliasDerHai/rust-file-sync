@@ -12,4 +12,5 @@ futures = { workspace = true, features = ["std"] }
 futures-util = "0.3.31"
 reqwest = { version = "0.12", features = ["default", "json", "multipart", "stream"] }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["ansi"] }
+tracing-subscriber = { workspace = true, features = ["ansi", "env-filter"] }
+chrono = { workspace = true }

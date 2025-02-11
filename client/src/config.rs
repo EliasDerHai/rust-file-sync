@@ -7,6 +7,7 @@ use std::path::PathBuf;
 pub struct Config {
     pub server_url: String,
     pub path_to_monitor: PathBuf,
+    pub min_poll_interval_in_ms: u16
 }
 
 pub fn read_config() -> Result<Config, String> {

@@ -1,15 +1,14 @@
-use crate::config::read_config;
+use crate::config::{read_config, Config};
 use crate::endpoints::ServerEndpoint;
 use futures_util::future::join_all;
 use reqwest::Client;
 use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
 use shared::sync_instruction::SyncInstruction;
-use std::path::PathBuf;
-use task::spawn;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::Sender;
-use tokio::task;
+use std::ops::Add;
+use std::time::Duration;
+use tokio::time::Instant;
 use tracing::{error, info};
+use tracing_subscriber::EnvFilter;
 
 mod config;
 mod execute;
@@ -40,114 +39,139 @@ pub mod endpoints {
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt().init();
-    
-    let (tx, mut rx) = mpsc::channel::<Vec<FileDescription>>(100);
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+
     let config = match read_config() {
         Err(error) => {
-            panic!("Critical error: {:?}", error);
+            panic!(
+                "Critical error - config could not be processed: {:?}",
+                error
+            );
         }
         Ok(path) => path,
     };
 
-    info!("Start monitoring changes in '{:?}'", config.path_to_monitor);
-
     let mut last_scan: Option<Vec<FileDescription>> = None; // maybe persist this ? needed if files are deleted between sessions
-    let mut last_deleted_files: Vec<FileDescription> = Vec::new();
     let client = Client::new();
+
+    check_server_reachable(&config, &client).await;
+
+    info!("Start monitoring changes in '{:?}'", config.path_to_monitor);
+    loop {
+        let loop_start = Instant::now();
+
+        let dir = config.path_to_monitor.clone();
+        match get_all_file_descriptions(dir.as_path())
+            .map_err(|e| format!("Could not scan directory - {}", e))
+        {
+            Err(error) => error!("Scanning directory failed - {}", error),
+            Ok(descriptions) => {
+                let mut deleted_files = Vec::new();
+                if let Some(ref last) = last_scan {
+                    deleted_files =
+                        send_potential_delete_events(&config, last, &client, &descriptions).await;
+                }
+
+                match send_to_server_and_receive_instructions(
+                    &client,
+                    &descriptions,
+                    &config.server_url,
+                )
+                .await
+                {
+                    Err(err) => error!("Error - failed to get instructions from server: {:?}", err),
+                    Ok(instructions) => {
+                        info!(
+                            "{} Instructions received {:?}",
+                            instructions.len(),
+                            instructions
+                        );
+                        for instruction in instructions {
+                            if let SyncInstruction::Download(ref path) = &instruction {
+                                if deleted_files
+                                    .iter()
+                                    .any(|deleted| deleted.relative_path == *path)
+                                {
+                                    // no need to follow the download instruction,
+                                    // because we now that this file was just deleted (breaking the loop)
+                                    continue;
+                                }
+                            }
+
+                            match execute::execute(
+                                &client,
+                                instruction,
+                                config.path_to_monitor.as_path(),
+                                &config.server_url,
+                            )
+                            .await
+                            {
+                                Ok(msg) => info!("{msg}"),
+                                // logging is fine if something went wrong, we just try again at next poll cycle
+                                Err(e) => error!("{e}"),
+                            }
+                        }
+
+                        // last_scan state should only be updated when everything runs through otherwise we
+                        // risk losing information (delete)
+                        last_scan = Some(descriptions);
+                    }
+                }
+            }
+        }
+
+        info!("Loop took {:?}", Instant::now().duration_since(loop_start));
+        tokio::time::sleep_until(
+            loop_start.add(Duration::from_millis(config.min_poll_interval_in_ms as u64)),
+        )
+        .await;
+    }
+}
+
+async fn check_server_reachable(config: &Config, client: &Client) {
     let hello_endpoint = ServerEndpoint::Ping.to_uri(&config.server_url);
     info!("Testing server at '{}'", &hello_endpoint);
     match client.get(&hello_endpoint).send().await {
         Err(error) => panic!("{} not reachable - {}", &hello_endpoint, error),
         Ok(_) => info!("Server confirmed at {}!", &hello_endpoint),
     }
-
-    spawn(watch_directory(config.path_to_monitor.clone(), tx));
-
-    while let Some(scanned) = rx.recv().await {
-        if let Some(last) = last_scan.clone() {
-            last_deleted_files = determine_deleted_files(&last, &scanned);
-            let futures = last_deleted_files
-                .iter()
-                .map(|deleted| {
-                    client
-                        .post(ServerEndpoint::Delete.to_uri(&config.server_url))
-                        .body(deleted.relative_path.to_serialized_string())
-                        .send()
-                })
-                .collect::<Vec<_>>();
-            let results = join_all(futures).await;
-            let c = last_deleted_files.len();
-            if c > 0 {
-                info!(
-                    "Sent {} delete events to server: [{}]",
-                    c,
-                    last_deleted_files
-                        .iter()
-                        .map(|desc| desc.file_name.clone())
-                        .collect::<Vec<String>>()
-                        .join(", ")
-                );
-                results
-                    .iter()
-                    .for_each(|r| info!("Server replied with: {:?}", r));
-            }
-        }
-
-        match send_to_server_and_receive_instructions(&client, &scanned, &config.server_url).await {
-            Err(err) => info!("Error - failed to get instructions from server: {:?}", err),
-            Ok(instructions) => {
-                info!(
-                    "{} Instructions received {:?}",
-                    instructions.len(),
-                    instructions
-                );
-                for instruction in instructions {
-                    if let SyncInstruction::Download(ref path) = &instruction {
-                        if last_deleted_files
-                            .iter()
-                            .any(|deleted| deleted.relative_path == *path)
-                        {
-                            // no need to follow the download instruction,
-                            // because we now that this file was just deleted (breaking the loop)
-                            continue;
-                        }
-                    }
-
-                    match execute::execute(
-                        &client,
-                        instruction,
-                        config.path_to_monitor.as_path(),
-                        &config.server_url,
-                    )
-                    .await
-                    {
-                        Ok(msg) => info!("{msg}"),
-                        // logging is fine - if something went wrong, we just try again at next poll cycle
-                        Err(e) => error!("{e}"),
-                    }
-                }
-
-                // last_scan state should only be updated when everything runs through otherwise we
-                // risk losing information (delete)
-                last_scan = Some(scanned);
-            }
-        }
-    }
 }
 
-async fn watch_directory(dir: PathBuf, tx: Sender<Vec<FileDescription>>) {
-    loop {
-        match get_all_file_descriptions(dir.as_path()) {
-            Err(error) => error!("Could not scan dir - {}", error),
-            Ok(descriptions) => match tx.send(descriptions).await {
-                Err(error) => error!("Error while scanning {}", error),
-                Ok(()) => info!("Scanned dir successfully"),
-            },
-        }
-
-        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+async fn send_potential_delete_events(
+    config: &Config,
+    last_scan: &Vec<FileDescription>,
+    client: &Client,
+    descriptions: &Vec<FileDescription>,
+) -> Vec<FileDescription> {
+    let last_deleted_files = determine_deleted_files(last_scan, &descriptions);
+    let futures = last_deleted_files
+        .iter()
+        .map(|deleted| {
+            client
+                .post(ServerEndpoint::Delete.to_uri(&config.server_url))
+                .body(deleted.relative_path.to_serialized_string())
+                .send()
+        })
+        .collect::<Vec<_>>();
+    let results = join_all(futures).await;
+    let c = last_deleted_files.len();
+    if c > 0 {
+        info!(
+            "Sent {} delete events to server: [{}]",
+            c,
+            last_deleted_files
+                .iter()
+                .map(|desc| desc.file_name.clone())
+                .collect::<Vec<String>>()
+                .join(", ")
+        );
+        results
+            .iter()
+            .for_each(|r| info!("Server received delete-event and replied with: {:?}", r));
     }
+    last_deleted_files
 }
 
 async fn send_to_server_and_receive_instructions(

@@ -6,8 +6,7 @@ use crate::write::schedule_data_backups;
 use axum::extract::{Multipart, State};
 use axum::routing::post;
 use axum::{routing::get, Router};
-use tracing::log::warn;
-use tracing::{error, info};
+use tracing::{error};
 
 mod client_file_event;
 mod file_history;
