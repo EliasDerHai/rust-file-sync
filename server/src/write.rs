@@ -1,13 +1,16 @@
 use std::fs;
-use std::fs::{create_dir_all, OpenOptions};
-use std::path::{Path, PathBuf};
+use std::fs::OpenOptions;
+use std::io::{Error, ErrorKind};
+use std::path::Path;
 
 use std::io::prelude::*;
 
-use axum::body::Bytes;
+use axum::extract::multipart::{Field, MultipartError};
 use chrono::{Local, NaiveTime};
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
 use tokio::time::{sleep_until, Instant};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 pub async fn schedule_data_backups(data_path: &Path, backup_path: &Path) {
     info!("Scheduling backups");
@@ -43,8 +46,67 @@ async fn perform_backup(data_path: &Path, backup_path: &Path) {
     info!("Executing daily backup...");
 }
 
-pub fn create_all_dir_and_write(path: &PathBuf, bytes: &Bytes) -> Result<(), std::io::Error> {
-    create_dir_all(path.parent().unwrap_or(Path::new("./"))).and_then(|()| fs::write(&path, bytes))
+fn map_to_io_error(e: MultipartError) -> Error {
+    Error::new(ErrorKind::Other, e)
+}
+
+pub async fn write_all_chunks_of_field(path: &Path, mut field: Field<'_>) -> Result<usize, Error> {
+    info!(
+        "Trying to progressively write to {} - (content_type = {:?})",
+        path.display(),
+        field.content_type()
+    );
+    let mut file = File::create(path).await?;
+    let mut chunk_counter = 0;
+    let mut total_size_counter = 0;
+    loop {
+        match field.chunk().await {
+            Err(e) => {
+                error!("Error while chunking: {:?}", e);
+                return Err(map_to_io_error(e));
+            }
+            Ok(option) => match option {
+                None => {
+                    info!("File written to {} ({})", path.display(), total_size_counter);
+                    break;
+                }
+                Some(b) => {
+                    chunk_counter += 1;
+                    let chunk_size = b.len();
+                    total_size_counter += chunk_size;
+                    debug!("{}: chunk-size = {}", chunk_counter, chunk_size);
+                    file.write_all(&*b).await?;
+                }
+            },
+        }
+    }
+    Ok(total_size_counter)
+}
+
+pub async fn write_all_at_once<'a>(path: &Path, field: Field<'a>) -> Result<(), Error> {
+    info!(
+        "Trying to write to {} - (content_type = {:?})",
+        path.display(),
+        field.content_type()
+    );
+    let result = field.bytes().await.map_err(map_to_io_error);
+
+    if result.is_err() {
+        let e = result.err().unwrap();
+        error!("Error while getting bytes of field {}", e);
+        return Err(e);
+    };
+
+    match fs::write(path, result?) {
+        Ok(_) => {
+            info!("File written to {}", path.display());
+            Ok(())
+        }
+        Err(e) => {
+            error!("Error while writing to {}: {}", path.display(), e);
+            Err(e)
+        }
+    }
 }
 
 pub fn append_line(file_path: &Path, line: &str) {

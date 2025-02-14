@@ -12,4 +12,5 @@ chrono = { workspace = true }
 tokio-util = { version = "0.7.13", features = ["io"] }
 shared = { path = "../shared" }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["ansi"] }
+tracing-subscriber = { workspace = true, features = ["ansi", "env-filter"] }
+tower-http = { version = "0.6.2", features = ["limit", "trace"] }

@@ -1,8 +1,7 @@
 use crate::client_file_event::{ClientFileEvent, ClientFileEventDto};
 use crate::file_history::FileHistory;
-use crate::write::append_line;
-use crate::{write, AppState};
-use axum::body::Bytes;
+use crate::write::{append_line, write_all_chunks_of_field};
+use crate::{multipart, AppState};
 use axum::extract::{Multipart, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -14,6 +13,7 @@ use shared::matchable_path::MatchablePath;
 use shared::sync_instruction::SyncInstruction;
 use std::ffi::OsStr;
 use std::fs;
+use std::fs::create_dir_all;
 use std::path::{Component, Path, PathBuf};
 use tokio_util::io::ReaderStream;
 use tracing::{error, info};
@@ -40,55 +40,16 @@ pub async fn scan_disk(path: &Path) -> Result<Json<Vec<FileDescription>>, Status
 /// }
 pub async fn upload_handler(
     upload_root_path: &Path,
+    upload_root_tmp_path: &Path,
+    history_file_path: &Path,
     State(state): State<AppState>,
     mut multipart: Multipart,
-    history_file_path: &Path,
 ) -> Result<String, (StatusCode, String)> {
     // parse incoming request
-    let mut utc_millis: Option<u64> = None;
-    let mut relative_path: Option<Vec<String>> = None;
-    let mut file_event_type: Option<FileEventType> = None;
-    let mut file_bytes: Option<Bytes> = None;
-
-    while let Some(field) = multipart.next_field().await.unwrap() {
-        match field.name() {
-            None => error!("No field name in upload handler!"),
-            Some("utc_millis") => {
-                utc_millis = field
-                    .text()
-                    .await
-                    .map(|t| t.parse::<u64>().ok())
-                    .ok()
-                    .flatten();
-                info!("UTC: {}ms", utc_millis.unwrap_or(0));
-            }
-            Some("relative_path") => {
-                relative_path = field
-                    .text()
-                    .await
-                    .map(|t| t.split("/").map(|str| str.to_string()).collect())
-                    .ok();
-            }
-            Some("event_type") => {
-                file_event_type = field
-                    .text()
-                    .await
-                    .map(|t| FileEventType::try_from(t.as_str()).ok())
-                    .ok()
-                    .flatten()
-            }
-            Some("file") => file_bytes = field.bytes().await.ok(),
-            Some(other) => error!("Unknown field name '{other}' in upload handler"),
-        }
-    }
+    let dto = multipart::parse_multipart_request(upload_root_tmp_path, &mut multipart).await?;
 
     // map to domain object (FileEvent)
-    match ClientFileEvent::try_from(ClientFileEventDto {
-        utc_millis,
-        relative_path,
-        file_event_type,
-        file_bytes,
-    }) {
+    match ClientFileEvent::try_from(dto) {
         Err(e) => Err((StatusCode::BAD_REQUEST, e)),
         Ok(event) => {
             let utc_millis_of_latest_history_event = state
@@ -104,24 +65,36 @@ pub async fn upload_handler(
                 );
                 Err((StatusCode::BAD_REQUEST, "not latest".to_string()))
             } else {
-                // actual disk io
                 let sub_path = event
                     .relative_path
                     .get()
                     .iter()
                     .map(|part| Component::Normal(part.as_ref()));
-                info!("@@@ sub-path {:?}", sub_path);
-                let path = upload_root_path.components().chain(sub_path).collect();
+                let target_path: PathBuf = upload_root_path.components().chain(sub_path).collect();
                 let io_result = match event.event_type {
                     FileEventType::ChangeEvent => {
-                        // safe to unwrap because we know it was set for Create & UpdateEvent
-                        let bytes = event.file_bytes.as_ref().unwrap();
-                        write::create_all_dir_and_write(&path, bytes)
+                        create_dir_all(target_path.parent().unwrap_or(Path::new("./"))).map_err(
+                            |e| {
+                                (
+                                    StatusCode::INTERNAL_SERVER_ERROR,
+                                    format!("Cannot create dir - {}", e),
+                                )
+                            },
+                        )?;
+                        info!(
+                            "moving {:?} -> {:?}",
+                            event.temp_file_path.as_ref().unwrap(),
+                            target_path
+                        );
+                        fs::rename(
+                            event.temp_file_path.as_ref().unwrap().as_path(),
+                            target_path.as_path(),
+                        )
                     }
-                    FileEventType::DeleteEvent => fs::remove_file(&path),
+                    FileEventType::DeleteEvent => fs::remove_file(&target_path),
                 };
 
-                let path_str = path.to_string_lossy();
+                let path_str = target_path.to_string_lossy();
                 match io_result {
                     Ok(_) => {
                         let message = match event.event_type {
@@ -202,7 +175,9 @@ pub async fn sync_handler(
                     client_equivalent.last_updated_utc_millis
                 );
 
-                if client_equivalent.size_in_bytes == event.size_in_bytes && event.event_type.is_change() {
+                if client_equivalent.size_in_bytes == event.size_in_bytes
+                    && event.event_type.is_change()
+                {
                     // same size - just ignore even if timestamps differ (might have been write-operation without change)
                     continue;
                 } else if client_equivalent.last_updated_utc_millis < event.utc_millis {

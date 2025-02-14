@@ -1,8 +1,8 @@
-use axum::body::Bytes;
-use uuid::Uuid;
-use shared::file_event::{FileEvent, FileEventType};
 use shared::file_event::FileEventType::DeleteEvent;
+use shared::file_event::{FileEvent, FileEventType};
 use shared::matchable_path::MatchablePath;
+use std::path::PathBuf;
+use uuid::Uuid;
 
 /// What the client sends upon detecting a change in his file-system
 #[derive(Debug, Clone)]
@@ -11,14 +11,17 @@ pub struct ClientFileEvent {
     /// relative path of the file on client side from the tracked root dir
     pub relative_path: MatchablePath,
     pub event_type: FileEventType,
-    pub file_bytes: Option<Bytes>,
+    pub temp_file_path: Option<PathBuf>,
+    /// the size of the uploaded file or 0 for delete events
+    pub content_size: usize,
 }
 
 pub struct ClientFileEventDto {
-    pub(crate) utc_millis: Option<u64>,
-    pub(crate) relative_path: Option<Vec<String>>,
-    pub(crate) file_event_type: Option<FileEventType>,
-    pub(crate) file_bytes: Option<Bytes>,
+    pub utc_millis: Option<u64>,
+    pub relative_path: Option<Vec<String>>,
+    pub file_event_type: Option<FileEventType>,
+    pub temp_file_path: Option<PathBuf>,
+    pub content_size: Option<usize>,
 }
 
 impl From<ClientFileEvent> for FileEvent {
@@ -27,8 +30,7 @@ impl From<ClientFileEvent> for FileEvent {
             Uuid::new_v4(),
             value.utc_millis,
             value.relative_path,
-            // deleted files will have size=0 which is fine
-            value.file_bytes.map(|b| b.len() as u64).unwrap_or(0),
+            value.content_size as u64,
             value.event_type,
         )
     }
@@ -46,9 +48,10 @@ impl TryFrom<ClientFileEventDto> for ClientFileEvent {
             event_type: dto
                 .file_event_type
                 .ok_or("Missing field 'file_event_type'")?,
-            file_bytes: dto.file_bytes,
+            temp_file_path: dto.temp_file_path,
+            content_size: dto.content_size.unwrap_or(0),
         };
-        if event.event_type != DeleteEvent && event.file_bytes.is_none() {
+        if event.event_type != DeleteEvent && event.temp_file_path.is_none() {
             return Err("Missing field 'file'".to_string());
         }
         Ok(event)
