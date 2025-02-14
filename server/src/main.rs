@@ -1,12 +1,12 @@
 use crate::file_history::InMemoryFileHistory;
-use crate::write::schedule_data_backups;
+use crate::write::{
+    create_all_files_if_not_exist, create_all_paths_if_not_exist, schedule_data_backups,
+};
 use axum::extract::{DefaultBodyLimit, Multipart, State};
 use axum::routing::post;
 use axum::{routing::get, Router};
-use std::fs::create_dir_all;
 use std::sync::Arc;
 use std::{path::Path, sync::LazyLock};
-use tower_http::limit::RequestBodyLimitLayer;
 use tracing::error;
 use tracing_subscriber::EnvFilter;
 
@@ -14,8 +14,9 @@ mod client_file_event;
 mod file_history;
 mod handler;
 mod init_directories;
-mod write;
+mod monitor;
 mod multipart;
+mod write;
 
 /// base directory for files synced from clients
 static UPLOAD_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/upload"));
@@ -23,9 +24,11 @@ static UPLOAD_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/upload"
 static BACKUP_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/backup"));
 /// file to persist the in-mem state ([`InMemoryFileHistory`])
 static HISTORY_CSV_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/history.csv"));
+static MONITORING_CSV_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/monitor.csv"));
 /// dir to which multipart-files can be saved to, before being moved to the actual 'mirrored path'
 /// temporary and might be cleaned upon encountering errors or on scheduled intervals
 static UPLOAD_TMP_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/upload_in_progress"));
+
 #[derive(Clone)]
 struct AppState {
     history: Arc<InMemoryFileHistory>,
@@ -34,25 +37,25 @@ struct AppState {
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
         .init();
 
     tokio::spawn(async {
-        if !UPLOAD_PATH.exists() {
-            create_dir_all(UPLOAD_PATH.iter().as_path())?;
-        }
-        if !UPLOAD_TMP_PATH.exists() {
-            create_dir_all(UPLOAD_TMP_PATH.iter().as_path())?;
-        }
-        if !BACKUP_PATH.exists() {
-            create_dir_all(BACKUP_PATH.iter().as_path())?;
-        }
-        if !HISTORY_CSV_PATH.is_file() {
-            std::fs::write(HISTORY_CSV_PATH.iter().as_path(), b"")?;
-        }
+        create_all_paths_if_not_exist(vec![
+            UPLOAD_PATH.iter().as_path(),
+            UPLOAD_TMP_PATH.iter().as_path(),
+            BACKUP_PATH.iter().as_path(),
+        ])?;
+        create_all_files_if_not_exist(vec![
+            HISTORY_CSV_PATH.iter().as_path(),
+            MONITORING_CSV_PATH.iter().as_path(),
+        ])?;
         Ok::<(), std::io::Error>(())
     });
     tokio::spawn(schedule_data_backups(&UPLOAD_PATH, &BACKUP_PATH));
+    tokio::spawn(monitor::monitor_sys(&MONITORING_CSV_PATH));
 
     let history =
         InMemoryFileHistory::try_from(HISTORY_CSV_PATH.iter().as_path()).unwrap_or_else(|err| {
@@ -66,6 +69,7 @@ async fn main() {
     let app = Router::new()
         .route("/ping", get(|| async { "pong" }))
         .route("/scan", get(|| handler::scan_disk(&UPLOAD_PATH)))
+        .route("/monitor", get(|| handler::get_monitoring(&MONITORING_CSV_PATH)))
         .route(
             "/upload",
             post(|state: State<AppState>, multipart: Multipart| {

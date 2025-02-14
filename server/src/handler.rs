@@ -229,7 +229,7 @@ pub async fn download(upload_root_path: &Path, payload: String) -> impl IntoResp
     let headers = [
         (
             axum::http::header::CONTENT_TYPE,
-            "text; charset=utf-8".to_string(),
+            "text; charset=utf-8".to_string(), // TODO
         ),
         (
             axum::http::header::CONTENT_DISPOSITION,
@@ -271,4 +271,25 @@ pub async fn delete(
             Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))
         }
     }
+}
+
+pub async fn get_monitoring(monitoring_path: &Path) -> impl IntoResponse {
+    let file = match tokio::fs::File::open(monitoring_path).await {
+        Ok(file) => file,
+        Err(err) => return Err((StatusCode::NOT_FOUND, format!("File not found: {}", err))),
+    };
+    let stream = ReaderStream::new(file);
+    let body = axum::body::Body::from_stream(stream);
+
+    let headers = [
+        (
+            axum::http::header::CONTENT_TYPE,
+            "text/CSV; charset=utf-8".to_string(),
+        ),
+        (
+            axum::http::header::CONTENT_DISPOSITION,
+            "attachment; filename=\"monitoring.csv\"".to_string(),
+        ),
+    ];
+    Ok((headers, body))
 }

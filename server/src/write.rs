@@ -1,7 +1,7 @@
-use std::fs;
-use std::fs::OpenOptions;
+use std::fs::{create_dir_all, OpenOptions};
 use std::io::{Error, ErrorKind};
 use std::path::Path;
+use std::{fs, io};
 
 use std::io::prelude::*;
 
@@ -67,7 +67,11 @@ pub async fn write_all_chunks_of_field(path: &Path, mut field: Field<'_>) -> Res
             }
             Ok(option) => match option {
                 None => {
-                    info!("File written to {} ({})", path.display(), total_size_counter);
+                    info!(
+                        "File written to {} ({})",
+                        path.display(),
+                        total_size_counter
+                    );
                     break;
                 }
                 Some(b) => {
@@ -119,4 +123,22 @@ pub fn append_line(file_path: &Path, line: &str) {
     if let Err(e) = writeln!(file, "{line}") {
         error!("Couldn't append to file: {}", e);
     }
+}
+
+pub fn create_all_paths_if_not_exist(paths: Vec<&Path>) -> io::Result<()> {
+    for path in paths.into_iter() {
+        if !path.exists() {
+            create_dir_all(path)?
+        }
+    }
+    Ok::<(), Error>(())
+}
+
+pub fn create_all_files_if_not_exist(paths: Vec<&Path>) -> io::Result<()> {
+    for path in paths.into_iter() {
+        if !path.exists() {
+            fs::write(path, b"")?;
+        }
+    }
+    Ok::<(), Error>(())
 }
