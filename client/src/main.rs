@@ -39,9 +39,8 @@ pub mod endpoints {
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .init();
+    let log_level = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info"));
+    tracing_subscriber::fmt().with_env_filter(log_level).init();
 
     let config = match read_config() {
         Err(error) => {
