@@ -16,7 +16,7 @@ use std::fs;
 use std::fs::create_dir_all;
 use std::path::{Component, Path, PathBuf};
 use tokio_util::io::ReaderStream;
-use tracing::{error, info};
+use tracing::{error, info, trace};
 use uuid::Uuid;
 
 /// expecting no payload
@@ -156,7 +156,7 @@ pub async fn sync_handler(
     State(state): State<AppState>,
     Json(client_sync_state): Json<Vec<FileDescription>>,
 ) -> Result<Json<Vec<SyncInstruction>>, (StatusCode, String)> {
-    info!("Client state received {:#?}", client_sync_state);
+    trace!("Client state received {:#?}", client_sync_state);
     let mut instructions = Vec::new();
     let target = state.history.clone().get_latest_events();
 
@@ -167,7 +167,7 @@ pub async fn sync_handler(
             // client doesn't have the file at all
             None => instructions.push(SyncInstruction::Download(event.relative_path)),
             Some(client_equivalent) => {
-                info!(
+                trace!(
                     "Server has {} ({}) - client has {} ({})",
                     get_utc_millis_as_date_string(event.utc_millis),
                     event.utc_millis,

@@ -14,7 +14,6 @@ pub async fn monitor_sys(monitor_csv_path: &Path) {
     loop {
         c += 1;
         system.refresh_all();
-        // system.refresh_cpu_usage();
         let used_sys_mem_percentage = system.used_memory() as f32 / total_sys_mem * 100f32;
         let used_own_mem_percentage = system
             .process(pid)
