@@ -4,6 +4,7 @@ use std::fs;
 use std::fs::Metadata;
 use std::path::Path;
 use std::time::UNIX_EPOCH;
+use tracing::info;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct FileDescription {
@@ -23,9 +24,7 @@ pub fn get_file_description(
     match fs::metadata(target) {
         Ok(m) => {
             if m.is_file() {
-                let relative_path = target
-                    .strip_prefix(reference_root)
-                    .unwrap();
+                let relative_path = target.strip_prefix(reference_root).unwrap();
                 let name = relative_path
                     .file_name()
                     .unwrap()
@@ -70,6 +69,13 @@ fn inner_get_files_of_dir_rec(
         let entry_path = entry.path();
 
         if entry_path.is_file() {
+            // mac os specific
+            if let Some(file_name) = entry_path.file_name() {
+                if file_name.to_string_lossy() == ".DS_Store" {
+                    continue;
+                }
+            }
+
             let relative_path = Path::new("./").join(
                 entry_path
                     .strip_prefix(reference_root_path)
