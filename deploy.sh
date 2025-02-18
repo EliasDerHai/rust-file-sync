@@ -15,7 +15,6 @@ else
 fi
 
 BINARY_PATH="./target/${TARGET}/release/server"
-CONFIG_FILE="./target/${TARGET}/release/server.d"
 
 echo "Building project..."
 $CROSS_CMD
@@ -30,20 +29,20 @@ ssh ${REMOTE_USER}@${REMOTE_HOST} "sudo systemctl stop ${SERVICE_NAME}"
 
 echo "Uploading binary..."
 scp "${BINARY_PATH}" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}/"
-echo "Uploading config file..."
-scp "${CONFIG_FILE}" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}/"
+echo "Upload completed"
 
 echo "Starting remote service..."
 ssh ${REMOTE_USER}@${REMOTE_HOST} "sudo systemctl start ${SERVICE_NAME}"
 
 echo "Waiting for the server to start..."
-# Poll the /ping endpoint for up to 20 seconds (10 attempts with 2 second intervals)
+# Poll the /ping endpoint for up to (10 attempts every 2 second intervals)
 for i in {1..10}; do
   response=$(curl -s http://${REMOTE_HOST}:3000/ping || true)
   if [ "$response" == "pong" ]; then
     echo "Server is up and running!"
     exit 0
   fi
+  echo "No response ($((10 - i)) attempts remaining)"
   sleep 2
 done
 

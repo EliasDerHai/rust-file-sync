@@ -1,6 +1,6 @@
-use crate::client_file_event::{ClientFileEvent, ClientFileEventDto};
+use crate::client_file_event::ClientFileEvent;
 use crate::file_history::FileHistory;
-use crate::write::{append_line, write_all_chunks_of_field};
+use crate::write::append_line;
 use crate::{multipart, AppState};
 use axum::extract::{Multipart, State};
 use axum::http::StatusCode;
