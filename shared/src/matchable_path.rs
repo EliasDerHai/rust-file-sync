@@ -4,8 +4,8 @@ use std::ffi::OsStr;
 use std::path::{Component, Path, PathBuf};
 
 /// Describes an OS-path but with a few additional constraints:
-///  - just "Normal" Components (1-N folders + 1 file)
-///  - cannot start with "..", "~", "/" or any other special character for that matter
+///  - just "Normal" Components (0-N folders + 1 file) - when described as path 
+///  - cannot be "..", "~", "/" or "\" - when described as string or string array
 ///  - at least one item
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct MatchablePath(Vec<String>);

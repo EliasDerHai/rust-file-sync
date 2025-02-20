@@ -1,3 +1,4 @@
+use crate::endpoints::ServerEndpoint;
 use reqwest::multipart::Form;
 use reqwest::Client;
 use shared::file_event::FileEventType;
@@ -5,15 +6,14 @@ use shared::get_files_of_directory::get_file_description;
 use shared::sync_instruction::SyncInstruction;
 use std::path::Path;
 use tokio::fs;
-use tokio::fs::remove_file;
-use crate::endpoints::ServerEndpoint;
+use tokio::fs::{create_dir_all, remove_file};
 
 /// executes an instruction of the server (see [`SyncInstruction`])
 pub async fn execute(
     client: &Client,
     instruction: SyncInstruction,
     root: &Path,
-    base: &str
+    base: &str,
 ) -> Result<String, String> {
     match instruction {
         SyncInstruction::Upload(p) => {
@@ -56,18 +56,32 @@ pub async fn execute(
                 .await
                 .map_err(|e| format!("Download request failed - {}", e.to_string()))?;
 
-            let bytes = response
-                .bytes()
-                .await
-                .map_err(|e| format!("Download failed - cannot read response body - {}", e.to_string()))?;
+            let bytes = response.bytes().await.map_err(|e| {
+                format!(
+                    "Download failed - cannot read response body - {}",
+                    e.to_string()
+                )
+            })?;
 
-            fs::write(&file_path, bytes)
+            create_dir_all(file_path.parent().unwrap())
                 .await
-                .map_err(|e| format!("Could not save downloaded file ({:?}): {}", &file_path, e.to_string()))?;
+                .expect(&format!(
+                    "Should be able to create parent directory of file ({:?})",
+                    &file_path
+                ));
+
+            fs::write(&file_path, bytes).await.map_err(|e| {
+                format!(
+                    "Could not save downloaded file ({:?}): {}",
+                    &file_path,
+                    e.to_string()
+                )
+            })?;
 
             Ok(format!(
                 "Downloaded {} successfully",
-                file_path.file_name()
+                file_path
+                    .file_name()
                     .map(|osstr| osstr.to_string_lossy().to_string())
                     .unwrap_or_else(|| "?".to_string())
             ))
@@ -82,7 +96,8 @@ pub async fn execute(
                 .map(|_| {
                     format!(
                         "Deleted file '{}'",
-                        &file_path.file_name()
+                        &file_path
+                            .file_name()
                             .map(|osstr| osstr.to_string_lossy().to_string())
                             .unwrap_or("?".to_string())
                     )

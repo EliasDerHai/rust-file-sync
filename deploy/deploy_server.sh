@@ -5,8 +5,9 @@ REMOTE_USER="pi"
 REMOTE_HOST="pi"
 REMOTE_PATH="/home/pi/Downloads/Rust-File-Sync_Server"
 SERVICE_NAME="rust-file-sync_server.service"
-TARGET="aarch64-unknown-linux-gnu"
 PROJECT="server"
+TARGET="aarch64-unknown-linux-gnu"
+BINARY_PATH="../target/${TARGET}/release/server"
 
 if [[ "${MSYSTEM-}" == "MINGW64" ]]; then
   CROSS_CMD="winpty cross build -p ${PROJECT} --release --target=${TARGET}"
@@ -14,7 +15,6 @@ else
   CROSS_CMD="cross build -p ${PROJECT} --release --target=${TARGET}"
 fi
 
-BINARY_PATH="./target/${TARGET}/release/server"
 
 echo "Building project..."
 $CROSS_CMD

@@ -1,7 +1,15 @@
 ## Release
 
-server:
-`cross build -p server --release --target=aarch64-unknown-linux-gnu`
+### Server
+Got a little bash script for deployment `./deploy/deploy_server.sh` or manually
+1. cross_compile (eg. [cross](https://github.com/cross-rs/cross)) `cross build -p server --release --target=aarch64-unknown-linux-gnu`
+2. stop current service on pi (`systemctl stop ...`)
+3. upload & overwrite old binary ...
+4. start service (`systemctl start ...`) 
+5. profit (or new bugs)
+
+### Client
+
 
 ## Idea
 
