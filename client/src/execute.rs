@@ -63,7 +63,7 @@ pub async fn execute(
 
             fs::write(&file_path, bytes)
                 .await
-                .map_err(|e| format!("Could not save downloaded file: {}", e.to_string()))?;
+                .map_err(|e| format!("Could not save downloaded file ({:?}): {}", &file_path, e.to_string()))?;
 
             Ok(format!(
                 "Downloaded {} successfully",

@@ -79,8 +79,14 @@ impl From<Vec<String>> for MatchablePath {
                 .into_iter()
                 .map(|item| item.trim().to_string())
                 .filter(|item| {
-                    let option = item.chars().next();
-                    !item.is_empty() && !option.unwrap().is_ascii_punctuation()
+                    match item.as_str() {
+                        // TODO proper error handling
+                        ".." => panic!("Traversal attack"),
+                        "/" => panic!("Traversal attack"),
+                        "\\" => panic!("Traversal attack"),
+                        "~" => panic!("Traversal attack!"),
+                        _ => true,
+                    }
                 })
                 .collect(),
         )
@@ -142,6 +148,8 @@ mod tests {
         assert_eq!(one, two);
         let three = MatchablePath::from(Path::new("foo/bar\\file.txt"));
         assert_eq!(three, two);
+        let four = MatchablePath::from(Path::new("/foo/bar/file.txt"));
+        assert_eq!(four, two);
     }
 
     #[test]
@@ -162,6 +170,20 @@ mod tests {
     }
 
     #[test]
+    fn should_be_fine_with_dots() {
+        let from_vec = MatchablePath::from(
+            vec![".obsidian", "file.txt"]
+                .iter()
+                .map(|str| str.to_string())
+                .collect::<Vec<String>>(),
+        );
+        let from_str = MatchablePath::from(".obsidian/file.txt");
+
+        assert_eq!(from_vec, from_str);
+        assert_eq!(from_vec.0.len(), 2);
+    }
+
+    #[test]
     fn should_deserialize_and_deal_with_path_traversal_attack() {
         let json = "\"../dir1/dir2/file.txt\"";
         let deserialized = serde_json::from_str::<MatchablePath>(json).unwrap();
@@ -169,6 +191,24 @@ mod tests {
             MatchablePath::from(Path::new("dir1/dir2/file.txt")),
             deserialized
         );
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_when_traversal_attack_tilde() {
+        let _ = MatchablePath::from(vec![String::from("~")]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_when_traversal_attack_parent() {
+        let _ = MatchablePath::from(vec![String::from("..")]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_when_traversal_attack_root() {
+        let _ = MatchablePath::from(vec![String::from("/")]);
     }
 
     #[test]

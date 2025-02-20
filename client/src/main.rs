@@ -62,7 +62,8 @@ async fn main() {
         let loop_start = Instant::now();
 
         let dir = config.path_to_monitor.clone();
-        match get_all_file_descriptions(dir.as_path())
+        let excluded_paths: Vec<String> = Vec::new();
+        match get_all_file_descriptions(dir.as_path(), &excluded_paths)
             .map_err(|e| format!("Could not scan directory - {}", e))
         {
             Err(error) => error!("Scanning directory failed - {}", error),

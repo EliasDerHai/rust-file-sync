@@ -22,7 +22,8 @@ use uuid::Uuid;
 /// expecting no payload
 /// returning list of file meta infos
 pub async fn scan_disk(path: &Path) -> Result<Json<Vec<FileDescription>>, StatusCode> {
-    match get_all_file_descriptions(path) {
+    let excluded_patterns = Vec::new();
+    match get_all_file_descriptions(path, &excluded_patterns) {
         Ok(descriptions) => Ok(Json(descriptions)),
         Err(err) => {
             error!("IO Failure - {}", err);

@@ -2,12 +2,14 @@ use serde::Deserialize;
 use serde_yaml;
 use std::fs;
 use std::path::PathBuf;
+use tracing::info;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
     pub server_url: String,
     pub path_to_monitor: PathBuf,
-    pub min_poll_interval_in_ms: u16
+    pub exclude_patterns: Vec<String>,
+    pub min_poll_interval_in_ms: u16,
 }
 
 pub fn read_config() -> Result<Config, String> {
@@ -29,6 +31,12 @@ pub fn read_config() -> Result<Config, String> {
             "Configured vault_path ('{:?}') is not a directory",
             config.path_to_monitor
         ));
+    }
+    if !config.exclude_patterns.is_empty() {
+        info!(
+            "Found exclude patterns in config {:?}",
+            config.exclude_patterns
+        );
     }
     Ok(config)
 }

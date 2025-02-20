@@ -4,7 +4,6 @@ use std::fs;
 use std::fs::Metadata;
 use std::path::Path;
 use std::time::UNIX_EPOCH;
-use tracing::info;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct FileDescription {
@@ -52,8 +51,8 @@ pub fn get_file_description(
     }
 }
 
-pub fn get_all_file_descriptions(path: &Path) -> Result<Vec<FileDescription>, String> {
-    inner_get_files_of_dir_rec(path, path, Vec::new())
+pub fn get_all_file_descriptions(path: &Path, exclude_patterns: &Vec<String>) -> Result<Vec<FileDescription>, String> {
+    inner_get_files_of_dir_rec(path, path, Vec::new(), exclude_patterns)
 }
 
 fn inner_get_files_of_dir_rec(
@@ -63,7 +62,10 @@ fn inner_get_files_of_dir_rec(
     reference_root_path: &Path,
     // the already collected elements in prev. recursive iterations
     mut descriptions: Vec<FileDescription>,
+    exclude_patterns: &Vec<String>
 ) -> Result<Vec<FileDescription>, String> {
+    // todo apply exclude patterns
+    
     for entry_result in fs::read_dir(current_path).map_err(|e| e.to_string())? {
         let entry = entry_result.map_err(|e| e.to_string())?;
         let entry_path = entry.path();
@@ -100,7 +102,7 @@ fn inner_get_files_of_dir_rec(
             descriptions.push(description);
         } else if entry_path.is_dir() {
             descriptions =
-                inner_get_files_of_dir_rec(&entry_path, reference_root_path, descriptions)?;
+                inner_get_files_of_dir_rec(&entry_path, reference_root_path, descriptions, exclude_patterns)?;
         }
     }
 

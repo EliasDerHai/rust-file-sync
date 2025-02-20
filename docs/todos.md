@@ -18,6 +18,8 @@ Let's see if that law holds once more.
       - add SyncGroup to client's upload & sync loop
 
 ### Bugs
+ - improper panics for traversal attacks in `./shared/src/matchable_path.rs` should be caught and propagated with Error (TryFrom) 
+ - wrong content-type header for /download responses (fixed "text; charset=utf-8")
 
 <hr />
 

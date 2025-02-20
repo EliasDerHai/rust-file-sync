@@ -5,7 +5,6 @@ use crate::write::{
 use axum::extract::{DefaultBodyLimit, Multipart, State};
 use axum::routing::post;
 use axum::{routing::get, Router};
-use std::f64::consts::LOG2_E;
 use std::sync::Arc;
 use std::{path::Path, sync::LazyLock};
 use tracing::error;
@@ -38,9 +37,7 @@ struct AppState {
 #[tokio::main]
 async fn main() {
     let log_level = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info"));
-    tracing_subscriber::fmt()
-        .with_env_filter(log_level)
-        .init();
+    tracing_subscriber::fmt().with_env_filter(log_level).init();
 
     tokio::spawn(async {
         create_all_paths_if_not_exist(vec![
@@ -69,7 +66,10 @@ async fn main() {
     let app = Router::new()
         .route("/ping", get(|| async { "pong" }))
         .route("/scan", get(|| handler::scan_disk(&UPLOAD_PATH)))
-        .route("/monitor", get(|| handler::get_monitoring(&MONITORING_CSV_PATH)))
+        .route(
+            "/monitor",
+            get(|| handler::get_monitoring(&MONITORING_CSV_PATH)),
+        )
         .route(
             "/upload",
             post(|state: State<AppState>, multipart: Multipart| {
