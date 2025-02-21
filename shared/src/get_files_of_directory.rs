@@ -73,7 +73,7 @@ fn inner_get_files_of_dir_rec(
         if entry_path.is_file() {
             // mac os specific
             if let Some(file_name) = entry_path.file_name() {
-                if file_name.to_string_lossy() == ".DS_Store" {
+                if file_name.to_string_lossy().to_lowercase() == ".ds_store" {
                     continue;
                 }
             }

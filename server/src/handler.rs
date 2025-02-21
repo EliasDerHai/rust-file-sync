@@ -16,7 +16,7 @@ use std::fs;
 use std::fs::create_dir_all;
 use std::path::{Component, Path, PathBuf};
 use tokio_util::io::ReaderStream;
-use tracing::{error, info, trace};
+use tracing::{debug, error, info, trace};
 use uuid::Uuid;
 
 /// expecting no payload
@@ -246,20 +246,31 @@ pub async fn delete(
     payload: String,
     state: State<AppState>,
 ) -> Result<(), (StatusCode, String)> {
-    info!("Delete endpoint - payload: {}", payload);
+    debug!("Received delete request for '{}'", payload);
     let matchable_path = MatchablePath::from(payload.as_str());
-    let p = &matchable_path.resolve(upload_path);
+    let p = matchable_path.resolve(upload_path);
+    let millis = chrono::Utc::now().timestamp_millis() as u64;
+    let event = FileEvent::new(
+        Uuid::new_v4(),
+        millis,
+        matchable_path,
+        0,
+        FileEventType::DeleteEvent,
+    );
+
+    if !p.exists() {
+        state.history.add(event);
+        info!("Skip delete because file doesn't exist");
+        return Err((
+            StatusCode::OK,
+            "Nothing to do, because file doesn't exist (could've been deleted by someone else)"
+                .to_string(),
+        ));
+    }
+
     match tokio::fs::remove_file(&p).await {
         Ok(()) => {
             info!("Deleted {} successfully", &p.to_string_lossy());
-            let millis = chrono::Utc::now().timestamp_millis() as u64;
-            let event = FileEvent::new(
-                Uuid::new_v4(),
-                millis,
-                matchable_path,
-                0,
-                FileEventType::DeleteEvent,
-            );
             state.history.add(event);
             info!(
                 "Added delete event with time {}",
