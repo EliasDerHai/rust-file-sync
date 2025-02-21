@@ -16,7 +16,7 @@ use std::fs;
 use std::fs::create_dir_all;
 use std::path::{Component, Path, PathBuf};
 use tokio_util::io::ReaderStream;
-use tracing::{error, info, trace};
+use tracing::{error, info, trace, warn};
 use uuid::Uuid;
 
 /// expecting no payload
@@ -60,8 +60,8 @@ pub async fn upload_handler(
                 .unwrap_or(0);
 
             if event.utc_millis < utc_millis_of_latest_history_event {
-                error!(
-                    "Dropping event for {:?} - event ({:?}) older than latest history state event ({:?})",
+                warn!(
+                    "Skipping upload & event for {:?} - event ({:?}) older than latest history state event ({:?})",
                     &event.relative_path, utc_millis_of_latest_history_event, event.utc_millis
                 );
                 Err((StatusCode::BAD_REQUEST, "not latest".to_string()))
@@ -72,25 +72,24 @@ pub async fn upload_handler(
                     .iter()
                     .map(|part| Component::Normal(part.as_ref()));
                 let target_path: PathBuf = upload_root_path.components().chain(sub_path).collect();
+                let temp_path: PathBuf = event.temp_file_path.clone().unwrap();
                 let io_result = match event.event_type {
                     FileEventType::ChangeEvent => {
                         create_dir_all(target_path.parent().unwrap_or(Path::new("./"))).map_err(
                             |e| {
                                 (
                                     StatusCode::INTERNAL_SERVER_ERROR,
-                                    format!("Cannot create dir - {}", e),
+                                    format!("Could not create dir - {}", e),
                                 )
                             },
                         )?;
-                        info!(
-                            "moving {:?} -> {:?}",
-                            event.temp_file_path.as_ref().unwrap(),
-                            target_path
-                        );
-                        fs::rename(
-                            event.temp_file_path.as_ref().unwrap().as_path(),
+                        let result = fs::rename(temp_path.as_path(), target_path.as_path());
+                        log_move_success_and_potentially_cleanup_temp_file(
+                            result.is_ok(),
+                            temp_path.as_path(),
                             target_path.as_path(),
-                        )
+                        );
+                        result
                     }
                     FileEventType::DeleteEvent => fs::remove_file(&target_path),
                 };
@@ -132,6 +131,30 @@ pub async fn upload_handler(
                 }
             }
         }
+    }
+}
+
+fn log_move_success_and_potentially_cleanup_temp_file(
+    was_success: bool,
+    temp_path: &Path,
+    target_path: &Path,
+) {
+    if was_success {
+        let result_delete_temp = if fs::remove_file(temp_path).is_ok() {
+            "was successful"
+        } else {
+            "failed aswell"
+        };
+
+        warn!(
+            "moving failed - deleting temp file {} - {:?} -> {:?}",
+            result_delete_temp, temp_path, target_path,
+        );
+    } else {
+        info!(
+            "moving was successful - {:?} -> {:?}",
+            temp_path, target_path
+        );
     }
 }
 

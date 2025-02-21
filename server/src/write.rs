@@ -42,7 +42,8 @@ pub async fn schedule_data_backups(data_path: &Path, backup_path: &Path) {
     }
 }
 
-async fn perform_backup(data_path: &Path, backup_path: &Path) {
+async fn perform_backup(_data_path: &Path, _backup_path: &Path) {
+    // TODO impl
     info!("Executing daily backup...");
 }
 
@@ -87,7 +88,8 @@ pub async fn write_all_chunks_of_field(path: &Path, mut field: Field<'_>) -> Res
     Ok(total_size_counter)
 }
 
-pub async fn write_all_at_once<'a>(path: &Path, field: Field<'a>) -> Result<(), Error> {
+// TODO introduce switch flag to try both and measure mem-consumption and speed? would be interesting
+pub async fn _write_all_at_once<'a>(path: &Path, field: Field<'a>) -> Result<(), Error> {
     info!(
         "Trying to write to {} - (content_type = {:?})",
         path.display(),
