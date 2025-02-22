@@ -1,4 +1,12 @@
-## Release
+## Run
+
+For running dev env just:
+* server: run server via `cargo run -p server`
+* client: copy config.yaml.template to config.yaml with according properties & run via `cargo run -p client`
+
+## Deploy 
+
+Assuming setup with services on linux (pi) via systemctl, windows (nssm) and mac (launchctl).
 
 ### Server
 Got a little bash script for deployment `./deploy/deploy_server.sh` or manually
@@ -9,15 +17,18 @@ Got a little bash script for deployment `./deploy/deploy_server.sh` or manually
 5. profit (or new bugs)
 
 ### Client
+Basically just `cargo build -p client --release` and run it as os-service.
 
+* **for windows** use nssm (`./deploy/deploy_client_windows.sh`)
+* **for mac** use launchctl (`./deploy/deploy_client_windows.sh`)
 
-## Idea
+## Background / Idea
 
 file sync for obsidian or exchange for files?
 server should be on pi
 and in rust (obviously)
 
-Maybe something like [Syncthing](https://github.com/syncthing/syncthing) - but definitly not in go 😆
+Maybe something like [Syncthing](https://github.com/syncthing/syncthing) - but definitely not in go 😆
 
 Server:
 

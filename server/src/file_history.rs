@@ -1,19 +1,24 @@
+use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use tokio::time::Instant;
-use tracing::info;
+use tracing::{info, warn};
 use shared::file_event::{FileEvent, FileEventType};
 use shared::matchable_path::MatchablePath;
 
 pub trait FileHistory: Send + Sync {
+    /// add new event (insert at index 0)
     fn add(&self, event: FileEvent);
+    /// get all events of a path (latest first)
     fn get_events(&self, path: &MatchablePath) -> Option<Vec<FileEvent>>;
+    /// get the latest event of one specific path
     fn get_latest_event(&self, path: &MatchablePath) -> Option<FileEvent>;
-    /// get the latest event of every path that doesn't have a deleted event as it's latest event
+    /// get the latest event of every path
     fn get_latest_events(&self) -> Vec<FileEvent>;
+    /// check if compliant with rules (sorting latest first + grouped by path) - may panic
     fn sanity_check(&self);
 }
 
@@ -27,9 +32,9 @@ pub struct InMemoryFileHistory {
 impl From<Vec<FileEvent>> for InMemoryFileHistory {
     fn from(mut value: Vec<FileEvent>) -> Self {
         let i = Instant::now();
-        if !value.is_sorted_by_key(|e| e.utc_millis) {
-            info!("History not chronological - correcting order...");
-            value.sort_by_key(|e| e.utc_millis);
+        if !value.is_sorted_by(|a, b| a.utc_millis > b.utc_millis ) {
+            warn!("History not chronological - correcting order...");
+            value.sort_by_key(|e| Reverse(e.utc_millis));
         }
         let inner = value.into_iter().fold(HashMap::new(), |mut acc, curr| {
             match acc.get_mut(&curr.relative_path) {
@@ -132,7 +137,7 @@ impl FileHistory for InMemoryFileHistory {
                     key.get(), false_path
                 );
             }
-            if !value.is_sorted_by_key(|e| e.utc_millis) {
+            if !value.is_sorted_by_key(|e| Reverse(e.utc_millis)) {
                 panic!(
                     "History invalid - should be sorted by time - key: {:?} ",
                     key
@@ -205,8 +210,10 @@ mod tests {
             .unwrap()
             .get(&MatchablePath::from(vec!["foo", "bar", "file.txt"]))
             .unwrap()
-            .len();
+            .clone();
 
-        assert_eq!(500, events_in_history);
+        let expected_latest_utc_millis = 499; // 500 elements but starts at 0
+        assert_eq!(expected_latest_utc_millis , events_in_history.get(0).unwrap().utc_millis);
+        assert_eq!(500, events_in_history.len());
     }
 }
