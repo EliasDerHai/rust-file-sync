@@ -3,11 +3,12 @@ use shared::file_event::{FileEvent, FileEventType};
 use shared::matchable_path::MatchablePath;
 use std::path::PathBuf;
 use uuid::Uuid;
+use shared::utc_millis::UtcMillis;
 
 /// What the client sends upon detecting a change in his file-system
 #[derive(Debug, Clone)]
 pub struct ClientFileEvent {
-    pub utc_millis: u64,
+    pub utc_millis: UtcMillis,
     /// relative path of the file on client side from the tracked root dir
     pub relative_path: MatchablePath,
     pub event_type: FileEventType,
@@ -17,7 +18,7 @@ pub struct ClientFileEvent {
 }
 
 pub struct ClientFileEventDto {
-    pub utc_millis: Option<u64>,
+    pub utc_millis: Option<UtcMillis>,
     pub relative_path: Option<Vec<String>>,
     pub file_event_type: Option<FileEventType>,
     pub temp_file_path: Option<PathBuf>,

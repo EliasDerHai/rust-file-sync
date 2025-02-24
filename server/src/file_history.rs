@@ -4,10 +4,10 @@ use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use tokio::time::Instant;
-use tracing::{info, warn};
 use shared::file_event::{FileEvent, FileEventType};
 use shared::matchable_path::MatchablePath;
+use tokio::time::Instant;
+use tracing::{info, warn};
 
 pub trait FileHistory: Send + Sync {
     /// add new event (insert at index 0)
@@ -32,9 +32,9 @@ pub struct InMemoryFileHistory {
 impl From<Vec<FileEvent>> for InMemoryFileHistory {
     fn from(mut value: Vec<FileEvent>) -> Self {
         let i = Instant::now();
-        if !value.is_sorted_by(|a, b| a.utc_millis > b.utc_millis ) {
+        if !value.is_sorted_by(|a, b| a.utc_millis > b.utc_millis) {
             warn!("History not chronological - correcting order...");
-            value.sort_by_key(|e| Reverse(e.utc_millis));
+            value.sort_by_key(|e| Reverse(e.clone().utc_millis));
         }
         let inner = value.into_iter().fold(HashMap::new(), |mut acc, curr| {
             match acc.get_mut(&curr.relative_path) {
@@ -137,7 +137,7 @@ impl FileHistory for InMemoryFileHistory {
                     key.get(), false_path
                 );
             }
-            if !value.is_sorted_by_key(|e| Reverse(e.utc_millis)) {
+            if !value.is_sorted_by_key(|e| Reverse(&e.utc_millis)) {
                 panic!(
                     "History invalid - should be sorted by time - key: {:?} ",
                     key
@@ -149,12 +149,11 @@ impl FileHistory for InMemoryFileHistory {
 
 #[cfg(test)]
 mod tests {
-    use uuid::Uuid;
-
+    use super::*;
     use shared::file_event::FileEvent;
     use shared::file_event::FileEventType::ChangeEvent;
-
-    use super::*;
+    use shared::utc_millis::UtcMillis;
+    use uuid::Uuid;
 
     #[test]
     fn should_get_latest() {
@@ -162,14 +161,14 @@ mod tests {
 
         let e1 = FileEvent::new(
             Uuid::new_v4(),
-            100,
+            UtcMillis::from(100),
             MatchablePath::from(vec!["dir", "file.txt"]),
             1024,
             ChangeEvent,
         );
         let e2 = FileEvent::new(
             Uuid::new_v4(),
-            200,
+            UtcMillis::from(200),
             MatchablePath::from(vec!["dir", "file.txt"]),
             1024,
             ChangeEvent,
@@ -192,10 +191,10 @@ mod tests {
     #[test]
     fn should_build_history() {
         let events: Vec<FileEvent> = (0..500)
-            .map(|i| {
+            .map(|i: u64| {
                 FileEvent::new(
                     Uuid::new_v4(),
-                    i,
+                    UtcMillis::from(i),
                     MatchablePath::from(vec!["foo", "bar", "file.txt"]),
                     1024 * 1024 * 1024,
                     ChangeEvent,
@@ -213,7 +212,10 @@ mod tests {
             .clone();
 
         let expected_latest_utc_millis = 499; // 500 elements but starts at 0
-        assert_eq!(expected_latest_utc_millis , events_in_history.get(0).unwrap().utc_millis);
+        assert_eq!(
+            UtcMillis::from(expected_latest_utc_millis),
+            events_in_history.get(0).unwrap().utc_millis
+        );
         assert_eq!(500, events_in_history.len());
     }
 }

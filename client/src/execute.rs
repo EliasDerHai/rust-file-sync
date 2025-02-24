@@ -23,7 +23,7 @@ pub async fn execute(
             let form: Form = Form::new()
                 .text(
                     "utc_millis",
-                    description.last_updated_utc_millis.to_string(),
+                    serde_json::to_string(&description.last_updated_utc_millis).unwrap(),
                 )
                 .text("relative_path", relative_path_to_send)
                 .text(
@@ -54,7 +54,15 @@ pub async fn execute(
                 .body(p.to_serialized_string())
                 .send()
                 .await
-                .map_err(|e| format!("Download request failed - {}", e.to_string()))?;
+                .map_err(|e| format!("Download request failed - {}", e.to_string()))?
+                .error_for_status()
+                .map_err(|e| {
+                    format!(
+                        "Download request failed - {} - {}",
+                        e.status().unwrap(),
+                        e.to_string()
+                    )
+                })?;
 
             let bytes = response.bytes().await.map_err(|e| {
                 format!(

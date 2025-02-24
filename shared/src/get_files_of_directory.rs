@@ -1,9 +1,9 @@
 use crate::matchable_path::MatchablePath;
+use crate::utc_millis::UtcMillis;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::Metadata;
 use std::path::Path;
-use std::time::UNIX_EPOCH;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct FileDescription {
@@ -13,7 +13,7 @@ pub struct FileDescription {
     pub relative_path: MatchablePath,
     pub size_in_bytes: u64,
     pub file_type: String,
-    pub last_updated_utc_millis: u64,
+    pub last_updated_utc_millis: UtcMillis,
 }
 
 pub fn get_file_description(
@@ -40,7 +40,7 @@ pub fn get_file_description(
                     relative_path: MatchablePath::from(relative_path),
                     size_in_bytes: m.len(),
                     file_type,
-                    last_updated_utc_millis,
+                    last_updated_utc_millis: UtcMillis::from(last_updated_utc_millis),
                 };
                 Ok(description)
             } else {
@@ -51,7 +51,10 @@ pub fn get_file_description(
     }
 }
 
-pub fn get_all_file_descriptions(path: &Path, exclude_patterns: &Vec<String>) -> Result<Vec<FileDescription>, String> {
+pub fn get_all_file_descriptions(
+    path: &Path,
+    exclude_patterns: &Vec<String>,
+) -> Result<Vec<FileDescription>, String> {
     inner_get_files_of_dir_rec(path, path, Vec::new(), exclude_patterns)
 }
 
@@ -62,10 +65,10 @@ fn inner_get_files_of_dir_rec(
     reference_root_path: &Path,
     // the already collected elements in prev. recursive iterations
     mut descriptions: Vec<FileDescription>,
-    exclude_patterns: &Vec<String>
+    exclude_patterns: &Vec<String>,
 ) -> Result<Vec<FileDescription>, String> {
     // todo apply exclude patterns
-    
+
     for entry_result in fs::read_dir(current_path).map_err(|e| e.to_string())? {
         let entry = entry_result.map_err(|e| e.to_string())?;
         let entry_path = entry.path();
@@ -101,19 +104,21 @@ fn inner_get_files_of_dir_rec(
             };
             descriptions.push(description);
         } else if entry_path.is_dir() {
-            descriptions =
-                inner_get_files_of_dir_rec(&entry_path, reference_root_path, descriptions, exclude_patterns)?;
+            descriptions = inner_get_files_of_dir_rec(
+                &entry_path,
+                reference_root_path,
+                descriptions,
+                exclude_patterns,
+            )?;
         }
     }
 
     Ok(descriptions)
 }
 
-fn get_last_updated(metadata: &Metadata) -> Option<u64> {
+fn get_last_updated(metadata: &Metadata) -> Option<UtcMillis> {
     if let Ok(modified) = metadata.modified() {
-        if let Ok(duration) = modified.duration_since(UNIX_EPOCH) {
-            return Some(duration.as_millis() as u64);
-        }
+        return Some(UtcMillis::from(modified));
     }
     None
 }

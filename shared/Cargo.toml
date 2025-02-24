@@ -7,7 +7,4 @@ edition = "2021"
 serde = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
-tracing = { workspace = true }
-
-[dev-dependencies]
-serde_json = { version = "1.0" }
+serde_json = { workspace = true }

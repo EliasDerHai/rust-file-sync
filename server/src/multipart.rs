@@ -1,14 +1,19 @@
-use std::path::{Path, PathBuf};
+use crate::client_file_event::ClientFileEventDto;
+use crate::write::write_all_chunks_of_field;
 use axum::extract::Multipart;
 use axum::http::StatusCode;
 use shared::file_event::FileEventType;
+use shared::utc_millis::UtcMillis;
+use std::path::{Path, PathBuf};
 use tracing::error;
+use tracing::log::info;
 use uuid::Uuid;
-use crate::client_file_event::ClientFileEventDto;
-use crate::write::write_all_chunks_of_field;
 
-pub async fn parse_multipart_request(upload_root_tmp_path: &Path, multipart: &mut Multipart) -> Result<ClientFileEventDto, (StatusCode, String)> {
-    let mut utc_millis: Option<u64> = None;
+pub async fn parse_multipart_request(
+    upload_root_tmp_path: &Path,
+    multipart: &mut Multipart,
+) -> Result<ClientFileEventDto, (StatusCode, String)> {
+    let mut utc_millis: Option<UtcMillis> = None;
     let mut relative_path: Option<Vec<String>> = None;
     let mut file_event_type: Option<FileEventType> = None;
     let mut temp_file_path: Option<PathBuf> = None;
@@ -21,7 +26,12 @@ pub async fn parse_multipart_request(upload_root_tmp_path: &Path, multipart: &mu
                 utc_millis = field
                     .text()
                     .await
-                    .map(|t| t.parse::<u64>().ok())
+                    .map(|t| {
+                        info!("{}", t);
+                        let r = t.parse::<u64>().ok().map(UtcMillis::from);
+                        info!("{:?}", r);
+                        r
+                    })
                     .ok()
                     .flatten();
             }

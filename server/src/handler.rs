@@ -6,11 +6,11 @@ use axum::extract::{Multipart, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
-use chrono::DateTime;
 use shared::file_event::{FileEvent, FileEventType};
 use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
 use shared::matchable_path::MatchablePath;
 use shared::sync_instruction::SyncInstruction;
+use shared::utc_millis::UtcMillis;
 use std::ffi::OsStr;
 use std::fs;
 use std::fs::create_dir_all;
@@ -57,13 +57,14 @@ pub async fn upload_handler(
                 .history
                 .get_latest_event(&event.relative_path)
                 .map(|e| e.utc_millis)
-                .unwrap_or(0);
+                .unwrap_or(UtcMillis::from(0));
 
             if event.utc_millis < utc_millis_of_latest_history_event {
                 warn!(
                     "Skipping upload & event for {:?} - event ({:?}) older than latest history state event ({:?})",
                     &event.relative_path, utc_millis_of_latest_history_event, event.utc_millis
                 );
+                // todo no exit point of fn without deleting the temp file!! refac handler
                 Err((StatusCode::BAD_REQUEST, "not latest".to_string()))
             } else {
                 let sub_path = event
@@ -158,12 +159,6 @@ fn log_move_success_and_potentially_cleanup_temp_file(
     }
 }
 
-fn get_utc_millis_as_date_string(utc_millis: u64) -> String {
-    DateTime::from_timestamp_millis(utc_millis as i64)
-        .map(|t| t.format("%d.%m.%Y %H:%M:%S").to_string())
-        .unwrap_or("invalid datetime".to_string())
-}
-
 /// compares incoming payload with FileHistory to determine and return a list of instructions
 /// in order for the client to achieve a synchronized state
 ///
@@ -192,10 +187,8 @@ pub async fn sync_handler(
             None => instructions.push(SyncInstruction::Download(event.relative_path)),
             Some(client_equivalent) => {
                 trace!(
-                    "Server has {} ({}) - client has {} ({})",
-                    get_utc_millis_as_date_string(event.utc_millis),
+                    "Server has {} - client has {}",
                     event.utc_millis,
-                    get_utc_millis_as_date_string(client_equivalent.last_updated_utc_millis),
                     client_equivalent.last_updated_utc_millis
                 );
 
@@ -251,10 +244,10 @@ pub async fn download(upload_root_path: &Path, payload: String) -> impl IntoResp
     let body = axum::body::Body::from_stream(stream);
 
     let headers = [
-        (
-            axum::http::header::CONTENT_TYPE,
-            "text; charset=utf-8".to_string(), // TODO
-        ),
+        // (
+        //     axum::http::header::CONTENT_TYPE,
+        //     "text; charset=utf-8".to_string(), // TODO
+        // ),
         (
             axum::http::header::CONTENT_DISPOSITION,
             format!("attachment; filename=\"{}\"", file_name),
@@ -272,10 +265,10 @@ pub async fn delete(
     debug!("Received delete request for '{}'", payload);
     let matchable_path = MatchablePath::from(payload.as_str());
     let p = matchable_path.resolve(upload_path);
-    let millis = chrono::Utc::now().timestamp_millis() as u64;
+    let millis = UtcMillis::now(); // TODO not really true...
     let event = FileEvent::new(
         Uuid::new_v4(),
-        millis,
+        millis.clone(),
         matchable_path,
         0,
         FileEventType::DeleteEvent,
@@ -295,10 +288,7 @@ pub async fn delete(
         Ok(()) => {
             info!("Deleted {} successfully", &p.to_string_lossy());
             state.history.add(event);
-            info!(
-                "Added delete event with time {}",
-                get_utc_millis_as_date_string(millis)
-            );
+            info!("Added delete event with time {}", millis);
             Ok(())
         }
         Err(err) => {

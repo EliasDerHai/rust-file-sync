@@ -193,11 +193,11 @@ dependencies = [
 name = "client"
 version = "0.1.0"
 dependencies = [
- "chrono",
  "futures",
  "futures-util",
  "reqwest",
  "serde",
+ "serde_json",
  "serde_yaml",
  "shared",
  "tokio",
@@ -1411,7 +1411,6 @@ dependencies = [
  "chrono",
  "serde",
  "serde_json",
- "tracing",
  "uuid",
 ]
 

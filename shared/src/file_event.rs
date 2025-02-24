@@ -1,6 +1,8 @@
 use crate::matchable_path::MatchablePath;
+use crate::utc_millis::UtcMillis;
 use std::fmt::Debug;
 use std::path::Path;
+use serde_json::to_string;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -51,7 +53,7 @@ pub struct FileEvent {
     /// probably not needed
     pub id: Uuid,
     /// time of event on client side
-    pub utc_millis: u64,
+    pub utc_millis: UtcMillis,
     /// relative path of the file on client side from the tracked root dir
     pub relative_path: MatchablePath,
     pub size_in_bytes: u64,
@@ -63,7 +65,7 @@ impl FileEvent {
     pub fn serialize_to_csv_line(&self) -> String {
         let parts = vec![
             self.id.to_string(),
-            self.utc_millis.to_string(),
+            to_string(&self.utc_millis).unwrap(),
             self.relative_path.get().join("/"),
             self.size_in_bytes.to_string(),
             self.event_type.serialize_to_string(),
@@ -74,7 +76,7 @@ impl FileEvent {
 
     pub fn new(
         id: Uuid,
-        utc_millis: u64,
+        utc_millis: UtcMillis,
         relative_path: MatchablePath,
         size_in_bytes: u64,
         event_type: FileEventType,
@@ -130,7 +132,7 @@ impl TryFrom<&str> for FileEvent {
 
         Ok(FileEvent {
             id,
-            utc_millis,
+            utc_millis: UtcMillis::from(utc_millis),
             relative_path,
             size_in_bytes,
             event_type,
@@ -151,7 +153,7 @@ mod tests {
         let millis = Utc::now().timestamp_millis() as u64;
         let event = FileEvent::new(
             uuid,
-            millis,
+            UtcMillis::from(millis),
             MatchablePath::from(vec!["foo", "bar", "file.txt"]),
             1024 * 1024 * 1024,
             ChangeEvent,
@@ -161,10 +163,10 @@ mod tests {
         assert_eq!(expected, event.serialize_to_csv_line());
     }
     #[test]
-    fn test_serialize_deserialize_round_trip() {
+    fn should_serialize_deserialize_round_trip() {
         let original_event = FileEvent {
             id: Uuid::new_v4(),
-            utc_millis: 1234567890,
+            utc_millis: UtcMillis::from(1234567890),
             relative_path: MatchablePath::from(vec!["folder", "subfolder", "file.txt"]),
             size_in_bytes: 1024,
             event_type: ChangeEvent,
@@ -178,7 +180,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_err_invalid_uuid() {
+    fn should_parse_err_invalid_uuid() {
         let invalid_uuid = "not-a-uuid;1234567;some/path;300;change";
         let result = FileEvent::try_from(invalid_uuid);
         assert!(result.is_err(), "Parsing invalid UUID should fail");
@@ -189,7 +191,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_err_invalid_utc_millis() {
+    fn should_parse_err_invalid_utc_millis() {
         let invalid_utc = format!("{};abc;some/path;300;change", Uuid::new_v4());
         let result = FileEvent::try_from(invalid_utc.as_str());
         assert!(result.is_err(), "Parsing invalid utc_millis should fail");
@@ -200,7 +202,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_err_invalid_size_in_bytes() {
+    fn should_parse_err_invalid_size_in_bytes() {
         let invalid_size = format!("{};123456;some/path;not-a-number;change", Uuid::new_v4());
         let result = FileEvent::try_from(invalid_size.as_str());
         assert!(result.is_err(), "Parsing invalid size_in_bytes should fail");
@@ -211,7 +213,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_err_invalid_event_type() {
+    fn should_parse_err_invalid_event_type() {
         let invalid_event_type = format!("{};1234567;some/path;300;foo-bar", Uuid::new_v4());
         let result = FileEvent::try_from(invalid_event_type.as_str());
         assert!(result.is_err(), "Parsing invalid event_type should fail");
@@ -222,7 +224,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_err_multiple_lines() {
+    fn should_parse_err_multiple_lines() {
         let multi_line = format!(
             "{};123456;some/path;300;change\nAnotherLine",
             Uuid::new_v4()
@@ -236,7 +238,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_err_incorrect_parts_too_few() {
+    fn should_parse_err_incorrect_parts_too_few() {
         let too_few = format!("{};123456;some/path;300", Uuid::new_v4()); // only 4 parts
         let result = FileEvent::try_from(too_few.as_str());
         assert!(result.is_err(), "Fewer than 5 parts should fail");
@@ -247,7 +249,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_err_incorrect_parts_too_many() {
+    fn should_parse_err_incorrect_parts_too_many() {
         let too_many = format!("{};123456;some/path;300;change;extra", Uuid::new_v4()); // 6 parts
         let result = FileEvent::try_from(too_many.as_str());
         assert!(result.is_err(), "More than 5 parts should fail");
