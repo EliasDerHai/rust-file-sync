@@ -3,6 +3,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{Display, Formatter};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// simple Value object that serializes to utc milliseconds and can be printed as readable datetime string
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 pub struct UtcMillis {
     millis: u64,
@@ -110,7 +111,7 @@ mod tests {
 
     /// serde tests
     #[test]
-    fn test_serialization() {
+    fn should_serialization() {
         let millis = UtcMillis {
             millis: 1711747200000,
         };
@@ -119,14 +120,14 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialization() {
+    fn should_deserialize() {
         let json_data = "1711747200000";
         let deserialized: UtcMillis = serde_json::from_str(json_data).unwrap();
         assert_eq!(deserialized.millis, 1711747200000);
     }
 
     #[test]
-    fn test_serialize_deserialize_roundtrip() {
+    fn should_serialize_deserialize_roundtrip() {
         let millis = UtcMillis { millis: 1234567890 };
         let serialized = serde_json::to_string(&millis).unwrap();
         let deserialized: UtcMillis = serde_json::from_str(&serialized).unwrap();
@@ -134,14 +135,14 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialize_invalid_data() {
+    fn should_deserialize_invalid_data() {
         let json_data = "\"invalid_string\"";
         let result: Result<UtcMillis, _> = serde_json::from_str(json_data);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_deserialize_negative_value() {
+    fn should_deserialize_negative_value() {
         let json_data = "-1000";
         let result: Result<UtcMillis, _> = serde_json::from_str(json_data);
         assert!(result.is_err());
