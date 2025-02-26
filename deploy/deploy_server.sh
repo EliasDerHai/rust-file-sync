@@ -9,6 +9,8 @@ PROJECT="server"
 TARGET="aarch64-unknown-linux-gnu"
 BINARY_PATH="../target/${TARGET}/release/server"
 
+./version-bump.sh
+
 if [[ "${MSYSTEM-}" == "MINGW64" ]]; then
   CROSS_CMD="winpty cross build -p ${PROJECT} --release --target=${TARGET}"
 else

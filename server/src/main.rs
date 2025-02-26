@@ -13,7 +13,6 @@ use tracing_subscriber::EnvFilter;
 mod client_file_event;
 mod file_history;
 mod handler;
-mod init_directories;
 mod monitor;
 mod multipart;
 mod write;

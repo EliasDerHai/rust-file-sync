@@ -1,0 +1,5 @@
+[package]
+name = "version-bump"
+edition = "2024"
+version.workspace = true
+description = "Minimal runnable to bump (patch) the version field of a single Cargo.toml - for something more production ready check these crates: `toml`, `toml-edit`, `cargo-edit`"
