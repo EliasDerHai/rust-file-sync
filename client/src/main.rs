@@ -1,5 +1,4 @@
 use crate::config::{read_config, Config};
-use crate::endpoints::ServerEndpoint;
 use futures_util::future::join_all;
 use reqwest::Client;
 use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
@@ -9,33 +8,11 @@ use std::time::Duration;
 use tokio::time::Instant;
 use tracing::{error, info, trace};
 use tracing_subscriber::EnvFilter;
+use shared::endpoint::ServerEndpoint;
 
 mod config;
 mod execute;
 
-pub mod endpoints {
-    pub enum ServerEndpoint {
-        Ping,
-        Scan, // not needed
-        Sync,
-        Upload,
-        Download,
-        Delete,
-    }
-
-    impl ServerEndpoint {
-        pub fn to_uri(&self, base: &str) -> String {
-            match self {
-                ServerEndpoint::Ping => format!("http://{}/ping", base),
-                ServerEndpoint::Scan => format!("http://{}/scan", base),
-                ServerEndpoint::Sync => format!("http://{}/sync", base),
-                ServerEndpoint::Upload => format!("http://{}/upload", base),
-                ServerEndpoint::Download => format!("http://{}/download", base),
-                ServerEndpoint::Delete => format!("http://{}/delete", base),
-            }
-        }
-    }
-}
 
 #[tokio::main]
 async fn main() {

@@ -1,4 +1,3 @@
-use crate::endpoints::ServerEndpoint;
 use reqwest::multipart::Form;
 use reqwest::Client;
 use shared::file_event::FileEventType;
@@ -7,6 +6,7 @@ use shared::sync_instruction::SyncInstruction;
 use std::path::Path;
 use tokio::fs;
 use tokio::fs::{create_dir_all, remove_file};
+use shared::endpoint::ServerEndpoint;
 
 /// executes an instruction of the server (see [`SyncInstruction`])
 pub async fn execute(

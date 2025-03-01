@@ -5,6 +5,7 @@ use crate::write::{
 use axum::extract::{DefaultBodyLimit, Multipart, State};
 use axum::routing::post;
 use axum::{routing::get, Router};
+use shared::endpoint::ServerEndpoint;
 use std::sync::Arc;
 use std::{path::Path, sync::LazyLock};
 use tracing::error;
@@ -81,14 +82,17 @@ async fn main() {
     };
 
     let app = Router::new()
-        .route("/ping", get(|| async { "pong" }))
-        .route("/scan", get(|| handler::scan_disk(&UPLOAD_PATH)))
+        .route(ServerEndpoint::Ping.to_str(), get(|| async { "pong" }))
         .route(
-            "/monitor",
+            ServerEndpoint::Scan.to_str(),
+            get(|| handler::scan_disk(&UPLOAD_PATH)),
+        )
+        .route(
+            ServerEndpoint::Monitor.to_str(),
             get(|| handler::get_monitoring(&MONITORING_CSV_PATH)),
         )
         .route(
-            "/upload",
+            ServerEndpoint::Upload.to_str(),
             post(|state: State<AppState>, multipart: Multipart| {
                 handler::upload_handler(
                     &UPLOAD_PATH,
@@ -102,13 +106,13 @@ async fn main() {
                 10 * 1024 * 1024 * 1024, /* 10gb */
             )),
         )
-        .route("/sync", post(handler::sync_handler))
+        .route(ServerEndpoint::Sync.to_str(), post(handler::sync_handler))
         .route(
-            "/download",
+            ServerEndpoint::Download.to_str(),
             get(|payload: String| handler::download(&UPLOAD_PATH, payload)),
         )
         .route(
-            "/delete",
+            ServerEndpoint::Delete.to_str(),
             post(|state: State<AppState>, payload: String| {
                 handler::delete(&UPLOAD_PATH, &HISTORY_CSV_PATH, payload, state)
             }),
