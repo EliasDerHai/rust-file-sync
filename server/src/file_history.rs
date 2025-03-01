@@ -68,11 +68,12 @@ impl TryFrom<&Path> for InMemoryFileHistory {
 
         let events: Vec<FileEvent> = content
             .lines()
+            .skip(1) // skip header
             .filter_map(|line| {
                 let result = FileEvent::try_from(line);
 
                 if result.is_err() {
-                    info!(
+                    warn!(
                         "Deserialization error while parsing event history: {:?}",
                         result
                     );

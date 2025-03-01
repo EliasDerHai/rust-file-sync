@@ -127,6 +127,7 @@ pub fn append_line(file_path: &Path, line: &str) {
     }
 }
 
+/// directories to create (if not existent)
 pub fn create_all_paths_if_not_exist(paths: Vec<&Path>) -> io::Result<()> {
     for path in paths.into_iter() {
         if !path.exists() {
@@ -136,10 +137,14 @@ pub fn create_all_paths_if_not_exist(paths: Vec<&Path>) -> io::Result<()> {
     Ok::<(), Error>(())
 }
 
-pub fn create_all_files_if_not_exist(paths: Vec<&Path>) -> io::Result<()> {
-    for path in paths.into_iter() {
+/// csv-files to create (if not existent) - tuple contains path to file & list of headers (optional)
+pub fn create_all_csv_files_if_not_exist(
+    paths: Vec<(&Path, Option<Vec<String>>)>,
+) -> io::Result<()> {
+    for (path, headers) in paths.into_iter() {
         if !path.exists() {
-            fs::write(path, b"")?;
+            let content = format!("{}\n", headers.unwrap_or(Vec::new()).join(";"));
+            fs::write(path, content)?;
         }
     }
     Ok::<(), Error>(())

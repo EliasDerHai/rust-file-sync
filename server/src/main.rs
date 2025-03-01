@@ -1,6 +1,6 @@
 use crate::file_history::InMemoryFileHistory;
 use crate::write::{
-    create_all_files_if_not_exist, create_all_paths_if_not_exist, schedule_data_backups,
+    create_all_csv_files_if_not_exist, create_all_paths_if_not_exist, schedule_data_backups,
 };
 use axum::extract::{DefaultBodyLimit, Multipart, State};
 use axum::routing::post;
@@ -44,9 +44,27 @@ async fn main() {
             UPLOAD_TMP_PATH.iter().as_path(),
             BACKUP_PATH.iter().as_path(),
         ])?;
-        create_all_files_if_not_exist(vec![
-            HISTORY_CSV_PATH.iter().as_path(),
-            MONITORING_CSV_PATH.iter().as_path(),
+        create_all_csv_files_if_not_exist(vec![
+            (
+                MONITORING_CSV_PATH.iter().as_path(),
+                Some(vec![
+                    "Timestamp".to_string(),
+                    "Total used mem in %".to_string(),
+                    "App used mem in %".to_string(),
+                    "Total used cpu in %".to_string(),
+                    "App used cpu in %".to_string(),
+                ]),
+            ),
+            (
+                HISTORY_CSV_PATH.iter().as_path(),
+                Some(vec![
+                    "id".to_string(),
+                    "utc_millis".to_string(),
+                    "relative_path".to_string(),
+                    "size_in_bytes".to_string(),
+                    "event_type".to_string(),
+                ]),
+            ),
         ])?;
         Ok::<(), std::io::Error>(())
     });

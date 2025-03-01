@@ -45,7 +45,7 @@ pub async fn monitor_sys(monitor_csv_path: &Path) {
                 used_own_cpu_percentage.unwrap(),
             ];
             let csv_line = format!(
-                "{};{};",
+                "{};{}",
                 chrono::Local::now().to_string(),
                 x.iter()
                     .map(|f| f.to_string())
