@@ -5,8 +5,9 @@ pub enum ServerEndpoint {
     Download,
     Delete,
     // not used from client - can be directly accessed from browser etc. for inspection
-    Scan, 
+    Scan,
     Monitor,
+    Version,
 }
 
 impl ServerEndpoint {
@@ -24,6 +25,7 @@ impl ServerEndpoint {
             ServerEndpoint::Download => "/download",
             ServerEndpoint::Delete => "/delete",
             ServerEndpoint::Monitor => "/monitor",
+            ServerEndpoint::Version => "/version",
         }
     }
 }
@@ -33,8 +35,8 @@ mod tests {
     use super::*;
     use ServerEndpoint::*;
 
-    const ALL_ENDPOINTS: [ServerEndpoint; 7] =
-        [Ping, Scan, Sync, Upload, Download, Delete, Monitor];
+    const ALL_ENDPOINTS: [ServerEndpoint; 8] =
+        [Ping, Scan, Sync, Upload, Download, Delete, Monitor, Version];
 
     #[test]
     fn should_build_uris() {
@@ -48,6 +50,7 @@ mod tests {
                 Download => assert_eq!("http://localhost/download", actual),
                 Delete => assert_eq!("http://localhost/delete", actual),
                 Monitor => assert_eq!("http://localhost/monitor", actual),
+                Version => assert_eq!("http://localhost/version", actual),
             }
         })
     }

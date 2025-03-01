@@ -23,6 +23,8 @@ Let's see if that law holds once more.
 - add real DB for server (maybe DuckDb? or SQLite)
     - add more metrics (up/download per day etc.)
 - implement backup strategy (currently mocked TODOs)
+- switch to https (see [axum example](https://github.com/tokio-rs/axum/blob/main/examples/tls-rustls/src/main.rs)
+  and [mkcert](https://github.com/FiloSottile/mkcert))
 
 ### Bugs
 
@@ -30,7 +32,7 @@ Let's see if that law holds once more.
   respected - probably best to add a custom transaction wrapper)
 - improper panics for traversal attacks in `./shared/src/matchable_path.rs` should be caught and propagated with Error (
   TryFrom)
-- wrong content-type header for /download responses (fixed "text; charset=utf-8")
+- no content-type header for /download responses ([needed?](https://www.relevance.com/wp-content/uploads/2014/11/Aint-nobody-got-time-for-that.jpg))
 
 <hr />
 

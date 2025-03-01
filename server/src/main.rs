@@ -117,6 +117,10 @@ async fn main() {
                 handler::delete(&UPLOAD_PATH, &HISTORY_CSV_PATH, payload, state)
             }),
         )
+        .route(
+            ServerEndpoint::Version.to_str(),
+            get(|| async { env!("CARGO_PKG_VERSION") }),
+        )
         // .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state);
 
