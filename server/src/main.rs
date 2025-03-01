@@ -110,7 +110,7 @@ async fn main() {
         .route(
             "/delete",
             post(|state: State<AppState>, payload: String| {
-                handler::delete(&UPLOAD_PATH, payload, state)
+                handler::delete(&UPLOAD_PATH, &HISTORY_CSV_PATH, payload, state)
             }),
         )
         // .layer(tower_http::trace::TraceLayer::new_for_http())

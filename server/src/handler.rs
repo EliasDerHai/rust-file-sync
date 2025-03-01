@@ -36,7 +36,7 @@ pub async fn scan_disk(path: &Path) -> Result<Json<Vec<FileDescription>>, Status
 /// {
 ///   utc_millis: 42,
 ///   relative_path: "./directory/file.txt",
-///   event_type: "change",
+///   event_type: "change", // TODO this doesn't make any sense actually! on the persistence level and for the in-memory level we do have this enum but on controller service level we do have 2 endpoints (/upload & /delete) so the dto + the duplicated (unnecessary) code should be cleaned up
 ///   file: @File
 /// }
 pub async fn upload_handler(
@@ -140,7 +140,7 @@ fn log_move_success_and_potentially_cleanup_temp_file(
     temp_path: &Path,
     target_path: &Path,
 ) {
-    if was_success {
+    if !was_success {
         let result_delete_temp = if fs::remove_file(temp_path).is_ok() {
             "was successful"
         } else {
@@ -256,6 +256,7 @@ pub async fn download(upload_root_path: &Path, payload: String) -> impl IntoResp
 
 pub async fn delete(
     upload_path: &Path,
+    history_file_path: &Path,
     payload: String,
     state: State<AppState>,
 ) -> Result<(), (StatusCode, String)> {
@@ -283,9 +284,13 @@ pub async fn delete(
 
     match tokio::fs::remove_file(&p).await {
         Ok(()) => {
-            info!("Deleted {} successfully", &p.to_string_lossy());
+            append_line(
+                history_file_path,
+                &FileEvent::from(event.clone()).serialize_to_csv_line(),
+            );
             state.history.add(event);
-            info!("Added delete event with time {}", millis);
+            info!("Deleted {} successfully", &p.to_string_lossy());
+            info!("Added delete event with time {} to history/csv", millis);
             Ok(())
         }
         Err(err) => {
