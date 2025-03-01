@@ -222,7 +222,9 @@ pub async fn sync_handler(
         }
     }
 
-    info!("Instructions {:#?}", instructions);
+    if instructions.len() > 0 {
+        info!("Instructions {:#?}", instructions);
+    }
     Ok(Json(instructions))
 }
 
@@ -243,16 +245,11 @@ pub async fn download(upload_root_path: &Path, payload: String) -> impl IntoResp
     let stream = ReaderStream::new(file);
     let body = axum::body::Body::from_stream(stream);
 
-    let headers = [
-        // (
-        //     axum::http::header::CONTENT_TYPE,
-        //     "text; charset=utf-8".to_string(), // TODO
-        // ),
-        (
-            axum::http::header::CONTENT_DISPOSITION,
-            format!("attachment; filename=\"{}\"", file_name),
-        ),
-    ];
+    // should we add content_type header? works fine without so I guess we're good
+    let headers = [(
+        axum::http::header::CONTENT_DISPOSITION,
+        format!("attachment; filename=\"{}\"", file_name),
+    )];
 
     Ok((headers, body))
 }
@@ -265,7 +262,7 @@ pub async fn delete(
     debug!("Received delete request for '{}'", payload);
     let matchable_path = MatchablePath::from(payload.as_str());
     let p = matchable_path.resolve(upload_path);
-    let millis = UtcMillis::now(); // TODO not really true...
+    let millis = UtcMillis::now(); // good enough, but could be specified by client and sent as part of request
     let event = FileEvent::new(
         Uuid::new_v4(),
         millis.clone(),

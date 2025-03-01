@@ -7,7 +7,7 @@ use shared::sync_instruction::SyncInstruction;
 use std::ops::Add;
 use std::time::Duration;
 use tokio::time::Instant;
-use tracing::{error, info};
+use tracing::{error, info, trace};
 use tracing_subscriber::EnvFilter;
 
 mod config;
@@ -83,11 +83,13 @@ async fn main() {
                 {
                     Err(err) => error!("Error - failed to get instructions from server: {:?}", err),
                     Ok(instructions) => {
-                        info!(
-                            "{} Instructions received {:?}",
-                            instructions.len(),
-                            instructions
-                        );
+                        if instructions.len() > 0 {
+                            info!(
+                                "{} Instructions received {:?}",
+                                instructions.len(),
+                                instructions
+                            );
+                        }
                         for instruction in instructions {
                             if let SyncInstruction::Download(ref path) = &instruction {
                                 if deleted_files
@@ -122,7 +124,7 @@ async fn main() {
             }
         }
 
-        info!("Loop took {:?}", Instant::now().duration_since(loop_start));
+        trace!("Loop took {:?}", Instant::now().duration_since(loop_start));
         tokio::time::sleep_until(
             loop_start.add(Duration::from_millis(config.min_poll_interval_in_ms as u64)),
         )
