@@ -1,4 +1,3 @@
-use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -10,15 +9,15 @@ use tokio::time::Instant;
 use tracing::{info, warn};
 
 pub trait FileHistory: Send + Sync {
-    /// add new event (insert at index 0)
+    /// add new event (insert at end of nested vec)
     fn add(&self, event: FileEvent);
-    /// get all events of a path (latest first)
+    /// get all events of a path (chronologically = oldest first, latest last)
     fn get_events(&self, path: &MatchablePath) -> Option<Vec<FileEvent>>;
     /// get the latest event of one specific path
     fn get_latest_event(&self, path: &MatchablePath) -> Option<FileEvent>;
     /// get the latest event of every path
     fn get_latest_events(&self) -> Vec<FileEvent>;
-    /// check if compliant with rules (sorting latest first + grouped by path) - may panic
+    /// check if compliant with rules (chronologically sorted + grouped by path) - may panic
     fn sanity_check(&self);
 }
 
@@ -32,9 +31,9 @@ pub struct InMemoryFileHistory {
 impl From<Vec<FileEvent>> for InMemoryFileHistory {
     fn from(mut value: Vec<FileEvent>) -> Self {
         let i = Instant::now();
-        if !value.is_sorted_by(|a, b| a.utc_millis > b.utc_millis) {
+        if !value.is_sorted_by(|a, b| a.utc_millis < b.utc_millis) {
             warn!("History not chronological - correcting order...");
-            value.sort_by_key(|e| Reverse(e.clone().utc_millis));
+            value.sort_by_key(|e| e.utc_millis.clone());
         }
         let inner = value.into_iter().fold(HashMap::new(), |mut acc, curr| {
             match acc.get_mut(&curr.relative_path) {
@@ -138,7 +137,7 @@ impl FileHistory for InMemoryFileHistory {
                     key.get(), false_path
                 );
             }
-            if !value.is_sorted_by_key(|e| Reverse(&e.utc_millis)) {
+            if !value.is_sorted_by_key(|e| &e.utc_millis) {
                 panic!(
                     "History invalid - should be sorted by time - key: {:?} ",
                     key
@@ -191,19 +190,33 @@ mod tests {
 
     #[test]
     fn should_build_history() {
+        // arrange
+        let matchable_path = MatchablePath::from(vec!["foo", "bar", "file.txt"]);
         let events: Vec<FileEvent> = (0..500)
             .map(|i: u64| {
                 FileEvent::new(
                     Uuid::new_v4(),
                     UtcMillis::from(i),
-                    MatchablePath::from(vec!["foo", "bar", "file.txt"]),
+                    matchable_path.clone(),
                     1024 * 1024 * 1024,
                     ChangeEvent,
                 )
             })
             .collect();
 
+        // act
         let history = InMemoryFileHistory::from(events);
+
+        // assert
+        let expected_latest_utc_millis = 499; // 500 elements but starts at 0
+        assert_eq!(
+            UtcMillis::from(expected_latest_utc_millis),
+            history
+                .get_latest_event(&matchable_path)
+                .unwrap()
+                .utc_millis
+        );
+
         let events_in_history = history
             .store
             .lock()
@@ -211,12 +224,36 @@ mod tests {
             .get(&MatchablePath::from(vec!["foo", "bar", "file.txt"]))
             .unwrap()
             .clone();
-
-        let expected_latest_utc_millis = 499; // 500 elements but starts at 0
-        assert_eq!(
-            UtcMillis::from(expected_latest_utc_millis),
-            events_in_history.get(0).unwrap().utc_millis
-        );
         assert_eq!(500, events_in_history.len());
+    }
+
+    #[test]
+    fn should_correct_bad_order_when_building_history() {
+        // arrange
+        let matchable_path = MatchablePath::from(vec!["foo", "bar", "file.txt"]);
+        let events: Vec<FileEvent> = (0..500)
+            .rev() // effectively different from `should_build_history` test
+            .map(|i: u64| {
+                FileEvent::new(
+                    Uuid::new_v4(),
+                    UtcMillis::from(i),
+                    matchable_path.clone(),
+                    1024 * 1024 * 1024,
+                    ChangeEvent,
+                )
+            })
+            .collect();
+
+        // act
+        let history = InMemoryFileHistory::from(events);
+
+        // assert
+        assert_eq!(
+            UtcMillis::from(499),
+            history
+                .get_latest_event(&matchable_path)
+                .unwrap()
+                .utc_millis
+        );
     }
 }
