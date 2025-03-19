@@ -28,7 +28,7 @@ file sync for obsidian or exchange for files?
 server should be on pi
 and in rust (obviously)
 
-Maybe something like [Syncthing](https://github.com/syncthing/syncthing) - but definitely not in go 😆
+Maybe something like [Syncthing](https://github.com/syncthing/syncthing) - just not in go
 
 Server:
 
