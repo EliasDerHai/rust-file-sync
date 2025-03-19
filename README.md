@@ -1,5 +1,7 @@
 ## Run
 
+***NOT PROD READY YET***
+
 For running dev env just:
 * server: run server via `cargo run -p server`
 * client: copy config.yaml.template to config.yaml with according properties & run via `cargo run -p client`
