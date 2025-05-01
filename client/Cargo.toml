@@ -11,6 +11,6 @@ serde_json = { workspace = true }
 shared = { path = "../shared" }
 futures = { workspace = true, features = ["std"] }
 futures-util = "0.3.31"
-reqwest = { version = "0.12", features = ["default", "json", "multipart", "stream"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "stream", "rustls-tls"] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["ansi", "env-filter"] }
