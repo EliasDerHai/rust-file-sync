@@ -1,5 +1,4 @@
 use serde::Deserialize;
-use serde_yaml;
 use std::fs;
 use std::path::PathBuf;
 use tracing::info;

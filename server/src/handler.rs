@@ -164,12 +164,12 @@ fn log_move_success_and_potentially_cleanup_temp_file(
 ///
 /// expects payload like:
 /// [{
-///     "file_name": "history.csv",
-///		"relative_path": "./history.csv",
-///		"size_in_bytes": 103,
-///		"file_type": ".csv",
-///		"last_updated_utc_millis": 9585834893
-///	}]
+///  "file_name": "history.csv",
+///    "relative_path": "./history.csv",
+///    "size_in_bytes": 103,
+///    "file_type": ".csv",
+///    "last_updated_utc_millis": 9585834893
+///  }]
 ///
 pub async fn sync_handler(
     State(state): State<AppState>,
@@ -222,7 +222,7 @@ pub async fn sync_handler(
         }
     }
 
-    if instructions.len() > 0 {
+    if !instructions.is_empty() {
         info!("Instructions {:#?}", instructions);
     }
     Ok(Json(instructions))
@@ -233,7 +233,7 @@ pub async fn sync_handler(
 pub async fn download(upload_root_path: &Path, payload: String) -> impl IntoResponse {
     let sub_path: PathBuf = MatchablePath::from(payload.split('/').collect::<Vec<&str>>())
         .get()
-        .into_iter()
+        .iter()
         .map(|part| Component::Normal(OsStr::new(part)))
         .collect();
     let p = upload_root_path.join(sub_path);
@@ -284,10 +284,7 @@ pub async fn delete(
 
     match tokio::fs::remove_file(&p).await {
         Ok(()) => {
-            append_line(
-                history_file_path,
-                &FileEvent::from(event.clone()).serialize_to_csv_line(),
-            );
+            append_line(history_file_path, &event.clone().serialize_to_csv_line());
             state.history.add(event);
             info!("Deleted {} successfully", &p.to_string_lossy());
             info!("Added delete event with time {} to history/csv", millis);

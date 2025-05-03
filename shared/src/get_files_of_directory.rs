@@ -40,7 +40,7 @@ pub fn get_file_description(
                     relative_path: MatchablePath::from(relative_path),
                     size_in_bytes: m.len(),
                     file_type,
-                    last_updated_utc_millis: UtcMillis::from(last_updated_utc_millis),
+                    last_updated_utc_millis,
                 };
                 Ok(description)
             } else {
@@ -65,7 +65,7 @@ fn inner_get_files_of_dir_rec(
     reference_root_path: &Path,
     // the already collected elements in prev. recursive iterations
     mut descriptions: Vec<FileDescription>,
-    exclude_patterns: &Vec<String>,
+    _exclude_patterns: &Vec<String>,
 ) -> Result<Vec<FileDescription>, String> {
     // todo apply exclude patterns
 
@@ -108,7 +108,7 @@ fn inner_get_files_of_dir_rec(
                 &entry_path,
                 reference_root_path,
                 descriptions,
-                exclude_patterns,
+                _exclude_patterns,
             )?;
         }
     }

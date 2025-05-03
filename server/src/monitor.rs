@@ -38,15 +38,13 @@ pub async fn monitor_sys(monitor_csv_path: &Path) {
                 .unwrap_or(String::from("unknown"))
         );
         if c % 10 == 0 {
-            let x = vec![
-                used_sys_mem_percentage,
+            let x = [used_sys_mem_percentage,
                 used_own_mem_percentage.unwrap(),
                 used_sys_cpu_percentage,
-                used_own_cpu_percentage.unwrap(),
-            ];
+                used_own_cpu_percentage.unwrap()];
             let csv_line = format!(
                 "{};{}",
-                chrono::Local::now().to_string(),
+                chrono::Local::now(),
                 x.iter()
                     .map(|f| f.to_string())
                     .collect::<Vec<String>>()

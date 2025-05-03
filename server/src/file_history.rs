@@ -103,8 +103,7 @@ impl FileHistory for InMemoryFileHistory {
 
     fn get_latest_event(&self, path: &MatchablePath) -> Option<FileEvent> {
         self.get_events(path)
-            .map(|vec| vec.get(vec.len() - 1).cloned())
-            .flatten()
+            .and_then(|vec| vec.last().cloned())
     }
 
     fn get_latest_events(&self) -> Vec<FileEvent> {
@@ -113,7 +112,7 @@ impl FileHistory for InMemoryFileHistory {
             .unwrap()
             .iter()
             .filter_map(|(_, events)| {
-                events.get(events.len() - 1).map_or(None, |e| {
+                events.last().and_then(|e| {
                     if e.event_type != FileEventType::DeleteEvent {
                         Some(e.clone())
                     } else {
@@ -128,7 +127,7 @@ impl FileHistory for InMemoryFileHistory {
     fn sanity_check(&self) {
         for (key, value) in self.store.lock().unwrap().iter() {
             if let Some(false_path) = value
-                .into_iter()
+                .iter()
                 .find(|e| &e.relative_path != key)
                 .map(|e| e.relative_path.clone())
             {

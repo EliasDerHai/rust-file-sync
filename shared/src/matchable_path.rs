@@ -4,7 +4,7 @@ use std::ffi::OsStr;
 use std::path::{Component, Path, PathBuf};
 
 /// Describes an OS-path but with a few additional constraints:
-///  - just "Normal" Components (0-N folders + 1 file) - when described as path 
+///  - just "Normal" Components (0-N folders + 1 file) - when described as path
 ///  - cannot be "..", "~", "/" or "\" - when described as string or string array
 ///  - at least one item
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -24,12 +24,7 @@ impl MatchablePath {
     }
 
     pub fn resolve(&self, root: &Path) -> PathBuf {
-        root.join(
-            self.0
-                .iter()
-                .map(|part| OsStr::new(part))
-                .collect::<PathBuf>(),
-        )
+        root.join(self.0.iter().map(OsStr::new).collect::<PathBuf>())
     }
 
     pub fn to_serialized_string(&self) -> String {
@@ -41,10 +36,7 @@ impl From<&Path> for MatchablePath {
     fn from(path: &Path) -> Self {
         let vec = path
             .components()
-            .filter(|comp| match comp {
-                Component::Normal(_) => true,
-                _ => false,
-            })
+            .filter(|comp| matches!(comp, Component::Normal(_)))
             .map(|c| c.as_os_str().to_string_lossy().to_string())
             .fold(vec![], |mut acc, cur| {
                 acc.push(cur);
@@ -172,7 +164,7 @@ mod tests {
     #[test]
     fn should_be_fine_with_dots() {
         let from_vec = MatchablePath::from(
-            vec![".obsidian", "file.txt"]
+            [".obsidian", "file.txt"]
                 .iter()
                 .map(|str| str.to_string())
                 .collect::<Vec<String>>(),

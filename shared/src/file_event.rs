@@ -63,13 +63,11 @@ pub struct FileEvent {
 impl FileEvent {
     /// produces csv line with ; as separator
     pub fn serialize_to_csv_line(&self) -> String {
-        let parts = vec![
-            self.id.to_string(),
+        let parts = [self.id.to_string(),
             to_string(&self.utc_millis).unwrap(),
             self.relative_path.get().join("/"),
             self.size_in_bytes.to_string(),
-            self.event_type.serialize_to_string(),
-        ];
+            self.event_type.serialize_to_string()];
 
         parts.join(";")
     }

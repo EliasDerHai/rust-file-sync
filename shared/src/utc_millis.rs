@@ -12,7 +12,7 @@ pub struct UtcMillis {
 impl Display for UtcMillis {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let d = DateTime::from(self.clone());
-        write!(f, "{}", d.to_string())
+        write!(f, "{}", d)
     }
 }
 
@@ -97,7 +97,7 @@ mod tests {
 
     #[test]
     fn should_sort() {
-        let mut elements = vec![UtcMillis::from(5), UtcMillis::from(50), UtcMillis::from(1)];
+        let mut elements = [UtcMillis::from(5), UtcMillis::from(50), UtcMillis::from(1)];
         elements.sort();
 
         assert_eq!(

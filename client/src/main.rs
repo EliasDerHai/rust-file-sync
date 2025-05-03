@@ -1,6 +1,7 @@
 use crate::config::{read_config, Config};
 use futures_util::future::join_all;
 use reqwest::Client;
+use shared::endpoint::ServerEndpoint;
 use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
 use shared::sync_instruction::SyncInstruction;
 use std::ops::Add;
@@ -8,11 +9,9 @@ use std::time::Duration;
 use tokio::time::Instant;
 use tracing::{error, info, trace};
 use tracing_subscriber::EnvFilter;
-use shared::endpoint::ServerEndpoint;
 
 mod config;
 mod execute;
-
 
 #[tokio::main]
 async fn main() {
@@ -60,7 +59,7 @@ async fn main() {
                 {
                     Err(err) => error!("Error - failed to get instructions from server: {:?}", err),
                     Ok(instructions) => {
-                        if instructions.len() > 0 {
+                        if !instructions.is_empty() {
                             info!(
                                 "{} Instructions received {:?}",
                                 instructions.len(),
@@ -120,11 +119,11 @@ async fn check_server_reachable(config: &Config, client: &Client) {
 
 async fn send_potential_delete_events(
     config: &Config,
-    last_scan: &Vec<FileDescription>,
+    last_scan: &[FileDescription],
     client: &Client,
-    descriptions: &Vec<FileDescription>,
+    descriptions: &[FileDescription],
 ) -> Vec<FileDescription> {
-    let last_deleted_files = determine_deleted_files(last_scan, &descriptions);
+    let last_deleted_files = determine_deleted_files(last_scan, descriptions);
     let futures = last_deleted_files
         .iter()
         .map(|deleted| {
@@ -176,15 +175,15 @@ async fn send_to_server_and_receive_instructions(
 /// This is due to the stateless nature of the client.
 /// Since it doesn't do harm, it doesn't make sense to introduce state in order to deal with this reverb.
 fn determine_deleted_files(
-    last: &Vec<FileDescription>,
-    curr: &Vec<FileDescription>,
+    last: &[FileDescription],
+    curr: &[FileDescription],
 ) -> Vec<FileDescription> {
-    last.into_iter()
+    last.iter()
         .filter(|prev_description| {
             !curr.iter().any(|curr_description| {
                 prev_description.relative_path == curr_description.relative_path
             })
         })
-        .map(|d| d.clone())
+        .cloned()
         .collect()
 }

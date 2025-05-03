@@ -39,7 +39,7 @@ pub async fn execute(
                 .multipart(form)
                 .send()
                 .await
-                .map_err(|e| format!("Upload failed - {}", e.to_string()))?
+                .map_err(|e| format!("Upload failed - {}", e))?
                 .text()
                 .await
                 .map_err(|_e| "?".to_string()) // just the error of response.text()
@@ -54,35 +54,33 @@ pub async fn execute(
                 .body(p.to_serialized_string())
                 .send()
                 .await
-                .map_err(|e| format!("Download request failed - {}", e.to_string()))?
+                .map_err(|e| format!("Download request failed - {}", e))?
                 .error_for_status()
                 .map_err(|e| {
                     format!(
                         "Download request failed - {} - {}",
                         e.status().unwrap(),
-                        e.to_string()
+                        e
                     )
                 })?;
 
             let bytes = response.bytes().await.map_err(|e| {
                 format!(
                     "Download failed - cannot read response body - {}",
-                    e.to_string()
+                    e
                 )
             })?;
 
             create_dir_all(file_path.parent().unwrap())
                 .await
-                .expect(&format!(
-                    "Should be able to create parent directory of file ({:?})",
-                    &file_path
-                ));
+                .unwrap_or_else(|_| panic!("Should be able to create parent directory of file ({:?})",
+                    &file_path));
 
             fs::write(&file_path, bytes).await.map_err(|e| {
                 format!(
                     "Could not save downloaded file ({:?}): {}",
                     &file_path,
-                    e.to_string()
+                    e
                 )
             })?;
 
@@ -100,7 +98,7 @@ pub async fn execute(
 
             remove_file(&file_path)
                 .await
-                .map_err(|e| format!("Deleting file failed - {}", e.to_string()))
+                .map_err(|e| format!("Deleting file failed - {}", e))
                 .map(|_| {
                     format!(
                         "Deleted file '{}'",
