@@ -1,8 +1,8 @@
 use crate::matchable_path::MatchablePath;
 use crate::utc_millis::UtcMillis;
+use serde_json::to_string;
 use std::fmt::Debug;
 use std::path::Path;
-use serde_json::to_string;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -13,8 +13,8 @@ pub enum FileEventType {
     // delete and create.
 }
 
-const CHANGE_STR: &'static str = "change";
-const DELETE_STR: &'static str = "delete";
+const CHANGE_STR: &str = "change";
+const DELETE_STR: &str = "delete";
 
 impl FileEventType {
     pub fn serialize_to_string(&self) -> String {

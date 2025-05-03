@@ -4,6 +4,7 @@ use axum::extract::Multipart;
 use axum::http::StatusCode;
 use shared::file_event::FileEventType;
 use shared::utc_millis::UtcMillis;
+use std::fs;
 use std::path::{Path, PathBuf};
 use tracing::error;
 use tracing::log::info;
@@ -62,6 +63,13 @@ pub async fn parse_multipart_request(
                     // returned if the axum body limit is exceeded - make sure to adjust the limit
                     // in main.rs
                     .map_err(|e| {
+                        if let Err(e) = fs::remove_file(&temp_path) {
+                            error!(
+                                "Broken temp-file ({:?}) couldn't be deleted! Error: ({})",
+                                &temp_path, e
+                            );
+                        }
+
                         (
                             StatusCode::INTERNAL_SERVER_ERROR,
                             format!("Error writing multipart chunks - {}", e),
@@ -73,6 +81,7 @@ pub async fn parse_multipart_request(
             Some(other) => error!("Unknown field name '{other}' in upload handler"),
         }
     }
+
     Ok(ClientFileEventDto {
         utc_millis,
         relative_path,

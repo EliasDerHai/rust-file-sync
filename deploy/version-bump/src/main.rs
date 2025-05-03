@@ -1,8 +1,8 @@
 use clap::Parser;
 use std::error::Error;
+use std::fs;
 use std::path::Path;
 use std::str::FromStr;
-use std::fs;
 
 /// Quick and dirty Cargo.toml version bumping
 /// takes args:
@@ -21,7 +21,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let toml_content = toml_content
         .lines()
-        .into_iter()
         .map(|line| {
             if line.starts_with("version") {
                 bump_version(line, &config.semver)
@@ -114,7 +113,7 @@ fn format_version_string(major: u8, minor: u8, patch: u8) -> String {
 
 #[cfg(test)]
 mod test {
-    use crate::{bump_version, SemVersionPart};
+    use crate::{SemVersionPart, bump_version};
 
     #[test]
     fn should_bump_patch_version() {

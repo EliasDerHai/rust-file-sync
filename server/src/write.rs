@@ -1,5 +1,4 @@
 use std::fs::{create_dir_all, OpenOptions};
-use std::io::{Error, ErrorKind};
 use std::path::Path;
 use std::{fs, io};
 
@@ -47,11 +46,14 @@ async fn perform_backup(_data_path: &Path, _backup_path: &Path) {
     info!("Executing daily backup...");
 }
 
-fn map_to_io_error(e: MultipartError) -> Error {
-    Error::new(ErrorKind::Other, e)
+fn map_to_io_error(e: MultipartError) -> io::Error {
+    io::Error::new(io::ErrorKind::Other, e)
 }
 
-pub async fn write_all_chunks_of_field(path: &Path, mut field: Field<'_>) -> Result<usize, Error> {
+pub async fn write_all_chunks_of_field(
+    path: &Path,
+    mut field: Field<'_>,
+) -> Result<usize, io::Error> {
     info!(
         "Trying to progressively write to {} - (content_type = {:?})",
         path.display(),
@@ -75,12 +77,12 @@ pub async fn write_all_chunks_of_field(path: &Path, mut field: Field<'_>) -> Res
                     );
                     break;
                 }
-                Some(b) => {
+                Some(bytes) => {
                     chunk_counter += 1;
-                    let chunk_size = b.len();
+                    let chunk_size = bytes.len();
                     total_size_counter += chunk_size;
                     debug!("{}: chunk-size = {}", chunk_counter, chunk_size);
-                    file.write_all(&*b).await?;
+                    file.write_all(&bytes).await?;
                 }
             },
         }
@@ -88,8 +90,8 @@ pub async fn write_all_chunks_of_field(path: &Path, mut field: Field<'_>) -> Res
     Ok(total_size_counter)
 }
 
-// TODO introduce switch flag to try both and measure mem-consumption and speed? would be interesting
-pub async fn _write_all_at_once<'a>(path: &Path, field: Field<'a>) -> Result<(), Error> {
+// NOTE: introduce switch flag to try both and measure mem-consumption and speed? would be interesting
+pub async fn _write_all_at_once(path: &Path, field: Field<'_>) -> Result<(), io::Error> {
     info!(
         "Trying to write to {} - (content_type = {:?})",
         path.display(),
@@ -116,11 +118,7 @@ pub async fn _write_all_at_once<'a>(path: &Path, field: Field<'a>) -> Result<(),
 }
 
 pub fn append_line(file_path: &Path, line: &str) {
-    let mut file = OpenOptions::new()
-        .write(true)
-        .append(true)
-        .open(file_path)
-        .unwrap();
+    let mut file = OpenOptions::new().append(true).open(file_path).unwrap();
 
     if let Err(e) = writeln!(file, "{line}") {
         error!("Couldn't append to file: {}", e);
@@ -134,7 +132,7 @@ pub fn create_all_paths_if_not_exist(paths: Vec<&Path>) -> io::Result<()> {
             create_dir_all(path)?
         }
     }
-    Ok::<(), Error>(())
+    Ok::<(), io::Error>(())
 }
 
 /// csv-files to create (if not existent) - tuple contains path to file & list of headers (optional)
@@ -147,5 +145,5 @@ pub fn create_all_csv_files_if_not_exist(
             fs::write(path, content)?;
         }
     }
-    Ok::<(), Error>(())
+    Ok::<(), io::Error>(())
 }
