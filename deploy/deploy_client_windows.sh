@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+cd "$(dirname "$0")"
+
 PROJECT="client"
 SERVICE_NAME="rust-file-sync_client"
 SERVICE_PATH="C:/projects/code/backend/rust-file-sync_windows_service/client.exe"

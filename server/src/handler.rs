@@ -82,7 +82,6 @@ fn process_upload(
                     "Skipping upload & event for {:?} - event ({:?}) older than latest history state event ({:?})",
                     &event.relative_path, utc_millis_of_latest_history_event, event.utc_millis
                 );
-                // todo no exit point of fn without deleting the temp file!! refac handler
                 return Err((
                     event.temp_file_path,
                     StatusCode::BAD_REQUEST,
@@ -200,7 +199,11 @@ pub async fn sync_handler(
             client_file_description.relative_path == event.relative_path
         }) {
             // client doesn't have the file at all
-            None => instructions.push(SyncInstruction::Download(event.relative_path)),
+            None => {
+                if event.event_type != FileEventType::DeleteEvent {
+                    instructions.push(SyncInstruction::Download(event.relative_path))
+                }
+            }
             Some(client_equivalent) => {
                 trace!(
                     "Server has {} - client has {}",

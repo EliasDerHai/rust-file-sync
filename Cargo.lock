@@ -281,7 +281,7 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 
 [[package]]
 name = "client"
-version = "0.1.5"
+version = "0.1.7"
 dependencies = [
  "futures",
  "futures-util",
@@ -1399,7 +1399,7 @@ dependencies = [
 
 [[package]]
 name = "server"
-version = "0.1.5"
+version = "0.1.7"
 dependencies = [
  "axum",
  "chrono",
@@ -1425,7 +1425,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.1.5"
+version = "0.1.7"
 dependencies = [
  "chrono",
  "serde",
@@ -1832,7 +1832,7 @@ checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
 name = "version-bump"
-version = "0.1.5"
+version = "0.1.7"
 dependencies = [
  "clap",
 ]

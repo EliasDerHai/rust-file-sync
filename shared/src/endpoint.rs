@@ -4,7 +4,7 @@ pub enum ServerEndpoint {
     Upload,
     Download,
     Delete,
-    // not used from client - can be directly accessed from browser etc. for inspection
+    /// not used from client - can be directly accessed from browser etc. for inspection
     Scan,
     Monitor,
     Version,
