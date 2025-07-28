@@ -48,10 +48,28 @@ pub async fn upload_handler(
 ) -> Result<String, (StatusCode, String)> {
     // parse incoming request
     let dto = multipart::parse_multipart_request(upload_root_tmp_path, &mut multipart).await?;
+    process_upload(upload_root_path, history_file_path, state, dto).map_err(
+        |(tmp_file_path, status, error_msg)| {
+            if let Some(tmp_file) = tmp_file_path {
+                if let Err(e) = fs::remove_file(tmp_file) {
+                    tracing::warn!("couldn't clean up tmp file - {e}");
+                }
+            }
+            (status, error_msg)
+        },
+    )
+}
 
+fn process_upload(
+    upload_root_path: &Path,
+    history_file_path: &Path,
+    state: AppState,
+    dto: crate::client_file_event::ClientFileEventDto,
+) -> Result<String, (Option<PathBuf>, StatusCode, String)> {
+    let tmp_file_path_cpy = dto.temp_file_path.clone();
     // map to domain object (FileEvent)
     match ClientFileEvent::try_from(dto) {
-        Err(e) => Err((StatusCode::BAD_REQUEST, e)),
+        Err(e) => Err((tmp_file_path_cpy, StatusCode::BAD_REQUEST, e)),
         Ok(event) => {
             let utc_millis_of_latest_history_event = state
                 .history
@@ -65,97 +83,95 @@ pub async fn upload_handler(
                     &event.relative_path, utc_millis_of_latest_history_event, event.utc_millis
                 );
                 // todo no exit point of fn without deleting the temp file!! refac handler
-                Err((StatusCode::BAD_REQUEST, "not latest".to_string()))
-            } else {
-                let sub_path = event
-                    .relative_path
-                    .get()
-                    .iter()
-                    .map(|part| Component::Normal(part.as_ref()));
-                let target_path: PathBuf = upload_root_path.components().chain(sub_path).collect();
-                let temp_path: PathBuf = event.temp_file_path.clone().unwrap();
-                let io_result = match event.event_type {
-                    FileEventType::ChangeEvent => {
-                        create_dir_all(target_path.parent().unwrap_or(Path::new("./"))).map_err(
-                            |e| {
-                                (
-                                    StatusCode::INTERNAL_SERVER_ERROR,
-                                    format!("Could not create dir - {}", e),
-                                )
-                            },
-                        )?;
-                        let result = fs::rename(temp_path.as_path(), target_path.as_path());
-                        log_move_success_and_potentially_cleanup_temp_file(
-                            result.is_ok(),
-                            temp_path.as_path(),
-                            target_path.as_path(),
-                        );
-                        result
-                    }
-                    FileEventType::DeleteEvent => fs::remove_file(&target_path),
-                };
+                return Err((
+                    event.temp_file_path,
+                    StatusCode::BAD_REQUEST,
+                    "not latest".to_string(),
+                ));
+            }
 
-                let path_str = target_path.to_string_lossy();
-                match io_result {
-                    Ok(_) => {
-                        let message = match event.event_type {
-                            FileEventType::ChangeEvent => {
-                                format!("Updated {} successfully", path_str)
-                            }
-                            FileEventType::DeleteEvent => {
-                                format!("Deleted {} successfully", path_str)
-                            }
-                        };
-                        // write to history.csv
-                        append_line(
-                            history_file_path,
-                            &FileEvent::from(event.clone()).serialize_to_csv_line(),
-                        );
-                        // add to in-mem state
-                        state.history.clone().add(FileEvent::from(event));
-                        // log & return
-                        info!("{message}");
-                        Ok(message)
-                    }
-                    Err(e) => {
-                        let message = match event.event_type {
-                            FileEventType::ChangeEvent => {
-                                format!("Updating {} failed - {}", path_str, e)
-                            }
-                            FileEventType::DeleteEvent => {
-                                format!("Deleting {} failed - {}", path_str, e)
-                            }
-                        };
-                        error!("{message}");
-                        Err((StatusCode::INTERNAL_SERVER_ERROR, message))
-                    }
+            let sub_path = event
+                .relative_path
+                .get()
+                .iter()
+                .map(|part| Component::Normal(part.as_ref()));
+            let target_path: PathBuf = upload_root_path.components().chain(sub_path).collect();
+            let temp_path: PathBuf = event.temp_file_path.clone().unwrap();
+            let io_result = match event.event_type {
+                FileEventType::ChangeEvent => {
+                    create_dir_all(target_path.parent().unwrap_or(Path::new("./"))).map_err(
+                        |e| {
+                            (
+                                event.temp_file_path.clone(),
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                format!("Could not create dir - {}", e),
+                            )
+                        },
+                    )?;
+                    let result = fs::rename(temp_path.as_path(), target_path.as_path());
+                    {
+                        let was_success = result.is_ok();
+                        let temp_path = temp_path.as_path();
+                        let target_path = target_path.as_path();
+                        if !was_success {
+                            let result_delete_temp = if fs::remove_file(temp_path).is_ok() {
+                                "was successful"
+                            } else {
+                                "failed aswell"
+                            };
+
+                            warn!(
+                                "moving failed - deleting temp file {} - {:?} -> {:?}",
+                                result_delete_temp, temp_path, target_path,
+                            );
+                        } else {
+                            info!(
+                                "moving was successful - {:?} -> {:?}",
+                                temp_path, target_path
+                            );
+                        }
+                    };
+                    result
+                }
+                FileEventType::DeleteEvent => fs::remove_file(&target_path),
+            };
+
+            let path_str = target_path.to_string_lossy();
+            match io_result {
+                Ok(_) => {
+                    let message = match event.event_type {
+                        FileEventType::ChangeEvent => {
+                            format!("Updated {} successfully", path_str)
+                        }
+                        FileEventType::DeleteEvent => {
+                            format!("Deleted {} successfully", path_str)
+                        }
+                    };
+                    // write to history.csv
+                    append_line(
+                        history_file_path,
+                        &FileEvent::from(event.clone()).serialize_to_csv_line(),
+                    );
+                    // add to in-mem state
+                    state.history.clone().add(FileEvent::from(event));
+                    // log & return
+                    info!("{message}");
+                    Ok(message)
+                }
+                Err(e) => {
+                    let message = match event.event_type {
+                        FileEventType::ChangeEvent => {
+                            format!("Updating {} failed - {}", path_str, e)
+                        }
+                        FileEventType::DeleteEvent => {
+                            format!("Deleting {} failed - {}", path_str, e)
+                        }
+                    };
+                    error!("{message}");
+                    Err((None, StatusCode::INTERNAL_SERVER_ERROR, message))
                 }
             }
         }
-    }
-}
-
-fn log_move_success_and_potentially_cleanup_temp_file(
-    was_success: bool,
-    temp_path: &Path,
-    target_path: &Path,
-) {
-    if !was_success {
-        let result_delete_temp = if fs::remove_file(temp_path).is_ok() {
-            "was successful"
-        } else {
-            "failed aswell"
-        };
-
-        warn!(
-            "moving failed - deleting temp file {} - {:?} -> {:?}",
-            result_delete_temp, temp_path, target_path,
-        );
-    } else {
-        info!(
-            "moving was successful - {:?} -> {:?}",
-            temp_path, target_path
-        );
     }
 }
 

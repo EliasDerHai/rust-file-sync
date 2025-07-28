@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+cd "$(dirname "$0")"
+
 PROJECT="client"
 SERVICE_NAME="rust-file-sync_client"
 SERVICE_PATH="/Users/eliashaider/Documents/obsidian-vault/obsidian-vault"

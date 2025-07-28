@@ -33,14 +33,12 @@ and in rust (obviously)
 Maybe something like [Syncthing](https://github.com/syncthing/syncthing) - just not in go
 
 Server:
-
 - Axum
 - SqLite or maybe MongoDb - what about just a plain .txt with event-sourcing entries?
 
 Clients:
+- thin background service to sync with server
 
-- Tauri
-- SolidJs
 
 clients can't be pure web-apps, bc I want to automatically sink files and full access over the filesystem
 maybe finally my chance to wipe out [Tauri](https://tauri.app/) ?
