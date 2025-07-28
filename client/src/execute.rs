@@ -1,12 +1,12 @@
 use reqwest::multipart::Form;
 use reqwest::Client;
+use shared::endpoint::ServerEndpoint;
 use shared::file_event::FileEventType;
 use shared::get_files_of_directory::get_file_description;
 use shared::sync_instruction::SyncInstruction;
 use std::path::Path;
 use tokio::fs;
 use tokio::fs::{create_dir_all, remove_file};
-use shared::endpoint::ServerEndpoint;
 
 /// executes an instruction of the server (see [`SyncInstruction`])
 pub async fn execute(
@@ -39,11 +39,11 @@ pub async fn execute(
                 .multipart(form)
                 .send()
                 .await
-                .map_err(|e| format!("Upload failed - {}", e))?
+                .map_err(|e| format!("Upload failed - {e}"))?
                 .text()
                 .await
-                .map_err(|_e| "?".to_string()) // just the error of response.text()
-                .map(|response| format!("Upload successful - server replied with '{}'", response))
+                .map_err(|e| format!("BOM sniffing failed - {e}")) // just the error of response.text()
+                .map(|response| format!("Upload successful - server replied with '{response}'",))
         }
 
         SyncInstruction::Download(p) => {
@@ -54,35 +54,29 @@ pub async fn execute(
                 .body(p.to_serialized_string())
                 .send()
                 .await
-                .map_err(|e| format!("Download request failed - {}", e))?
+                .map_err(|e| format!("Download request failed - {e}",))?
                 .error_for_status()
                 .map_err(|e| {
-                    format!(
-                        "Download request failed - {} - {}",
-                        e.status().unwrap(),
-                        e
-                    )
+                    format!("Download request failed - {} - {}", e.status().unwrap(), e)
                 })?;
 
-            let bytes = response.bytes().await.map_err(|e| {
-                format!(
-                    "Download failed - cannot read response body - {}",
-                    e
-                )
-            })?;
+            let bytes = response
+                .bytes()
+                .await
+                .map_err(|e| format!("Download failed - cannot read response body - {e}"))?;
 
             create_dir_all(file_path.parent().unwrap())
                 .await
-                .unwrap_or_else(|_| panic!("Should be able to create parent directory of file ({:?})",
-                    &file_path));
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Should be able to create parent directory of file ({:?})",
+                        &file_path
+                    )
+                });
 
-            fs::write(&file_path, bytes).await.map_err(|e| {
-                format!(
-                    "Could not save downloaded file ({:?}): {}",
-                    &file_path,
-                    e
-                )
-            })?;
+            fs::write(&file_path, bytes)
+                .await
+                .map_err(|e| format!("Could not save downloaded file ({:?}): {}", &file_path, e))?;
 
             Ok(format!(
                 "Downloaded {} successfully",
@@ -98,7 +92,7 @@ pub async fn execute(
 
             remove_file(&file_path)
                 .await
-                .map_err(|e| format!("Deleting file failed - {}", e))
+                .map_err(|e| format!("Deleting file failed - {e}"))
                 .map(|_| {
                     format!(
                         "Deleted file '{}'",

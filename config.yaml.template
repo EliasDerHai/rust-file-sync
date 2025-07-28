@@ -1,6 +1,6 @@
 server_url: "localhost:3000"
 path_to_monitor: "./data/source"
 min_poll_interval_in_ms: 3000
-exclude_patterns: []
+exclude_dirs: []
 
 

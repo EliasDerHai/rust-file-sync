@@ -53,9 +53,9 @@ pub fn get_file_description(
 
 pub fn get_all_file_descriptions(
     path: &Path,
-    exclude_patterns: &Vec<String>,
+    exclude_dirs: &Vec<String>,
 ) -> Result<Vec<FileDescription>, String> {
-    inner_get_files_of_dir_rec(path, path, Vec::new(), exclude_patterns)
+    inner_get_files_of_dir_rec(path, path, Vec::new(), exclude_dirs)
 }
 
 fn inner_get_files_of_dir_rec(
@@ -65,13 +65,17 @@ fn inner_get_files_of_dir_rec(
     reference_root_path: &Path,
     // the already collected elements in prev. recursive iterations
     mut descriptions: Vec<FileDescription>,
-    _exclude_patterns: &Vec<String>,
+    exclude_dirs: &Vec<String>,
 ) -> Result<Vec<FileDescription>, String> {
-    // todo apply exclude patterns
-
     for entry_result in fs::read_dir(current_path).map_err(|e| e.to_string())? {
         let entry = entry_result.map_err(|e| e.to_string())?;
         let entry_path = entry.path();
+
+        for exclude_dir in exclude_dirs {
+            if entry_path.to_string_lossy().contains(exclude_dir) {
+                continue;
+            }
+        }
 
         if entry_path.is_file() {
             // mac os specific
@@ -108,7 +112,7 @@ fn inner_get_files_of_dir_rec(
                 &entry_path,
                 reference_root_path,
                 descriptions,
-                _exclude_patterns,
+                exclude_dirs,
             )?;
         }
     }

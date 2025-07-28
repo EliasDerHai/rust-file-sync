@@ -7,7 +7,7 @@ use tracing::info;
 pub struct Config {
     pub server_url: String,
     pub path_to_monitor: PathBuf,
-    pub exclude_patterns: Vec<String>,
+    pub exclude_dirs: Vec<String>,
     pub min_poll_interval_in_ms: u16,
 }
 
@@ -31,11 +31,8 @@ pub fn read_config() -> Result<Config, String> {
             config.path_to_monitor
         ));
     }
-    if !config.exclude_patterns.is_empty() {
-        info!(
-            "Found exclude patterns in config {:?}",
-            config.exclude_patterns
-        );
+    if !config.exclude_dirs.is_empty() {
+        info!("Found exclude patterns in config {:?}", config.exclude_dirs);
     }
     Ok(config)
 }
