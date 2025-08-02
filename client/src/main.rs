@@ -5,9 +5,10 @@ use shared::endpoint::ServerEndpoint;
 use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
 use shared::sync_instruction::SyncInstruction;
 use std::ops::Add;
+use std::thread::sleep;
 use std::time::Duration;
 use tokio::time::Instant;
-use tracing::{error, info, trace};
+use tracing::{error, info, trace, warn};
 use tracing_subscriber::EnvFilter;
 
 mod config;
@@ -29,11 +30,10 @@ async fn main() {
     };
 
     let mut last_scan: Option<Vec<FileDescription>> = None; // maybe persist this ? needed if files are deleted between sessions
-    let client = Client::new();
-
-    check_server_reachable(&config, &client).await;
+    check_server_reachable(&config).await;
 
     info!("Start monitoring changes in '{:?}'", config.path_to_monitor);
+    let client = Client::new();
     loop {
         let loop_start = Instant::now();
 
@@ -108,12 +108,33 @@ async fn main() {
     }
 }
 
-async fn check_server_reachable(config: &Config, client: &Client) {
+async fn check_server_reachable(config: &Config) {
     let hello_endpoint = ServerEndpoint::Ping.to_uri(&config.server_url);
+    let client = Client::builder()
+        .timeout(Duration::from_secs(1))
+        .build()
+        .unwrap();
     info!("Testing server at '{}'", &hello_endpoint);
-    match client.get(&hello_endpoint).send().await {
-        Err(error) => panic!("{} not reachable - {}", &hello_endpoint, error),
-        Ok(_) => info!("Server confirmed at {}!", &hello_endpoint),
+
+    let mut confirmed_availablity = false;
+    let mut attempts = 0;
+
+    while !confirmed_availablity {
+        match client.get(&hello_endpoint).send().await {
+            Err(_) => {
+                let time_out = Duration::from_secs(5 * attempts * attempts);
+                warn!(
+                    "{hello_endpoint} not reachable - attempt {attempts} - retrying in {}",
+                    humantime::format_duration(time_out)
+                );
+                sleep(time_out);
+                attempts += 1;
+            }
+            Ok(_) => {
+                info!("Server confirmed at {}!", &hello_endpoint);
+                confirmed_availablity = true;
+            }
+        }
     }
 }
 
