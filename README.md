@@ -1,6 +1,16 @@
-## Run
+I love taking notes.<br/>
+I dislike having everything in the cloud.<br/>
+I tend to forget commiting pushing changes when I'm working on notes rather than code.<br/>
+I enjoy tinkering on my own solutions.<br/>
 
-***NOT PROD READY YET***
+That's why I came up with this cross-plattform file sync via raspberry pi for my differen devices (tested on openSUSE, windows, mac, raspbian).<br/>
+DISCLAIMER: ***A SOLUTION FOR MY NEEDS TIED TO MY LOCAL SETUP***
+
+In action:
+
+https://github.com/user-attachments/assets/7ea8d0f1-770a-4b86-ad06-4c39bf338c8c
+
+## Run
 
 For running dev env just:
 * server: run server via `cargo run -p server`
@@ -24,17 +34,17 @@ Basically just `cargo build -p client --release` and run it as os-service.
 * **for windows** use nssm (`./deploy/deploy_client_windows.sh`)
 * **for mac** use launchctl (`./deploy/deploy_client_windows.sh`)
 
-## Background / Idea
+## Background / Ideas
 
 file sync for obsidian or exchange for files?
 server should be on pi
 and in rust (obviously)
 
-Maybe something like [Syncthing](https://github.com/syncthing/syncthing) - just not in go
+Maybe something like [Syncthing](https://github.com/syncthing/syncthing)?
 
 Server:
 - Axum
-- SqLite or maybe MongoDb - what about just a plain .txt with event-sourcing entries?
+- SqLite or maybe MongoDb - what about just a plain .txt with event-sourcing?
 
 Clients:
 - thin background service to sync with server
