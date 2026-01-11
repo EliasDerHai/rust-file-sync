@@ -82,6 +82,7 @@ async fn main() {
     };
 
     let app = Router::new()
+        .route("", get(|| async { "hello" }))
         .route(ServerEndpoint::Ping.to_str(), get(|| async { "pong" }))
         .route(
             ServerEndpoint::Scan.to_str(),

@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use shared::file_event::{FileEvent, FileEventType};
+use shared::file_event::FileEvent;
 use shared::matchable_path::MatchablePath;
 use tokio::time::Instant;
 use tracing::{info, warn};
