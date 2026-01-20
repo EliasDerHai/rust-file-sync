@@ -3,7 +3,7 @@ I dislike having everything in the cloud.<br/>
 I tend to forget commiting pushing changes when I'm working on notes rather than code.<br/>
 I enjoy tinkering on my own solutions.<br/>
 
-That's why I i. Implemented this cross-plattform file sync via raspberry pi for my differen devices (tested on openSUSE, windows, mac, raspbian).<br/>
+That's why I Implemented this cross-plattform file sync via raspberry pi for my differen devices (tested on openSUSE, windows, mac, raspbian).<br/>
 
 In action:
 
