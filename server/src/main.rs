@@ -97,11 +97,10 @@ async fn main() {
             ServerEndpoint::Scan.to_str(),
             get(|| handler::scan_disk(&UPLOAD_PATH)),
         )
-        // TODO: re-implement monitoring endpoint for rotating files
-        // .route(
-        //     ServerEndpoint::Monitor.to_str(),
-        //     get(|| handler::get_monitoring(&MONITORING_DIR)),
-        // )
+        .route(
+            ServerEndpoint::Monitor.to_str(),
+            get(|state: State<AppState>| monitor::get_monitoring(state.monitor_writer.clone())),
+        )
         .route(
             ServerEndpoint::Upload.to_str(),
             post(|state: State<AppState>, multipart: Multipart| {

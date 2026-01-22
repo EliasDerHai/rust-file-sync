@@ -163,4 +163,12 @@ impl RotatingFileWriter {
         // Create new file
         self.create_new_file()
     }
+
+    /// Reads the content of the current file.
+    pub fn read_current_file(&self) -> io::Result<String> {
+        match &self.current_file_path {
+            Some(path) => fs::read_to_string(path),
+            None => Ok(String::new()),
+        }
+    }
 }
