@@ -316,6 +316,7 @@ pub async fn delete(
     }
 }
 
+// TODO: add chart served as html
 pub async fn get_monitoring(monitoring_path: &Path) -> impl IntoResponse {
     let file = match tokio::fs::File::open(monitoring_path).await {
         Ok(file) => file,

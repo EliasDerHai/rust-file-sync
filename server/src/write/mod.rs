@@ -1,11 +1,12 @@
-use std::fs::{create_dir_all, OpenOptions};
-use std::path::Path;
-use std::{fs, io};
+mod rotating;
 
-use std::io::prelude::*;
+pub use rotating::RotatingFileWriter;
 
 use axum::extract::multipart::{Field, MultipartError};
 use chrono::{Local, NaiveTime};
+use std::fs::{self, create_dir_all, OpenOptions};
+use std::io::{self, Write};
+use std::path::Path;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use tokio::time::{sleep_until, Instant};
@@ -47,7 +48,7 @@ async fn perform_backup(_data_path: &Path, _backup_path: &Path) {
 }
 
 fn map_to_io_error(e: MultipartError) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, e)
+    io::Error::other(e)
 }
 
 pub async fn write_all_chunks_of_field(

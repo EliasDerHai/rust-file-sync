@@ -1,12 +1,14 @@
 use crate::file_history::InMemoryFileHistory;
 use crate::write::{
     create_all_csv_files_if_not_exist, create_all_paths_if_not_exist, schedule_data_backups,
+    RotatingFileWriter,
 };
 use axum::extract::{DefaultBodyLimit, Multipart, State};
 use axum::routing::post;
 use axum::{routing::get, Router};
 use shared::endpoint::ServerEndpoint;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::{path::Path, sync::LazyLock};
 use tracing::error;
 use tracing_subscriber::EnvFilter;
@@ -24,7 +26,7 @@ static UPLOAD_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/upload"
 static BACKUP_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/backup"));
 /// file to persist the in-mem state ([`InMemoryFileHistory`])
 static HISTORY_CSV_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/history.csv"));
-static MONITORING_CSV_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/monitor.csv"));
+static MONITORING_DIR: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/monitor"));
 /// dir to which multipart-files can be saved to, before being moved to the actual 'mirrored path'
 /// temporary and might be cleaned upon encountering errors or on scheduled intervals
 static UPLOAD_TMP_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/upload_in_progress"));
@@ -32,6 +34,7 @@ static UPLOAD_TMP_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/upl
 #[derive(Clone)]
 struct AppState {
     history: Arc<InMemoryFileHistory>,
+    monitor_writer: Arc<Mutex<RotatingFileWriter>>,
 }
 
 #[tokio::main]
@@ -45,32 +48,37 @@ async fn main() {
             UPLOAD_TMP_PATH.iter().as_path(),
             BACKUP_PATH.iter().as_path(),
         ])?;
-        create_all_csv_files_if_not_exist(vec![
-            (
-                MONITORING_CSV_PATH.iter().as_path(),
-                Some(vec![
-                    "Timestamp".to_string(),
-                    "Total used mem in %".to_string(),
-                    "App used mem in %".to_string(),
-                    "Total used cpu in %".to_string(),
-                    "App used cpu in %".to_string(),
-                ]),
-            ),
-            (
-                HISTORY_CSV_PATH.iter().as_path(),
-                Some(vec![
-                    "id".to_string(),
-                    "utc_millis".to_string(),
-                    "relative_path".to_string(),
-                    "size_in_bytes".to_string(),
-                    "event_type".to_string(),
-                ]),
-            ),
-        ])?;
+        create_all_csv_files_if_not_exist(vec![(
+            HISTORY_CSV_PATH.iter().as_path(),
+            Some(vec![
+                "id".to_string(),
+                "utc_millis".to_string(),
+                "relative_path".to_string(),
+                "size_in_bytes".to_string(),
+                "event_type".to_string(),
+            ]),
+        )])?;
         Ok::<(), std::io::Error>(())
     });
     tokio::spawn(schedule_data_backups(&UPLOAD_PATH, &BACKUP_PATH));
-    tokio::spawn(monitor::monitor_sys(&MONITORING_CSV_PATH));
+
+    // Create rotating file writer for monitoring (4 files, 5MB each)
+    let monitor_writer = RotatingFileWriter::new(
+        MONITORING_DIR.to_path_buf(),
+        "monitor".to_string(),
+        5 * 1024 * 1024, // 5MB
+        4,
+        Some(
+            "Timestamp;Total used mem in %;App used mem in %;Total used cpu in %;App used cpu in %"
+                .to_string(),
+        ),
+    )
+    .unwrap_or_else(|err| {
+        panic!("Failed to create monitor writer: {}", err);
+    });
+    let monitor_writer = Arc::new(Mutex::new(monitor_writer));
+
+    tokio::spawn(monitor::monitor_sys(monitor_writer.clone()));
 
     let history =
         InMemoryFileHistory::try_from(HISTORY_CSV_PATH.iter().as_path()).unwrap_or_else(|err| {
@@ -79,19 +87,21 @@ async fn main() {
         });
     let state = AppState {
         history: Arc::new(history),
+        monitor_writer,
     };
 
     let app = Router::new()
-        .route("", get(|| async { "hello" }))
+        .route(ServerEndpoint::Hello.to_str(), get(|| async { "hello" }))
         .route(ServerEndpoint::Ping.to_str(), get(|| async { "pong" }))
         .route(
             ServerEndpoint::Scan.to_str(),
             get(|| handler::scan_disk(&UPLOAD_PATH)),
         )
-        .route(
-            ServerEndpoint::Monitor.to_str(),
-            get(|| handler::get_monitoring(&MONITORING_CSV_PATH)),
-        )
+        // TODO: re-implement monitoring endpoint for rotating files
+        // .route(
+        //     ServerEndpoint::Monitor.to_str(),
+        //     get(|| handler::get_monitoring(&MONITORING_DIR)),
+        // )
         .route(
             ServerEndpoint::Upload.to_str(),
             post(|state: State<AppState>, multipart: Multipart| {
@@ -128,4 +138,5 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
 
     axum::serve(listener, app).await.unwrap();
+    tracing::info!("axum::served");
 }

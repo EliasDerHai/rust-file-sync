@@ -1,18 +1,19 @@
-use crate::write::append_line;
-use std::path::Path;
+use crate::write::RotatingFileWriter;
+use std::sync::{Arc, Mutex};
 use sysinfo::System;
-use tracing::trace;
+use tracing::{error, trace};
 
-pub async fn monitor_sys(monitor_csv_path: &Path) {
+const BACKOFF_MS: u64 = 10_000;
+
+pub async fn monitor_sys(writer: Arc<Mutex<RotatingFileWriter>>) {
     let mut system = System::new_all();
     let pid = sysinfo::get_current_pid().expect("Failed to get current PID");
     system.refresh_memory();
     system.refresh_cpu_usage();
     let total_sys_mem = system.total_memory() as f32;
-    let mut c = 0;
+    let backoff = tokio::time::Duration::from_millis(BACKOFF_MS);
 
     loop {
-        c += 1;
         system.refresh_all();
         let used_sys_mem_percentage = system.used_memory() as f32 / total_sys_mem * 100f32;
         let used_own_mem_percentage = system
@@ -37,21 +38,23 @@ pub async fn monitor_sys(monitor_csv_path: &Path) {
                 .map(|f| f.to_string())
                 .unwrap_or(String::from("unknown"))
         );
-        if c % 10 == 0 {
-            let x = [used_sys_mem_percentage,
-                used_own_mem_percentage.unwrap(),
-                used_sys_cpu_percentage,
-                used_own_cpu_percentage.unwrap()];
-            let csv_line = format!(
-                "{};{}",
-                chrono::Local::now(),
-                x.iter()
-                    .map(|f| f.to_string())
-                    .collect::<Vec<String>>()
-                    .join(";")
-            );
-            append_line(monitor_csv_path, csv_line.as_str());
+        let x = [
+            used_sys_mem_percentage,
+            used_own_mem_percentage.unwrap(),
+            used_sys_cpu_percentage,
+            used_own_cpu_percentage.unwrap(),
+        ];
+        let csv_line = format!(
+            "{};{}",
+            chrono::Local::now(),
+            x.iter()
+                .map(|f| f.to_string())
+                .collect::<Vec<String>>()
+                .join(";")
+        );
+        if let Err(e) = writer.lock().unwrap().write_line(&csv_line) {
+            error!("Failed to write monitoring data: {}", e);
         }
-        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        tokio::time::sleep(backoff).await;
     }
 }

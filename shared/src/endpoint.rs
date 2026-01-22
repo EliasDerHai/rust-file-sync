@@ -8,6 +8,7 @@ pub enum ServerEndpoint {
     Scan,
     Monitor,
     Version,
+    Hello,
 }
 
 impl ServerEndpoint {
@@ -18,6 +19,7 @@ impl ServerEndpoint {
 
     pub fn to_str(&self) -> &str {
         match self {
+            ServerEndpoint::Hello => "/",
             ServerEndpoint::Ping => "/ping",
             ServerEndpoint::Scan => "/scan",
             ServerEndpoint::Sync => "/sync",
@@ -43,6 +45,7 @@ mod tests {
         ALL_ENDPOINTS.into_iter().for_each(|endpoint| {
             let actual = endpoint.to_uri("localhost");
             match endpoint {
+                Hello => assert_eq!("http://localhost/", actual),
                 Ping => assert_eq!("http://localhost/ping", actual),
                 Scan => assert_eq!("http://localhost/scan", actual),
                 Sync => assert_eq!("http://localhost/sync", actual),
