@@ -29,8 +29,15 @@ else
   echo "Skipping version bump."
 fi
 
-echo "Building project for ${TARGET}..."
-cargo build -p ${PROJECT} --release --target=${TARGET}
+if [[ "${MSYSTEM-}" == "MINGW64" ]]; then
+  CROSS_CMD="winpty cross build -p ${PROJECT} --release --target=${TARGET}"
+else
+  CROSS_CMD="cross build -p ${PROJECT} --release --target=${TARGET}"
+fi
+
+
+echo "Building project..."
+$CROSS_CMD
 
 if [ ! -f "$BINARY_PATH" ]; then
   echo "Error: Binary not found at ${BINARY_PATH}"
