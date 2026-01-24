@@ -1,3 +1,5 @@
+![gen ai logo](./docs/logo.png)
+
 I love taking notes.<br/>
 I dislike having everything in the cloud.<br/>
 I tend to forget commiting pushing changes when I'm working on notes rather than code.<br/>

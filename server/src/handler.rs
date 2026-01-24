@@ -3,7 +3,7 @@ use crate::file_history::FileHistory;
 use crate::write::append_line;
 use crate::{multipart, AppState};
 use axum::extract::{Multipart, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
 use shared::file_event::{FileEvent, FileEventType};
@@ -45,10 +45,17 @@ pub async fn upload_handler(
     history_file_path: &Path,
     State(state): State<AppState>,
     mut multipart: Multipart,
+    headers: HeaderMap,
 ) -> Result<String, (StatusCode, String)> {
     // parse incoming request
     let dto = multipart::parse_multipart_request(upload_root_tmp_path, &mut multipart).await?;
-    process_upload(upload_root_path, history_file_path, state, dto).map_err(
+
+    let client_host = headers
+        .get(shared::endpoint::CLIENT_HOST_HEADER_KEY)
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+
+    process_upload(upload_root_path, history_file_path, state, dto, client_host).map_err(
         |(tmp_file_path, status, error_msg)| {
             if let Some(tmp_file) = tmp_file_path {
                 if let Err(e) = fs::remove_file(tmp_file) {
@@ -65,6 +72,7 @@ fn process_upload(
     history_file_path: &Path,
     state: AppState,
     dto: crate::client_file_event::ClientFileEventDto,
+    client_host: Option<String>,
 ) -> Result<String, (Option<PathBuf>, StatusCode, String)> {
     let tmp_file_path_cpy = dto.temp_file_path.clone();
     // map to domain object (FileEvent)
@@ -146,13 +154,13 @@ fn process_upload(
                             format!("Deleted {} successfully", path_str)
                         }
                     };
+                    // create FileEvent with client_host
+                    let mut fe = FileEvent::from(event);
+                    fe.client_host = client_host;
                     // write to history.csv
-                    append_line(
-                        history_file_path,
-                        &FileEvent::from(event.clone()).serialize_to_csv_line(),
-                    );
+                    append_line(history_file_path, &fe.serialize_to_csv_line());
                     // add to in-mem state
-                    state.history.clone().add(FileEvent::from(event));
+                    state.history.clone().add(fe);
                     // log & return
                     info!("{message}");
                     Ok(message)
@@ -278,17 +286,24 @@ pub async fn delete(
     history_file_path: &Path,
     payload: String,
     state: State<AppState>,
+
+    headers: HeaderMap,
 ) -> Result<(), (StatusCode, String)> {
     debug!("Received delete request for '{}'", payload);
     let matchable_path = MatchablePath::from(payload.as_str());
     let p = matchable_path.resolve(upload_path);
     let millis = UtcMillis::now(); // good enough, but could be specified by client and sent as part of request
+    let client_host = headers
+        .get(shared::endpoint::CLIENT_HOST_HEADER_KEY)
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
     let event = FileEvent::new(
         Uuid::new_v4(),
         millis.clone(),
         matchable_path,
         0,
         FileEventType::DeleteEvent,
+        client_host,
     );
 
     if !p.exists() {

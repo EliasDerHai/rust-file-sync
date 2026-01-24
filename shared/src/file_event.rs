@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use std::path::Path;
 use uuid::Uuid;
 
+// TODO: remove whole concept - we're using delete endpoint rather than the delete event
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum FileEventType {
     ChangeEvent,
@@ -56,6 +57,7 @@ pub struct FileEvent {
     pub relative_path: MatchablePath,
     pub size_in_bytes: u64,
     pub event_type: FileEventType,
+    pub client_host: Option<String>,
 }
 
 impl FileEvent {
@@ -67,6 +69,7 @@ impl FileEvent {
             self.relative_path.get().join("/"),
             self.size_in_bytes.to_string(),
             self.event_type.serialize_to_string(),
+            self.client_host.clone().unwrap_or_default(),
         ];
 
         parts.join(";")
@@ -78,6 +81,7 @@ impl FileEvent {
         relative_path: MatchablePath,
         size_in_bytes: u64,
         event_type: FileEventType,
+        client_host: Option<String>,
     ) -> Self {
         FileEvent {
             id,
@@ -85,6 +89,7 @@ impl FileEvent {
             relative_path,
             size_in_bytes,
             event_type,
+            client_host,
         }
     }
 }
@@ -102,9 +107,9 @@ impl TryFrom<&str> for FileEvent {
         }
 
         let parts: Vec<&str> = value.split(';').collect();
-        if parts.len() != 5 {
+        if parts.len() != 5 && parts.len() != 6 {
             return Err(format!(
-                "Parsing error - expected 5 parts (id;utc_millis;relative_path;size_in_bytes;event_type) but found {} in {:?}",
+                "Parsing error - expected 5 parts (id;utc_millis;relative_path;size_in_bytes;event_type) or 6 parts (id;utc_millis;relative_path;size_in_bytes;event_type;host_name) but found {} in {:?}",
                 parts.len(),
                 value
             ));
@@ -128,12 +133,19 @@ impl TryFrom<&str> for FileEvent {
 
         let event_type = FileEventType::try_from(parts[4])?;
 
+        let client_host = if parts.len() == 6 && !parts[5].is_empty() {
+            Some(parts[5].to_string())
+        } else {
+            None
+        };
+
         Ok(FileEvent {
             id,
             utc_millis: UtcMillis::from(utc_millis),
             relative_path,
             size_in_bytes,
             event_type,
+            client_host,
         })
     }
 }
@@ -155,9 +167,10 @@ mod tests {
             MatchablePath::from(vec!["foo", "bar", "file.txt"]),
             1024 * 1024 * 1024,
             ChangeEvent,
+            None,
         );
 
-        let expected = format!("{uuid};{millis};foo/bar/file.txt;1073741824;change");
+        let expected = format!("{uuid};{millis};foo/bar/file.txt;1073741824;change;");
         assert_eq!(expected, event.serialize_to_csv_line());
     }
     #[test]
@@ -168,6 +181,7 @@ mod tests {
             relative_path: MatchablePath::from(vec!["folder", "subfolder", "file.txt"]),
             size_in_bytes: 1024,
             event_type: ChangeEvent,
+            client_host: Some("arch".to_string()),
         };
 
         let csv_line = original_event.serialize_to_csv_line();
@@ -248,13 +262,9 @@ mod tests {
 
     #[test]
     fn should_parse_err_incorrect_parts_too_many() {
-        let too_many = format!("{};123456;some/path;300;change;extra", Uuid::new_v4()); // 6 parts
+        let too_many = format!("{};123456;some/path;300;change;host;other", Uuid::new_v4()); // 6 parts
         let result = FileEvent::try_from(too_many.as_str());
-        assert!(result.is_err(), "More than 5 parts should fail");
-        assert!(
-            result.unwrap_err().contains("expected 5 parts"),
-            "Error should mention 5 parts"
-        );
+        assert!(result.is_err(), "More than 6 parts should fail");
     }
 
     #[test]

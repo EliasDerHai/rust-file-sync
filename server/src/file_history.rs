@@ -155,6 +155,7 @@ mod tests {
             MatchablePath::from(vec!["dir", "file.txt"]),
             1024,
             ChangeEvent,
+            None,
         );
         let e2 = FileEvent::new(
             Uuid::new_v4(),
@@ -162,6 +163,7 @@ mod tests {
             MatchablePath::from(vec!["dir", "file.txt"]),
             1024,
             ChangeEvent,
+            None,
         );
 
         history.add(e1);
@@ -190,6 +192,7 @@ mod tests {
                     matchable_path.clone(),
                     1024 * 1024 * 1024,
                     ChangeEvent,
+                    None,
                 )
             })
             .collect();
@@ -230,6 +233,7 @@ mod tests {
                     matchable_path.clone(),
                     1024 * 1024 * 1024,
                     ChangeEvent,
+                    None,
                 )
             })
             .collect();

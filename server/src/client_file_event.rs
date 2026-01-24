@@ -1,9 +1,9 @@
 use shared::file_event::FileEventType::DeleteEvent;
 use shared::file_event::{FileEvent, FileEventType};
 use shared::matchable_path::MatchablePath;
+use shared::utc_millis::UtcMillis;
 use std::path::PathBuf;
 use uuid::Uuid;
-use shared::utc_millis::UtcMillis;
 
 /// What the client sends upon detecting a change in his file-system
 #[derive(Debug, Clone)]
@@ -33,6 +33,7 @@ impl From<ClientFileEvent> for FileEvent {
             value.relative_path,
             value.content_size as u64,
             value.event_type,
+            None,
         )
     }
 }

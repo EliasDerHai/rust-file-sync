@@ -1,10 +1,12 @@
 use crate::config::{read_config, Config};
 use futures_util::future::join_all;
+use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Client;
-use shared::endpoint::ServerEndpoint;
+use shared::endpoint::{ServerEndpoint, CLIENT_HOST_HEADER_KEY};
 use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
 use shared::sync_instruction::SyncInstruction;
 use std::ops::Add;
+use std::process::Command;
 use std::thread::sleep;
 use std::time::Duration;
 use tokio::time::Instant;
@@ -32,8 +34,32 @@ async fn main() {
     let mut last_scan: Option<Vec<FileDescription>> = None; // maybe persist this ? needed if files are deleted between sessions
     check_server_reachable(&config).await;
 
-    info!("Start monitoring changes in '{:?}'", config.path_to_monitor);
-    let client = Client::new();
+    let hostname = Command::new("hostname")
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .ok();
+
+    match hostname {
+        Some(ref h) => info!(
+            "{h} starts monitoring changes in '{:?}'",
+            config.path_to_monitor
+        ),
+        None => info!("Start monitoring changes in '{:?}'", config.path_to_monitor),
+    }
+
+    let client = {
+        let mut builder = Client::builder();
+        if let Some(ref h) = hostname {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                CLIENT_HOST_HEADER_KEY,
+                HeaderValue::from_str(h).expect("Invalid hostname for header"),
+            );
+            builder = builder.default_headers(headers);
+        }
+        builder.build().expect("Failed to build HTTP client")
+    };
+
     loop {
         let loop_start = Instant::now();
 
@@ -183,7 +209,7 @@ async fn send_to_server_and_receive_instructions(
         .json(scanned)
         .send()
         .await?
-        .json::<Vec<SyncInstruction>>()
+        .json()
         .await
 }
 

@@ -4,6 +4,7 @@ use crate::write::{
     RotatingFileWriter,
 };
 use axum::extract::{DefaultBodyLimit, Multipart, State};
+use axum::http::HeaderMap;
 use axum::routing::post;
 use axum::{routing::get, Router};
 use shared::endpoint::ServerEndpoint;
@@ -103,15 +104,18 @@ async fn main() {
         )
         .route(
             ServerEndpoint::Upload.to_str(),
-            post(|state: State<AppState>, multipart: Multipart| {
-                handler::upload_handler(
-                    &UPLOAD_PATH,
-                    &UPLOAD_TMP_PATH,
-                    &HISTORY_CSV_PATH,
-                    state,
-                    multipart,
-                )
-            })
+            post(
+                |state: State<AppState>, headers: HeaderMap, multipart: Multipart| {
+                    handler::upload_handler(
+                        &UPLOAD_PATH,
+                        &UPLOAD_TMP_PATH,
+                        &HISTORY_CSV_PATH,
+                        state,
+                        multipart,
+                        headers,
+                    )
+                },
+            )
             .layer(DefaultBodyLimit::max(
                 10 * 1024 * 1024 * 1024, /* 10gb */
             )),
@@ -123,9 +127,11 @@ async fn main() {
         )
         .route(
             ServerEndpoint::Delete.to_str(),
-            post(|state: State<AppState>, payload: String| {
-                handler::delete(&UPLOAD_PATH, &HISTORY_CSV_PATH, payload, state)
-            }),
+            post(
+                |state: State<AppState>, headers: HeaderMap, payload: String| {
+                    handler::delete(&UPLOAD_PATH, &HISTORY_CSV_PATH, payload, state, headers)
+                },
+            ),
         )
         .route(
             ServerEndpoint::Version.to_str(),

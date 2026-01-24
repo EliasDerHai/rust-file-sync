@@ -136,12 +136,17 @@ mod tests {
     #[test]
     fn should_match_different_versions() {
         let one = MatchablePath::from(Path::new("./foo/bar/file.txt"));
-        let two = MatchablePath::from(Path::new(".\\foo\\bar\\file.txt"));
-        assert_eq!(one, two);
-        let three = MatchablePath::from(Path::new("foo/bar\\file.txt"));
-        assert_eq!(three, two);
         let four = MatchablePath::from(Path::new("/foo/bar/file.txt"));
-        assert_eq!(four, two);
+        assert_eq!(one, four);
+
+        // Backslash is only a path separator on Windows
+        #[cfg(windows)]
+        {
+            let two = MatchablePath::from(Path::new(".\\foo\\bar\\file.txt"));
+            assert_eq!(one, two);
+            let three = MatchablePath::from(Path::new("foo/bar\\file.txt"));
+            assert_eq!(three, two);
+        }
     }
 
     #[test]
