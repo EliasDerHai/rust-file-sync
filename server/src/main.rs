@@ -1,3 +1,4 @@
+use crate::db::ServerDatabase;
 use crate::file_history::InMemoryFileHistory;
 use crate::write::{
     create_all_paths_if_not_exist, create_csv_file_if_not_exists, create_file_if_not_exists,
@@ -19,6 +20,7 @@ use tracing::error;
 use tracing_subscriber::EnvFilter;
 
 mod client_file_event;
+mod db;
 mod file_history;
 mod handler;
 mod monitor;
@@ -37,11 +39,6 @@ static MONITORING_DIR: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/moni
 static UPLOAD_TMP_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/upload_in_progress"));
 /// sqlite file
 static DB_FILE_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/sqlite.db"));
-// {
-//     env::current_exe()
-//         .expect("can't find exe path")
-//         .join("../data/sqlite.db")
-// });
 /// migrations
 static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
 
@@ -49,6 +46,7 @@ static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
 struct AppState {
     history: Arc<InMemoryFileHistory>,
     monitor_writer: Arc<Mutex<RotatingFileWriter>>,
+    db: ServerDatabase,
 }
 
 #[tokio::main]
@@ -77,11 +75,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     tokio::spawn(schedule_data_backups(&UPLOAD_PATH, &BACKUP_PATH));
 
-    let opts = SqliteConnectOptions::new()
-        .filename(*DB_FILE_PATH)
-        .create_if_missing(true);
-    let pool = SqlitePool::connect_with(opts).await?;
-    MIGRATOR.run(&pool).await?;
+    let db = {
+        let opts = SqliteConnectOptions::new()
+            .filename(*DB_FILE_PATH)
+            .create_if_missing(true);
+        let pool = SqlitePool::connect_with(opts).await?;
+        MIGRATOR.run(&pool).await?;
+        ServerDatabase::new(pool)
+    };
 
     // Create rotating file writer for monitoring (4 files, 5MB each)
     let monitor_writer = RotatingFileWriter::new(
@@ -106,9 +107,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             error!("Failed to load history: {}", err);
             InMemoryFileHistory::from(Vec::new())
         });
+
     let state = AppState {
         history: Arc::new(history),
         monitor_writer,
+        db,
     };
 
     let app = Router::new()

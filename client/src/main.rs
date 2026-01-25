@@ -2,7 +2,7 @@ use crate::config::{read_config, Config};
 use futures_util::future::join_all;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Client;
-use shared::endpoint::{ServerEndpoint, CLIENT_HOST_HEADER_KEY};
+use shared::endpoint::{ServerEndpoint, CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY};
 use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
 use shared::sync_instruction::SyncInstruction;
 use std::ops::Add;
@@ -48,16 +48,23 @@ async fn main() {
     }
 
     let client = {
-        let mut builder = Client::builder();
+        let mut headers = HeaderMap::new();
         if let Some(ref h) = hostname {
-            let mut headers = HeaderMap::new();
             headers.insert(
                 CLIENT_HOST_HEADER_KEY,
                 HeaderValue::from_str(h).expect("Invalid hostname for header"),
             );
-            builder = builder.default_headers(headers);
         }
-        builder.build().expect("Failed to build HTTP client")
+        if let Some(ref id) = config.client_id {
+            headers.insert(
+                CLIENT_ID_HEADER_KEY,
+                HeaderValue::from_str(id).expect("Invalid client_id for header"),
+            );
+        }
+        Client::builder()
+            .default_headers(headers)
+            .build()
+            .expect("Failed to build HTTP client")
     };
 
     loop {
