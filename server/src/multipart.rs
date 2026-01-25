@@ -2,7 +2,6 @@ use crate::client_file_event::ClientFileEventDto;
 use crate::write::write_all_chunks_of_field;
 use axum::extract::Multipart;
 use axum::http::StatusCode;
-use shared::file_event::FileEventType;
 use shared::utc_millis::UtcMillis;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -16,7 +15,6 @@ pub async fn parse_multipart_request(
 ) -> Result<ClientFileEventDto, (StatusCode, String)> {
     let mut utc_millis: Option<UtcMillis> = None;
     let mut relative_path: Option<Vec<String>> = None;
-    let mut file_event_type: Option<FileEventType> = None;
     let mut temp_file_path: Option<PathBuf> = None;
     let mut content_size: Option<usize> = None;
 
@@ -42,14 +40,6 @@ pub async fn parse_multipart_request(
                     .await
                     .map(|t| t.split("/").map(|str| str.to_string()).collect())
                     .ok();
-            }
-            Some("event_type") => {
-                file_event_type = field
-                    .text()
-                    .await
-                    .map(|t| FileEventType::try_from(t.as_str()).ok())
-                    .ok()
-                    .flatten()
             }
             Some("file") => {
                 let random_uuid = Uuid::new_v4(); // avoid collision
@@ -85,7 +75,6 @@ pub async fn parse_multipart_request(
     Ok(ClientFileEventDto {
         utc_millis,
         relative_path,
-        file_event_type,
         temp_file_path,
         content_size,
     })

@@ -18,9 +18,10 @@ Let's see if that law holds once more.
         - Add SyncGroup overview endpoint
     - Incorporate SyncGroup idea into client
         - rework config to support multiple directories / SyncGroups
+          - rethink config -> WIP⚙: moving to server - remote conf of all clients + easier watchgroup-overview & assignment
         - add SyncGroup to client's file-watch loop
         - add SyncGroup to client's upload & sync loop
-- add real DB for server (maybe DuckDb? or SQLite)
+- add real DB for server (maybe ~~DuckDb?~~ or SQLite✅)
     - add more metrics (up/download per day etc.)
 - implement backup strategy (currently mocked TODOs)
 - switch to https (see [axum example](https://github.com/tokio-rs/axum/blob/main/examples/tls-rustls/src/main.rs)

@@ -1,4 +1,4 @@
-use crate::client_file_event::ClientFileEvent;
+use crate::client_file_event::{ClientFileEvent, ClientFileEventDto};
 use crate::file_history::FileHistory;
 use crate::write::append_line;
 use crate::{multipart, AppState};
@@ -36,9 +36,9 @@ pub async fn scan_disk(path: &Path) -> Result<Json<Vec<FileDescription>>, Status
 /// {
 ///   utc_millis: 42,
 ///   relative_path: "./directory/file.txt",
-///   event_type: "change", // TODO this doesn't make any sense actually! on the persistence level and for the in-memory level we do have this enum but on controller service level we do have 2 endpoints (/upload & /delete) so the dto + the duplicated (unnecessary) code should be cleaned up
 ///   file: @File
 /// }
+///
 pub async fn upload_handler(
     upload_root_path: &Path,
     upload_root_tmp_path: &Path,
@@ -68,7 +68,7 @@ fn process_upload(
     upload_root_path: &Path,
     history_file_path: &Path,
     state: AppState,
-    dto: crate::client_file_event::ClientFileEventDto,
+    dto: ClientFileEventDto,
     client_host: Option<String>,
 ) -> Result<String, (Option<PathBuf>, StatusCode, String)> {
     let tmp_file_path_cpy = dto.temp_file_path.clone();
@@ -101,56 +101,42 @@ fn process_upload(
                 .map(|part| Component::Normal(part.as_ref()));
             let target_path: PathBuf = upload_root_path.components().chain(sub_path).collect();
             let temp_path: PathBuf = event.temp_file_path.clone().unwrap();
-            let io_result = match event.event_type {
-                FileEventType::ChangeEvent => {
-                    create_dir_all(target_path.parent().unwrap_or(Path::new("./"))).map_err(
-                        |e| {
-                            (
-                                event.temp_file_path.clone(),
-                                StatusCode::INTERNAL_SERVER_ERROR,
-                                format!("Could not create dir - {}", e),
-                            )
-                        },
-                    )?;
-                    let result = fs::rename(temp_path.as_path(), target_path.as_path());
-                    {
-                        let was_success = result.is_ok();
-                        let temp_path = temp_path.as_path();
-                        let target_path = target_path.as_path();
-                        if !was_success {
-                            let result_delete_temp = if fs::remove_file(temp_path).is_ok() {
-                                "was successful"
-                            } else {
-                                "failed aswell"
-                            };
-
-                            warn!(
-                                "moving failed - deleting temp file {} - {:?} -> {:?}",
-                                result_delete_temp, temp_path, target_path,
-                            );
-                        } else {
-                            info!(
-                                "moving was successful - {:?} -> {:?}",
-                                temp_path, target_path
-                            );
-                        }
+            let io_result = {
+                create_dir_all(target_path.parent().unwrap_or(Path::new("./"))).map_err(|e| {
+                    (
+                        event.temp_file_path.clone(),
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("Could not create dir - {}", e),
+                    )
+                })?;
+                let result = fs::rename(temp_path.as_path(), target_path.as_path());
+                let was_success = result.is_ok();
+                let temp_path = temp_path.as_path();
+                let target_path = target_path.as_path();
+                if !was_success {
+                    let result_delete_temp = if fs::remove_file(temp_path).is_ok() {
+                        "was successful"
+                    } else {
+                        "failed aswell"
                     };
-                    result
+
+                    warn!(
+                        "moving failed - deleting temp file {} - {:?} -> {:?}",
+                        result_delete_temp, temp_path, target_path,
+                    );
+                } else {
+                    info!(
+                        "moving was successful - {:?} -> {:?}",
+                        temp_path, target_path
+                    );
                 }
-                FileEventType::DeleteEvent => fs::remove_file(&target_path),
+                result
             };
 
             let path_str = target_path.to_string_lossy();
             match io_result {
                 Ok(_) => {
-                    let message = match event.event_type {
-                        FileEventType::ChangeEvent => {
-                            format!("Updated {} successfully", path_str)
-                        }
-                        FileEventType::DeleteEvent => {
-                            format!("Deleted {} successfully", path_str)
-                        }
-                    };
+                    let message = format!("Updated {} successfully", path_str);
                     // create FileEvent with client_host
                     let mut fe = FileEvent::from(event);
                     fe.client_host = client_host;
@@ -163,14 +149,7 @@ fn process_upload(
                     Ok(message)
                 }
                 Err(e) => {
-                    let message = match event.event_type {
-                        FileEventType::ChangeEvent => {
-                            format!("Updating {} failed - {}", path_str, e)
-                        }
-                        FileEventType::DeleteEvent => {
-                            format!("Deleting {} failed - {}", path_str, e)
-                        }
-                    };
+                    let message = format!("Updating {} failed - {}", path_str, e);
                     error!("{message}");
                     Err((None, StatusCode::INTERNAL_SERVER_ERROR, message))
                 }
@@ -283,7 +262,6 @@ pub async fn delete(
     history_file_path: &Path,
     payload: String,
     state: State<AppState>,
-
     headers: HeaderMap,
 ) -> Result<(), (StatusCode, String)> {
     debug!("Received delete request for '{}'", payload);

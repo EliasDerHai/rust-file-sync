@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use std::path::Path;
 use uuid::Uuid;
 
-// TODO: remove whole concept - we're using delete endpoint rather than the delete event
+// TODO consider moving to server (not a client concept)
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum FileEventType {
     ChangeEvent,

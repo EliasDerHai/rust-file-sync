@@ -180,6 +180,7 @@ async fn register_with_server(client: &Client, config: &Config) {
     let request = RegisterClientRequest {
         path_to_monitor: config.path_to_monitor.to_string_lossy().to_string(),
         exclude_dirs: config.exclude_dirs.clone(),
+        exclude_dot_dirs: true,
         min_poll_interval_in_ms: config.min_poll_interval_in_ms,
     };
 

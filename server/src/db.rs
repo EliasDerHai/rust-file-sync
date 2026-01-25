@@ -50,12 +50,13 @@ impl ServerDatabase {
         // Insert new watch group
         let watch_group_id = sqlx::query_scalar!(
             r#"
-            INSERT INTO client_watch_group (client_id, path_to_monitor)
-            VALUES (?, ?)
+            INSERT INTO client_watch_group (client_id, path_to_monitor, exclude_dot_dirs)
+            VALUES (?, ?, ?)
             RETURNING id
             "#,
             client_id,
-            request.path_to_monitor
+            request.path_to_monitor,
+            request.exclude_dot_dirs
         )
         .fetch_one(&mut *tx)
         .await?;
@@ -105,6 +106,7 @@ mod tests {
         let request = RegisterClientRequest {
             path_to_monitor: "/home/test/sync".to_string(),
             exclude_dirs: vec![".git".to_string(), "node_modules".to_string()],
+            exclude_dot_dirs: true,
             min_poll_interval_in_ms: 5000,
         };
 
@@ -152,6 +154,7 @@ mod tests {
         let request1 = RegisterClientRequest {
             path_to_monitor: "/home/test/old-path".to_string(),
             exclude_dirs: vec![".git".to_string()],
+            exclude_dot_dirs: true,
             min_poll_interval_in_ms: 3000,
         };
 
@@ -163,6 +166,7 @@ mod tests {
         let request2 = RegisterClientRequest {
             path_to_monitor: "/home/test/new-path".to_string(),
             exclude_dirs: vec!["target".to_string(), "dist".to_string()],
+            exclude_dot_dirs: false,
             min_poll_interval_in_ms: 10000,
         };
 
