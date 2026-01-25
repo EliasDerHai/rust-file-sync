@@ -12,6 +12,8 @@ pub enum ServerEndpoint {
     Monitor,
     Version,
     Hello,
+    /// Temporary endpoint for migrating client configs to server DB
+    Register,
 }
 
 impl ServerEndpoint {
@@ -31,6 +33,7 @@ impl ServerEndpoint {
             ServerEndpoint::Delete => "/delete",
             ServerEndpoint::Monitor => "/monitor",
             ServerEndpoint::Version => "/version",
+            ServerEndpoint::Register => "/register",
         }
     }
 }
@@ -40,8 +43,9 @@ mod tests {
     use super::*;
     use ServerEndpoint::*;
 
-    const ALL_ENDPOINTS: [ServerEndpoint; 8] =
-        [Ping, Scan, Sync, Upload, Download, Delete, Monitor, Version];
+    const ALL_ENDPOINTS: [ServerEndpoint; 9] = [
+        Ping, Scan, Sync, Upload, Download, Delete, Monitor, Version, Register,
+    ];
 
     #[test]
     fn should_build_uris() {
@@ -57,6 +61,7 @@ mod tests {
                 Delete => assert_eq!("http://localhost/delete", actual),
                 Monitor => assert_eq!("http://localhost/monitor", actual),
                 Version => assert_eq!("http://localhost/version", actual),
+                Register => assert_eq!("http://localhost/register", actual),
             }
         })
     }

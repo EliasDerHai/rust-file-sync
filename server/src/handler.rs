@@ -6,6 +6,7 @@ use axum::extract::{Multipart, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
+use shared::endpoint::{CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY};
 use shared::file_event::{FileEvent, FileEventType};
 use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
 use shared::matchable_path::MatchablePath;
@@ -22,8 +23,7 @@ use uuid::Uuid;
 /// expecting no payload
 /// returning list of file meta infos
 pub async fn scan_disk(path: &Path) -> Result<Json<Vec<FileDescription>>, StatusCode> {
-    let excluded_patterns = Vec::new();
-    match get_all_file_descriptions(path, &excluded_patterns) {
+    match get_all_file_descriptions(path, &Vec::new()) {
         Ok(descriptions) => Ok(Json(descriptions)),
         Err(err) => {
             error!("IO Failure - {}", err);
@@ -50,10 +50,7 @@ pub async fn upload_handler(
     // parse incoming request
     let dto = multipart::parse_multipart_request(upload_root_tmp_path, &mut multipart).await?;
 
-    let client_host = headers
-        .get(shared::endpoint::CLIENT_HOST_HEADER_KEY)
-        .and_then(|v| v.to_str().ok())
-        .map(String::from);
+    let client_host = header_value_as_opt_string(&headers, CLIENT_HOST_HEADER_KEY);
 
     process_upload(upload_root_path, history_file_path, state, dto, client_host).map_err(
         |(tmp_file_path, status, error_msg)| {
@@ -293,10 +290,7 @@ pub async fn delete(
     let matchable_path = MatchablePath::from(payload.as_str());
     let p = matchable_path.resolve(upload_path);
     let millis = UtcMillis::now(); // good enough, but could be specified by client and sent as part of request
-    let client_host = headers
-        .get(shared::endpoint::CLIENT_HOST_HEADER_KEY)
-        .and_then(|v| v.to_str().ok())
-        .map(String::from);
+    let client_host = header_value_as_opt_string(&headers, CLIENT_HOST_HEADER_KEY);
     let event = FileEvent::new(
         Uuid::new_v4(),
         millis.clone(),
@@ -329,4 +323,43 @@ pub async fn delete(
             Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))
         }
     }
+}
+
+/// Temporary endpoint for migrating client configs to server DB
+pub async fn register(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(request): Json<shared::register::RegisterClientRequest>,
+) -> Result<String, (StatusCode, String)> {
+    let client_id = header_value_as_string(&headers, CLIENT_ID_HEADER_KEY)?;
+    let host_name = header_value_as_string(&headers, CLIENT_HOST_HEADER_KEY)?;
+
+    state
+        .db
+        .register_client(client_id, host_name, request)
+        .await
+        .map_err(|e| {
+            error!("Failed to register client: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?;
+
+    info!("Registered client {} ({})", client_id, host_name);
+    Ok(format!("Client {} registered successfully", client_id))
+}
+
+fn header_value_as_opt_string(headers: &HeaderMap, key: &str) -> Option<String> {
+    headers
+        .get(key)
+        .and_then(|v| v.to_str().ok())
+        .map(String::from)
+}
+
+fn header_value_as_string<'header>(
+    headers: &'header HeaderMap,
+    key: &str,
+) -> Result<&'header str, (StatusCode, String)> {
+    headers
+        .get(key)
+        .and_then(|v| v.to_str().ok())
+        .ok_or((StatusCode::BAD_REQUEST, format!("Missing {key} header")))
 }

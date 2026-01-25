@@ -4,6 +4,7 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Client;
 use shared::endpoint::{ServerEndpoint, CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY};
 use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
+use shared::register::RegisterClientRequest;
 use shared::sync_instruction::SyncInstruction;
 use std::ops::Add;
 use std::process::Command;
@@ -66,6 +67,9 @@ async fn main() {
             .build()
             .expect("Failed to build HTTP client")
     };
+
+    // Register config with server (temporary migration)
+    register_with_server(&client, &config).await;
 
     loop {
         let loop_start = Instant::now();
@@ -167,6 +171,32 @@ async fn check_server_reachable(config: &Config) {
                 info!("Server confirmed at {}!", &hello_endpoint);
                 confirmed_availablity = true;
             }
+        }
+    }
+}
+
+/// Temporary: Register client config with server for migration
+async fn register_with_server(client: &Client, config: &Config) {
+    let request = RegisterClientRequest {
+        path_to_monitor: config.path_to_monitor.to_string_lossy().to_string(),
+        exclude_dirs: config.exclude_dirs.clone(),
+        min_poll_interval_in_ms: config.min_poll_interval_in_ms,
+    };
+
+    let endpoint = ServerEndpoint::Register.to_uri(&config.server_url);
+    match client.post(&endpoint).json(&request).send().await {
+        Ok(response) if response.status().is_success() => {
+            info!("Registered with server successfully");
+        }
+        Ok(response) => {
+            warn!(
+                "Failed to register with server: {} - {}",
+                response.status(),
+                response.text().await.unwrap_or_default()
+            );
+        }
+        Err(e) => {
+            warn!("Failed to register with server: {}", e);
         }
     }
 }

@@ -160,6 +160,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ServerEndpoint::Version.to_str(),
             get(|| async { env!("CARGO_PKG_VERSION") }),
         )
+        .route(
+            ServerEndpoint::Register.to_str(),
+            post(handler::register),
+        )
         // .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state);
 
