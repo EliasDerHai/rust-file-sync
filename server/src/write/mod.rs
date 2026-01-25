@@ -137,14 +137,21 @@ pub fn create_all_paths_if_not_exist(paths: Vec<&Path>) -> io::Result<()> {
 }
 
 /// csv-files to create (if not existent) - tuple contains path to file & list of headers (optional)
-pub fn create_all_csv_files_if_not_exist(
-    paths: Vec<(&Path, Option<Vec<String>>)>,
-) -> io::Result<()> {
-    for (path, headers) in paths.into_iter() {
-        if !path.exists() {
-            let content = format!("{}\n", headers.unwrap_or(Vec::new()).join(";"));
-            fs::write(path, content)?;
+pub fn create_csv_file_if_not_exists(path: &Path, headers: Option<Vec<String>>) -> io::Result<()> {
+    if !path.exists() {
+        match headers {
+            Some(headers) => fs::write(path, format!("{}\n", headers.join(";")))?,
+            None => fs::write(path, "")?,
         }
     }
-    Ok::<(), io::Error>(())
+
+    Ok(())
+}
+
+pub fn create_file_if_not_exists(path: &Path) -> io::Result<()> {
+    if !path.exists() {
+        fs::write(path, "")?
+    }
+
+    Ok(())
 }

@@ -42,7 +42,7 @@ pub async fn execute(
                 .map_err(|e| format!("Upload failed - {e}"))?
                 .text()
                 .await
-                .map_err(|e| format!("BOM sniffing failed - {e}")) // just the error of response.text()
+                .map_err(|e| format!("BOM sniffing failed - {e}"))
                 .map(|response| format!("Upload successful - server replied with '{response}'",))
         }
 

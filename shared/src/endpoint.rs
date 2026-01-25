@@ -1,4 +1,4 @@
-pub const CLIENT_HOST_HEADER_KEY: &'static str = "X-Client-Hostname";
+pub const CLIENT_HOST_HEADER_KEY: &str = "X-Client-Hostname";
 
 pub enum ServerEndpoint {
     Ping,

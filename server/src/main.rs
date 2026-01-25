@@ -1,13 +1,17 @@
 use crate::file_history::InMemoryFileHistory;
 use crate::write::{
-    create_all_csv_files_if_not_exist, create_all_paths_if_not_exist, schedule_data_backups,
-    RotatingFileWriter,
+    create_all_paths_if_not_exist, create_csv_file_if_not_exists, create_file_if_not_exists,
+    schedule_data_backups, RotatingFileWriter,
 };
 use axum::extract::{DefaultBodyLimit, Multipart, State};
 use axum::http::HeaderMap;
 use axum::routing::post;
 use axum::{routing::get, Router};
 use shared::endpoint::ServerEndpoint;
+use sqlx::migrate::Migrator;
+use sqlx::sqlite::SqliteConnectOptions;
+use sqlx::SqlitePool;
+use std::env;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::{path::Path, sync::LazyLock};
@@ -31,6 +35,15 @@ static MONITORING_DIR: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/moni
 /// dir to which multipart-files can be saved to, before being moved to the actual 'mirrored path'
 /// temporary and might be cleaned upon encountering errors or on scheduled intervals
 static UPLOAD_TMP_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/upload_in_progress"));
+/// sqlite file
+static DB_FILE_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/sqlite.db"));
+// {
+//     env::current_exe()
+//         .expect("can't find exe path")
+//         .join("../data/sqlite.db")
+// });
+/// migrations
+static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
 
 #[derive(Clone)]
 struct AppState {
@@ -39,7 +52,7 @@ struct AppState {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let log_level = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info"));
     tracing_subscriber::fmt().with_env_filter(log_level).init();
 
@@ -49,7 +62,8 @@ async fn main() {
             UPLOAD_TMP_PATH.iter().as_path(),
             BACKUP_PATH.iter().as_path(),
         ])?;
-        create_all_csv_files_if_not_exist(vec![(
+        create_file_if_not_exists(*DB_FILE_PATH)?;
+        create_csv_file_if_not_exists(
             HISTORY_CSV_PATH.iter().as_path(),
             Some(vec![
                 "id".to_string(),
@@ -58,10 +72,16 @@ async fn main() {
                 "size_in_bytes".to_string(),
                 "event_type".to_string(),
             ]),
-        )])?;
+        )?;
         Ok::<(), std::io::Error>(())
     });
     tokio::spawn(schedule_data_backups(&UPLOAD_PATH, &BACKUP_PATH));
+
+    let opts = SqliteConnectOptions::new()
+        .filename(*DB_FILE_PATH)
+        .create_if_missing(true);
+    let pool = SqlitePool::connect_with(opts).await?;
+    MIGRATOR.run(&pool).await?;
 
     // Create rotating file writer for monitoring (4 files, 5MB each)
     let monitor_writer = RotatingFileWriter::new(
@@ -144,4 +164,6 @@ async fn main() {
 
     axum::serve(listener, app).await.unwrap();
     tracing::info!("axum::served");
+
+    Ok(())
 }
