@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Edit Config - {{ client.host_name }}</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 2rem;
+        background: #f5f5f5;
+      }
+      h1 {
+        color: #333;
+        margin-bottom: 0.5rem;
+      }
+      .client-id {
+        font-size: 0.8rem;
+        color: #888;
+        font-family: monospace;
+        margin-bottom: 2rem;
+      }
+      .back-link {
+        display: inline-block;
+        margin-bottom: 1rem;
+        color: #4a90d9;
+        text-decoration: none;
+      }
+      .back-link:hover {
+        text-decoration: underline;
+      }
+      form {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+      .form-group {
+        margin-bottom: 1.25rem;
+      }
+      label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: #333;
+      }
+      input[type="text"],
+      input[type="number"],
+      textarea {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+        font-family: monospace;
+      }
+      input:focus,
+      textarea:focus {
+        outline: none;
+        border-color: #4a90d9;
+      }
+      .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .checkbox-group input {
+        width: auto;
+      }
+      .help-text {
+        font-size: 0.8rem;
+        color: #666;
+        margin-top: 0.25rem;
+      }
+      .btn-group {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1.5rem;
+      }
+      .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1rem;
+      }
+      .btn-primary {
+        background: #4a90d9;
+        color: white;
+      }
+      .btn-primary:hover {
+        background: #357abd;
+      }
+      .btn-secondary {
+        background: #e0e0e0;
+        color: #333;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+      }
+      .btn-secondary:hover {
+        background: #d0d0d0;
+      }
+      .message {
+        padding: 1rem;
+        border-radius: 4px;
+        margin-bottom: 1rem;
+      }
+      .message.success {
+        background: #d4edda;
+        color: #155724;
+      }
+      .message.error {
+        background: #f8d7da;
+        color: #721c24;
+      }
+    </style>
+  </head>
+  <body>
+    <a href="/admin/configs" class="back-link">&larr; Back to list</a>
+    <h1>{{ client.host_name }}</h1>
+    <div class="client-id">{{ client.id }}</div>
+
+    <div id="message"></div>
+
+    <form id="config-form">
+      <div class="form-group">
+        <label for="path_to_monitor">Path to monitor</label>
+        <input
+          type="text"
+          id="path_to_monitor"
+          name="path_to_monitor"
+          value="{{ client.path_to_monitor }}"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="min_poll_interval_in_ms">Poll interval (ms)</label>
+        <input
+          type="number"
+          id="min_poll_interval_in_ms"
+          name="min_poll_interval_in_ms"
+          value="{{ client.min_poll_interval_in_ms }}"
+          min="100"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="exclude_dirs">Exclude directories</label>
+        <textarea
+          id="exclude_dirs"
+          name="exclude_dirs"
+          rows="3"
+          placeholder="One per line"
+        >
+{{ client.exclude_dirs.join("\n") }}</textarea
+        >
+        <div class="help-text">
+          One directory per line (e.g., node_modules, .git)
+        </div>
+      </div>
+
+      <div class="form-group">
+        <div class="checkbox-group">
+          <input
+            type="checkbox"
+            id="exclude_dot_dirs"
+            name="exclude_dot_dirs"
+            {%
+            if
+            client.exclude_dot_dirs
+            %}checked{%
+            endif
+            %}
+          />
+          <label for="exclude_dot_dirs" style="margin-bottom: 0"
+            >Exclude dot directories</label
+          >
+        </div>
+        <div class="help-text">
+          Automatically exclude directories starting with a dot
+        </div>
+      </div>
+
+      <div class="btn-group">
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <a href="/admin/configs" class="btn btn-secondary">Cancel</a>
+      </div>
+    </form>
+
+    <script>
+      document
+        .getElementById("config-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const form = e.target;
+          const messageEl = document.getElementById("message");
+
+          const excludeDirs = form.exclude_dirs.value
+            .split("\n")
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
+
+          const data = {
+            path_to_monitor: form.path_to_monitor.value,
+            min_poll_interval_in_ms: parseInt(
+              form.min_poll_interval_in_ms.value,
+            ),
+            exclude_dirs: excludeDirs,
+            exclude_dot_dirs: form.exclude_dot_dirs.checked,
+          };
+
+          try {
+            const response = await fetch("/admin/config/{{ client.id }}", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(data),
+            });
+
+            if (response.ok) {
+              messageEl.className = "message success";
+              messageEl.textContent = "Config saved successfully!";
+            } else {
+              const error = await response.text();
+              messageEl.className = "message error";
+              messageEl.textContent = "Error: " + error;
+            }
+          } catch (err) {
+            messageEl.className = "message error";
+            messageEl.textContent = "Error: " + err.message;
+          }
+        });
+    </script>
+  </body>
+</html>

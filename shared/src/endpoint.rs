@@ -12,10 +12,15 @@ pub enum ServerEndpoint {
     Monitor,
     Version,
     Hello,
+    // TODO: Config and Regsiter should be same endpoint
     /// Temporary endpoint for migrating client configs to server DB
     Register,
     /// Get client config from server
     Config,
+    /// Get/set client config (admin UI)
+    AdminConfig,
+    /// List all client configs (admin UI)
+    AdminConfigs,
 }
 
 impl ServerEndpoint {
@@ -37,6 +42,8 @@ impl ServerEndpoint {
             ServerEndpoint::Version => "/version",
             ServerEndpoint::Register => "/register",
             ServerEndpoint::Config => "/config",
+            ServerEndpoint::AdminConfig => "/admin/config/{id}",
+            ServerEndpoint::AdminConfigs => "/admin/configs",
         }
     }
 }
@@ -46,8 +53,19 @@ mod tests {
     use super::*;
     use ServerEndpoint::*;
 
-    const ALL_ENDPOINTS: [ServerEndpoint; 10] = [
-        Ping, Scan, Sync, Upload, Download, Delete, Monitor, Version, Register, Config,
+    const ALL_ENDPOINTS: [ServerEndpoint; 12] = [
+        Ping,
+        Scan,
+        Sync,
+        Upload,
+        Download,
+        Delete,
+        Monitor,
+        Version,
+        Register,
+        Config,
+        AdminConfig,
+        AdminConfigs,
     ];
 
     #[test]
@@ -66,6 +84,8 @@ mod tests {
                 Version => assert_eq!("http://localhost/version", actual),
                 Register => assert_eq!("http://localhost/register", actual),
                 Config => assert_eq!("http://localhost/config", actual),
+                AdminConfig => assert_eq!("http://localhost/admin/config/:id", actual),
+                AdminConfigs => assert_eq!("http://localhost/admin/configs", actual),
             }
         })
     }

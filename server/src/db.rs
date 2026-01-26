@@ -1,5 +1,17 @@
+use serde::Serialize;
 use shared::register::ClientConfigDto;
 use sqlx::SqlitePool;
+
+/// Full client info including ID and hostname (for admin UI)
+#[derive(Debug, Clone, Serialize)]
+pub struct ClientWithConfig {
+    pub id: String,
+    pub host_name: String,
+    pub path_to_monitor: String,
+    pub exclude_dirs: Vec<String>,
+    pub exclude_dot_dirs: bool,
+    pub min_poll_interval_in_ms: u16,
+}
 
 #[derive(Clone)]
 pub struct ServerDatabase {
@@ -117,6 +129,158 @@ impl ServerDatabase {
             exclude_dot_dirs: wg.exclude_dot_dirs.unwrap_or(true),
             min_poll_interval_in_ms: wg.min_poll_interval_in_ms as u16,
         }))
+    }
+
+    /// Get all clients with their configs (for admin UI)
+    pub async fn get_all_clients(&self) -> Result<Vec<ClientWithConfig>> {
+        let clients = sqlx::query!(
+            r#"
+            SELECT
+                c.id as "id!",
+                c.host_name as "host_name!",
+                c.min_poll_interval_in_ms as "min_poll_interval_in_ms!",
+                wg.id as watch_group_id,
+                wg.path_to_monitor as "path_to_monitor?",
+                wg.exclude_dot_dirs as "exclude_dot_dirs?"
+            FROM client c
+            LEFT JOIN client_watch_group wg ON wg.client_id = c.id
+            ORDER BY c.host_name
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut result = Vec::new();
+        for client in clients {
+            let exclude_dirs: Vec<String> = if let Some(wg_id) = client.watch_group_id {
+                sqlx::query_scalar!(
+                    "SELECT exclude_dir FROM client_watch_group_excluded_dir WHERE client_watch_group = ?",
+                    wg_id
+                )
+                .fetch_all(&self.pool)
+                .await?
+            } else {
+                Vec::new()
+            };
+
+            result.push(ClientWithConfig {
+                id: client.id,
+                host_name: client.host_name,
+                path_to_monitor: client.path_to_monitor.unwrap_or_default(),
+                exclude_dirs,
+                exclude_dot_dirs: client.exclude_dot_dirs.unwrap_or(true),
+                min_poll_interval_in_ms: client.min_poll_interval_in_ms as u16,
+            });
+        }
+
+        Ok(result)
+    }
+
+    /// Get single client with config by ID (for admin UI edit page)
+    pub async fn get_client_by_id(&self, client_id: &str) -> Result<Option<ClientWithConfig>> {
+        let client = sqlx::query!(
+            r#"
+            SELECT
+                c.id as "id!",
+                c.host_name as "host_name!",
+                c.min_poll_interval_in_ms as "min_poll_interval_in_ms!",
+                wg.id as watch_group_id,
+                wg.path_to_monitor as "path_to_monitor?",
+                wg.exclude_dot_dirs as "exclude_dot_dirs?"
+            FROM client c
+            LEFT JOIN client_watch_group wg ON wg.client_id = c.id
+            WHERE c.id = ?
+            "#,
+            client_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let Some(client) = client else {
+            return Ok(None);
+        };
+
+        let exclude_dirs: Vec<String> = if let Some(wg_id) = client.watch_group_id {
+            sqlx::query_scalar!(
+                "SELECT exclude_dir FROM client_watch_group_excluded_dir WHERE client_watch_group = ?",
+                wg_id
+            )
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            Vec::new()
+        };
+
+        Ok(Some(ClientWithConfig {
+            id: client.id,
+            host_name: client.host_name,
+            path_to_monitor: client.path_to_monitor.unwrap_or_default(),
+            exclude_dirs,
+            exclude_dot_dirs: client.exclude_dot_dirs.unwrap_or(true),
+            min_poll_interval_in_ms: client.min_poll_interval_in_ms as u16,
+        }))
+    }
+
+    /// Update client config by ID (for admin UI)
+    pub async fn update_client_config(
+        &self,
+        client_id: &str,
+        config: ClientConfigDto,
+    ) -> Result<bool> {
+        let mut tx = self.pool.begin().await?;
+        let poll_interval = config.min_poll_interval_in_ms as i32;
+
+        // Update client poll interval
+        let result = sqlx::query!(
+            "UPDATE client SET min_poll_interval_in_ms = ? WHERE id = ?",
+            poll_interval,
+            client_id
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        if result.rows_affected() == 0 {
+            return Ok(false);
+        }
+
+        // Delete existing watch groups
+        sqlx::query!(
+            "DELETE FROM client_watch_group WHERE client_id = ?",
+            client_id
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        // Insert new watch group
+        let watch_group_id = sqlx::query_scalar!(
+            r#"
+            INSERT INTO client_watch_group (client_id, path_to_monitor, exclude_dot_dirs)
+            VALUES (?, ?, ?)
+            RETURNING id
+            "#,
+            client_id,
+            config.path_to_monitor,
+            config.exclude_dot_dirs
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+
+        // Insert excluded dirs
+        for exclude_dir in config.exclude_dirs {
+            sqlx::query!(
+                r#"
+                INSERT INTO client_watch_group_excluded_dir (client_watch_group, exclude_dir)
+                VALUES (?, ?)
+                "#,
+                watch_group_id,
+                exclude_dir
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        tx.commit().await?;
+        Ok(true)
     }
 }
 

@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Client Configs</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2rem;
+        background: #f5f5f5;
+      }
+      h1 {
+        color: #333;
+      }
+      .client-list {
+        list-style: none;
+        padding: 0;
+      }
+      .client-card {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+      .client-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+      }
+      .client-name {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #333;
+      }
+      .client-id {
+        font-size: 0.75rem;
+        color: #888;
+        font-family: monospace;
+      }
+      .config-details {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.5rem 1rem;
+        font-size: 0.9rem;
+      }
+      .config-label {
+        color: #666;
+      }
+      .config-value {
+        color: #333;
+        font-family: monospace;
+      }
+      .edit-btn {
+        background: #4a90d9;
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.9rem;
+      }
+      .edit-btn:hover {
+        background: #357abd;
+      }
+      .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Client Configs</h1>
+
+    {% if clients.is_empty() %}
+    <div class="empty-state">
+      <p>No clients registered yet.</p>
+    </div>
+    {% else %}
+    <ul class="client-list">
+      {% for client in clients %}
+      <li class="client-card">
+        <div class="client-header">
+          <div>
+            <div class="client-name">{{ client.host_name }}</div>
+            <div class="client-id">{{ client.id }}</div>
+          </div>
+          <a href="/admin/config/{{ client.id }}" class="edit-btn">Edit</a>
+        </div>
+        <div class="config-details">
+          <span class="config-label">Path:</span>
+          <span class="config-value">{{ client.path_to_monitor }}</span>
+
+          <span class="config-label">Poll interval:</span>
+          <span class="config-value"
+            >{{ client.min_poll_interval_in_ms }}ms</span
+          >
+
+          <span class="config-label">Exclude dirs:</span>
+          <span class="config-value"
+            >{% if client.exclude_dirs.is_empty() %}<em>none</em>{% else %}{{
+            client.exclude_dirs.join(", ") }}{% endif %}</span
+          >
+
+          <span class="config-label">Exclude dot dirs:</span>
+          <span class="config-value">{{ client.exclude_dot_dirs }}</span>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </body>
+</html>

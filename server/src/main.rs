@@ -6,7 +6,7 @@ use crate::write::{
 };
 use axum::extract::{DefaultBodyLimit, Multipart, State};
 use axum::http::HeaderMap;
-use axum::routing::post;
+use axum::routing::{post, put};
 use axum::{routing::get, Router};
 use shared::endpoint::ServerEndpoint;
 use sqlx::migrate::Migrator;
@@ -160,11 +160,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ServerEndpoint::Version.to_str(),
             get(|| async { env!("CARGO_PKG_VERSION") }),
         )
-        .route(
-            ServerEndpoint::Register.to_str(),
-            post(handler::register),
-        )
+        // TODO: Config and Regsiter should be same endpoint
+        .route(ServerEndpoint::Register.to_str(), post(handler::register))
         .route(ServerEndpoint::Config.to_str(), get(handler::get_config))
+        // admin ui
+        .route(
+            ServerEndpoint::AdminConfigs.to_str(),
+            get(handler::list_configs),
+        )
+        .route(
+            ServerEndpoint::AdminConfig.to_str(),
+            get(handler::get_config_edit),
+        )
+        .route(
+            ServerEndpoint::AdminConfig.to_str(),
+            put(handler::update_config),
+        )
         // .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state);
 

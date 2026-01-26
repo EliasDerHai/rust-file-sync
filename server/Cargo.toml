@@ -22,4 +22,5 @@ sqlx = { version = "0.8.6", features = [
 	"macros",
 	"chrono",
 ] }
+askama = "0.15.1"
 
