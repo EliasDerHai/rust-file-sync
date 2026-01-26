@@ -1,12 +1,12 @@
-use crate::config::{read_config, Config};
+use crate::config::{fetch_or_register_config, read_config, RuntimeConfig};
 use futures_util::future::join_all;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Client;
 use shared::endpoint::{ServerEndpoint, CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY};
 use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
-use shared::register::RegisterClientRequest;
 use shared::sync_instruction::SyncInstruction;
 use std::ops::Add;
+use std::path::PathBuf;
 use std::process::Command;
 use std::thread::sleep;
 use std::time::Duration;
@@ -22,69 +22,26 @@ async fn main() {
     let log_level = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info"));
     tracing_subscriber::fmt().with_env_filter(log_level).init();
 
-    let config = match read_config() {
-        Err(error) => {
-            panic!(
-                "Critical error - config could not be processed: {:?}",
-                error
-            );
-        }
-        Ok(path) => path,
-    };
-
-    let mut last_scan: Option<Vec<FileDescription>> = None; // maybe persist this ? needed if files are deleted between sessions
-    check_server_reachable(&config).await;
-
-    let hostname = Command::new("hostname")
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .ok();
-
-    match hostname {
-        Some(ref h) => info!(
-            "{h} starts monitoring changes in '{:?}'",
-            config.path_to_monitor
-        ),
-        None => info!("Start monitoring changes in '{:?}'", config.path_to_monitor),
-    }
-
-    let client = {
-        let mut headers = HeaderMap::new();
-        if let Some(ref h) = hostname {
-            headers.insert(
-                CLIENT_HOST_HEADER_KEY,
-                HeaderValue::from_str(h).expect("Invalid hostname for header"),
-            );
-        }
-        if let Some(ref id) = config.client_id {
-            headers.insert(
-                CLIENT_ID_HEADER_KEY,
-                HeaderValue::from_str(id).expect("Invalid client_id for header"),
-            );
-        }
-        Client::builder()
-            .default_headers(headers)
-            .build()
-            .expect("Failed to build HTTP client")
-    };
-
-    // Register config with server (temporary migration)
-    register_with_server(&client, &config).await;
+    let (config, client) = load_runtime_config().await;
+    let mut last_scan: Option<Vec<FileDescription>> = None;
 
     loop {
         let loop_start = Instant::now();
 
-        let dir = config.path_to_monitor.clone();
-        let excluded_paths: Vec<String> = Vec::new();
-        match get_all_file_descriptions(dir.as_path(), &excluded_paths)
+        match get_all_file_descriptions(config.path_to_monitor.as_path(), &config.exclude_dirs)
             .map_err(|e| format!("Could not scan directory - {}", e))
         {
             Err(error) => error!("Scanning directory failed - {}", error),
             Ok(descriptions) => {
                 let mut deleted_files = Vec::new();
                 if let Some(ref last) = last_scan {
-                    deleted_files =
-                        send_potential_delete_events(&config, last, &client, &descriptions).await;
+                    deleted_files = send_potential_delete_events(
+                        &config.server_url,
+                        last,
+                        &client,
+                        &descriptions,
+                    )
+                    .await;
                 }
 
                 match send_to_server_and_receive_instructions(
@@ -145,8 +102,73 @@ async fn main() {
     }
 }
 
-async fn check_server_reachable(config: &Config) {
-    let hello_endpoint = ServerEndpoint::Ping.to_uri(&config.server_url);
+/// Load runtime config: read local config, connect to server, fetch/register config
+async fn load_runtime_config() -> (RuntimeConfig, Client) {
+    let local_config = match read_config() {
+        Ok(config) => config,
+        Err(error) => panic!(
+            "Critical error - config could not be processed: {:?}",
+            error
+        ),
+    };
+
+    check_server_reachable(&local_config.server_url).await;
+
+    let hostname = Command::new("hostname")
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .ok();
+
+    let client = build_http_client(&hostname, &local_config.client_id);
+
+    let server_config = fetch_or_register_config(&client, &local_config).await;
+
+    info!(
+        "{}monitoring '{}'",
+        hostname
+            .as_ref()
+            .map(|h| format!("{h} "))
+            .unwrap_or_default(),
+        server_config.path_to_monitor
+    );
+    info!(
+        "Config: exclude_dirs={:?}, poll_interval={}ms",
+        server_config.exclude_dirs, server_config.min_poll_interval_in_ms
+    );
+
+    (
+        RuntimeConfig {
+            server_url: local_config.server_url,
+            path_to_monitor: PathBuf::from(server_config.path_to_monitor),
+            exclude_dirs: server_config.exclude_dirs,
+            min_poll_interval_in_ms: server_config.min_poll_interval_in_ms,
+        },
+        client,
+    )
+}
+
+fn build_http_client(hostname: &Option<String>, client_id: &Option<String>) -> Client {
+    let mut headers = HeaderMap::new();
+    if let Some(ref h) = hostname {
+        headers.insert(
+            CLIENT_HOST_HEADER_KEY,
+            HeaderValue::from_str(h).expect("Invalid hostname for header"),
+        );
+    }
+    if let Some(ref id) = client_id {
+        headers.insert(
+            CLIENT_ID_HEADER_KEY,
+            HeaderValue::from_str(id).expect("Invalid client_id for header"),
+        );
+    }
+    Client::builder()
+        .default_headers(headers)
+        .build()
+        .expect("Failed to build HTTP client")
+}
+
+async fn check_server_reachable(server_url: &str) {
+    let hello_endpoint = ServerEndpoint::Ping.to_uri(server_url);
     let client = Client::builder()
         .timeout(Duration::from_secs(1))
         .build()
@@ -175,35 +197,8 @@ async fn check_server_reachable(config: &Config) {
     }
 }
 
-/// Temporary: Register client config with server for migration
-async fn register_with_server(client: &Client, config: &Config) {
-    let request = RegisterClientRequest {
-        path_to_monitor: config.path_to_monitor.to_string_lossy().to_string(),
-        exclude_dirs: config.exclude_dirs.clone(),
-        exclude_dot_dirs: true,
-        min_poll_interval_in_ms: config.min_poll_interval_in_ms,
-    };
-
-    let endpoint = ServerEndpoint::Register.to_uri(&config.server_url);
-    match client.post(&endpoint).json(&request).send().await {
-        Ok(response) if response.status().is_success() => {
-            info!("Registered with server successfully");
-        }
-        Ok(response) => {
-            warn!(
-                "Failed to register with server: {} - {}",
-                response.status(),
-                response.text().await.unwrap_or_default()
-            );
-        }
-        Err(e) => {
-            warn!("Failed to register with server: {}", e);
-        }
-    }
-}
-
 async fn send_potential_delete_events(
-    config: &Config,
+    server_url: &str,
     last_scan: &[FileDescription],
     client: &Client,
     descriptions: &[FileDescription],
@@ -213,7 +208,7 @@ async fn send_potential_delete_events(
         .iter()
         .map(|deleted| {
             client
-                .post(ServerEndpoint::Delete.to_uri(&config.server_url))
+                .post(ServerEndpoint::Delete.to_uri(server_url))
                 .body(deleted.relative_path.to_serialized_string())
                 .send()
         })

@@ -164,6 +164,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ServerEndpoint::Register.to_str(),
             post(handler::register),
         )
+        .route(ServerEndpoint::Config.to_str(), get(handler::get_config))
         // .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state);
 

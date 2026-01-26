@@ -14,6 +14,8 @@ pub enum ServerEndpoint {
     Hello,
     /// Temporary endpoint for migrating client configs to server DB
     Register,
+    /// Get client config from server
+    Config,
 }
 
 impl ServerEndpoint {
@@ -34,6 +36,7 @@ impl ServerEndpoint {
             ServerEndpoint::Monitor => "/monitor",
             ServerEndpoint::Version => "/version",
             ServerEndpoint::Register => "/register",
+            ServerEndpoint::Config => "/config",
         }
     }
 }
@@ -43,8 +46,8 @@ mod tests {
     use super::*;
     use ServerEndpoint::*;
 
-    const ALL_ENDPOINTS: [ServerEndpoint; 9] = [
-        Ping, Scan, Sync, Upload, Download, Delete, Monitor, Version, Register,
+    const ALL_ENDPOINTS: [ServerEndpoint; 10] = [
+        Ping, Scan, Sync, Upload, Download, Delete, Monitor, Version, Register, Config,
     ];
 
     #[test]
@@ -62,6 +65,7 @@ mod tests {
                 Monitor => assert_eq!("http://localhost/monitor", actual),
                 Version => assert_eq!("http://localhost/version", actual),
                 Register => assert_eq!("http://localhost/register", actual),
+                Config => assert_eq!("http://localhost/config", actual),
             }
         })
     }

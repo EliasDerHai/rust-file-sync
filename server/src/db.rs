@@ -1,4 +1,4 @@
-use shared::register::RegisterClientRequest;
+use shared::register::ClientConfigDto;
 use sqlx::SqlitePool;
 
 #[derive(Clone)]
@@ -18,7 +18,7 @@ impl ServerDatabase {
         &self,
         client_id: &str,
         host_name: &str,
-        request: RegisterClientRequest,
+        request: ClientConfigDto,
     ) -> Result<()> {
         let mut tx = self.pool.begin().await?;
         let poll_interval = request.min_poll_interval_in_ms as i32;
@@ -78,6 +78,46 @@ impl ServerDatabase {
         tx.commit().await?;
         Ok(())
     }
+
+    /// Get client config by client_id
+    /// Returns None if client doesn't exist
+    pub async fn get_client_config(&self, client_id: &str) -> Result<Option<ClientConfigDto>> {
+        // Get client and watch group
+        let watch_group = sqlx::query!(
+            r#"
+            SELECT
+                c.min_poll_interval_in_ms,
+                wg.id as watch_group_id,
+                wg.path_to_monitor,
+                wg.exclude_dot_dirs
+            FROM client c
+            JOIN client_watch_group wg ON wg.client_id = c.id
+            WHERE c.id = ?
+            "#,
+            client_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let Some(wg) = watch_group else {
+            return Ok(None);
+        };
+
+        // Get excluded dirs
+        let exclude_dirs: Vec<String> = sqlx::query_scalar!(
+            "SELECT exclude_dir FROM client_watch_group_excluded_dir WHERE client_watch_group = ?",
+            wg.watch_group_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(Some(ClientConfigDto {
+            path_to_monitor: wg.path_to_monitor,
+            exclude_dirs,
+            exclude_dot_dirs: wg.exclude_dot_dirs.unwrap_or(true),
+            min_poll_interval_in_ms: wg.min_poll_interval_in_ms as u16,
+        }))
+    }
 }
 
 #[cfg(test)]
@@ -103,7 +143,7 @@ mod tests {
     async fn test_register_client_insert() {
         let db = setup_test_db().await;
 
-        let request = RegisterClientRequest {
+        let request = ClientConfigDto {
             path_to_monitor: "/home/test/sync".to_string(),
             exclude_dirs: vec![".git".to_string(), "node_modules".to_string()],
             exclude_dot_dirs: true,
@@ -151,7 +191,7 @@ mod tests {
         let db = setup_test_db().await;
 
         // First registration
-        let request1 = RegisterClientRequest {
+        let request1 = ClientConfigDto {
             path_to_monitor: "/home/test/old-path".to_string(),
             exclude_dirs: vec![".git".to_string()],
             exclude_dot_dirs: true,
@@ -163,7 +203,7 @@ mod tests {
             .expect("Failed to register client");
 
         // Second registration with same client_id but different data
-        let request2 = RegisterClientRequest {
+        let request2 = ClientConfigDto {
             path_to_monitor: "/home/test/new-path".to_string(),
             exclude_dirs: vec!["target".to_string(), "dist".to_string()],
             exclude_dot_dirs: false,
@@ -209,5 +249,46 @@ mod tests {
         assert!(excluded_dirs.contains(&"target".to_string()));
         assert!(excluded_dirs.contains(&"dist".to_string()));
         assert!(!excluded_dirs.contains(&".git".to_string())); // Old value should be gone
+    }
+
+    #[tokio::test]
+    async fn test_get_client_config_returns_none_for_unknown_client() {
+        let db = setup_test_db().await;
+
+        let config = db
+            .get_client_config("nonexistent-client")
+            .await
+            .expect("Query should succeed");
+
+        assert!(config.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_client_config_returns_registered_config() {
+        let db = setup_test_db().await;
+
+        // Register a client
+        let request = ClientConfigDto {
+            path_to_monitor: "/home/user/documents".to_string(),
+            exclude_dirs: vec!["node_modules".to_string(), ".cache".to_string()],
+            exclude_dot_dirs: false,
+            min_poll_interval_in_ms: 7500,
+        };
+
+        db.register_client("test-client-789", "my-laptop", request)
+            .await
+            .expect("Failed to register client");
+
+        // Fetch the config
+        let config = db
+            .get_client_config("test-client-789")
+            .await
+            .expect("Query should succeed")
+            .expect("Config should exist");
+
+        assert_eq!(config.path_to_monitor, "/home/user/documents");
+        assert_eq!(config.exclude_dirs, vec!["node_modules", ".cache"]);
+        assert!(!config.exclude_dot_dirs);
+        assert_eq!(config.min_poll_interval_in_ms, 7500);
     }
 }

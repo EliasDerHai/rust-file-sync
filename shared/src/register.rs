@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 /// DTO for client registration / config migration
 /// Sent from client to server to register the client's config
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RegisterClientRequest {
+pub struct ClientConfigDto {
     pub path_to_monitor: String,
     pub exclude_dirs: Vec<String>,
     #[serde(default = "default_exclude_dot_dirs")]

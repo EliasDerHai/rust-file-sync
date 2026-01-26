@@ -10,6 +10,7 @@ use shared::endpoint::{CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY};
 use shared::file_event::{FileEvent, FileEventType};
 use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
 use shared::matchable_path::MatchablePath;
+use shared::register::ClientConfigDto;
 use shared::sync_instruction::SyncInstruction;
 use shared::utc_millis::UtcMillis;
 use std::ffi::OsStr;
@@ -307,7 +308,7 @@ pub async fn delete(
 pub async fn register(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Json(request): Json<shared::register::RegisterClientRequest>,
+    Json(request): Json<ClientConfigDto>,
 ) -> Result<String, (StatusCode, String)> {
     let client_id = header_value_as_string(&headers, CLIENT_ID_HEADER_KEY)?;
     let host_name = header_value_as_string(&headers, CLIENT_HOST_HEADER_KEY)?;
@@ -323,6 +324,29 @@ pub async fn register(
 
     info!("Registered client {} ({})", client_id, host_name);
     Ok(format!("Client {} registered successfully", client_id))
+}
+
+/// Get client config by client_id header
+pub async fn get_config(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<ClientConfigDto>, (StatusCode, String)> {
+    let client_id = header_value_as_string(&headers, CLIENT_ID_HEADER_KEY)?;
+
+    match state.db.get_client_config(client_id).await {
+        Ok(Some(config)) => {
+            debug!("Returning config for client {}", client_id);
+            Ok(Json(config))
+        }
+        Ok(None) => {
+            debug!("No config found for client {}", client_id);
+            Err((StatusCode::NOT_FOUND, "Client not registered".to_string()))
+        }
+        Err(e) => {
+            error!("Failed to get client config: {}", e);
+            Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+        }
+    }
 }
 
 fn header_value_as_opt_string(headers: &HeaderMap, key: &str) -> Option<String> {
