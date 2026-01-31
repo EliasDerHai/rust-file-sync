@@ -1,9 +1,15 @@
 use crate::write::RotatingFileWriter;
+use askama::Template;
 use axum::response::{Html, IntoResponse};
-use indoc::formatdoc;
 use std::sync::{Arc, Mutex};
 use sysinfo::System;
 use tracing::{error, trace};
+
+#[derive(Template)]
+#[template(path = "monitor.html")]
+struct MonitorTemplate {
+    data_json: String,
+}
 
 const BACKOFF_MS: u64 = 10_000;
 
@@ -75,90 +81,14 @@ pub async fn get_monitoring(writer: Arc<Mutex<RotatingFileWriter>>) -> impl Into
 
     let data_json = csv_to_json(&csv_content);
 
-    Html(formatdoc! {
-        r#"<!DOCTYPE html>
-                <html>
-                <head>
-                    <title>System Monitor</title>
-                    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-                    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-                    <style>
-                        body {{ font-family: sans-serif; margin: 20px; background: #1a1a2e; color: #eee; }}
-                        .chart-container {{ max-width: 1200px; margin: 0 auto; }}
-                        canvas {{ background: #16213e; border-radius: 8px; }}
-                        h1 {{ text-align: center; color: #e94560; }}
-                    </style>
-                </head>
-                <body>
-                    <h1>System Monitor</h1>
-                    <div class="chart-container">
-                        <canvas id="chart"></canvas>
-                    </div>
-                    <script>
-                        const rawData = {data_json};
-                
-                        new Chart(document.getElementById('chart'), {{
-                            type: 'line',
-                            data: {{
-                                datasets: [
-                                    {{
-                                        label: 'System Memory %',
-                                        data: rawData.sys_mem,
-                                        borderColor: '#e94560',
-                                        backgroundColor: 'rgba(233, 69, 96, 0.1)',
-                                        tension: 0.3
-                                    }},
-                                    {{
-                                        label: 'App Memory %',
-                                        data: rawData.app_mem,
-                                        borderColor: '#0f3460',
-                                        backgroundColor: 'rgba(15, 52, 96, 0.1)',
-                                        tension: 0.3
-                                    }},
-                                    {{
-                                        label: 'System CPU %',
-                                        data: rawData.sys_cpu,
-                                        borderColor: '#00b4d8',
-                                        backgroundColor: 'rgba(0, 180, 216, 0.1)',
-                                        tension: 0.3
-                                    }},
-                                    {{
-                                        label: 'App CPU %',
-                                        data: rawData.app_cpu,
-                                        borderColor: '#90be6d',
-                                        backgroundColor: 'rgba(144, 190, 109, 0.1)',
-                                        tension: 0.3
-                                    }}
-                                ]
-                            }},
-                            options: {{
-                                responsive: true,
-                                plugins: {{
-                                    legend: {{ labels: {{ color: '#eee' }} }}
-                                }},
-                                scales: {{
-                                    x: {{
-                                        type: 'time',
-                                        time: {{
-                                            displayFormats: {{ hour: 'HH:mm', minute: 'HH:mm', second: 'HH:mm:ss' }}
-                                        }},
-                                        ticks: {{ color: '#aaa' }},
-                                        grid: {{ color: '#333' }}
-                                    }},
-                                    y: {{
-                                        min: 0,
-                                        max: 100,
-                                        ticks: {{ color: '#aaa' }},
-                                        grid: {{ color: '#333' }}
-                                    }}
-                                }}
-                            }}
-                        }});
-                    </script>
-                </body>
-                </html>"#,
-        data_json = data_json
-    })
+    let template = MonitorTemplate { data_json };
+    match template.render() {
+        Ok(html) => Html(html),
+        Err(err) => Html(format!(
+            "<html><body><h1>Error rendering template: {}</h1></body></html>",
+            err
+        )),
+    }
 }
 
 fn csv_to_json(csv: &str) -> String {

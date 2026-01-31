@@ -6,11 +6,10 @@ use axum::extract::{Multipart, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
-use shared::endpoint::{CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY};
+use shared::endpoint::CLIENT_HOST_HEADER_KEY;
 use shared::file_event::{FileEvent, FileEventType};
 use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
 use shared::matchable_path::MatchablePath;
-use shared::register::ClientConfigDto;
 use shared::sync_instruction::SyncInstruction;
 use shared::utc_millis::UtcMillis;
 use std::ffi::OsStr;
@@ -21,8 +20,9 @@ use tokio_util::io::ReaderStream;
 use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
-/// expecting no payload
-/// returning list of file meta infos
+use super::header_value_as_opt_string;
+
+/// returns list of file meta infos
 pub async fn scan_disk(path: &Path) -> Result<Json<Vec<FileDescription>>, StatusCode> {
     match get_all_file_descriptions(path, &Vec::new()) {
         Ok(descriptions) => Ok(Json(descriptions)),
@@ -33,7 +33,7 @@ pub async fn scan_disk(path: &Path) -> Result<Json<Vec<FileDescription>>, Status
     }
 }
 
-/// expecting payload like
+/// expects payload like
 /// {
 ///   utc_millis: 42,
 ///   relative_path: "./directory/file.txt",
@@ -301,177 +301,5 @@ pub async fn delete(
             info!("Failed to delete file: {}", err);
             Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))
         }
-    }
-}
-
-/// Temporary endpoint for migrating client configs to server DB
-pub async fn register(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Json(request): Json<ClientConfigDto>,
-) -> Result<String, (StatusCode, String)> {
-    let client_id = header_value_as_string(&headers, CLIENT_ID_HEADER_KEY)?;
-    let host_name = header_value_as_string(&headers, CLIENT_HOST_HEADER_KEY)?;
-
-    state
-        .db
-        .register_client(client_id, host_name, request)
-        .await
-        .map_err(|e| {
-            error!("Failed to register client: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
-        })?;
-
-    info!("Registered client {} ({})", client_id, host_name);
-    Ok(format!("Client {} registered successfully", client_id))
-}
-
-/// Get client config by client_id header
-pub async fn get_config(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<Json<ClientConfigDto>, (StatusCode, String)> {
-    let client_id = header_value_as_string(&headers, CLIENT_ID_HEADER_KEY)?;
-
-    match state.db.get_client_config(client_id).await {
-        Ok(Some(config)) => {
-            debug!("Returning config for client {}", client_id);
-            Ok(Json(config))
-        }
-        Ok(None) => {
-            debug!("No config found for client {}", client_id);
-            Err((StatusCode::NOT_FOUND, "Client not registered".to_string()))
-        }
-        Err(e) => {
-            error!("Failed to get client config: {}", e);
-            Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
-        }
-    }
-}
-
-fn header_value_as_opt_string(headers: &HeaderMap, key: &str) -> Option<String> {
-    headers
-        .get(key)
-        .and_then(|v| v.to_str().ok())
-        .map(String::from)
-}
-
-fn header_value_as_string<'header>(
-    headers: &'header HeaderMap,
-    key: &str,
-) -> Result<&'header str, (StatusCode, String)> {
-    headers
-        .get(key)
-        .and_then(|v| v.to_str().ok())
-        .ok_or((StatusCode::BAD_REQUEST, format!("Missing {key} header")))
-}
-
-// ============ Share Link handler ============
-
-use serde::Deserialize;
-
-#[derive(Deserialize)]
-pub struct ShareLinkRequest {
-    pub url: String,
-    pub title: Option<String>,
-}
-
-pub async fn receive_shared_link(
-    State(state): State<AppState>,
-    Json(request): Json<ShareLinkRequest>,
-) -> Result<String, (StatusCode, String)> {
-    state
-        .db
-        .store_shared_link(&request.url, request.title.as_deref())
-        .await
-        .map_err(|e| {
-            error!("Failed to store shared link: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
-        })?;
-
-    info!("Stored shared link: {}", request.url);
-    Ok("ok".to_string())
-}
-
-// ============ Admin UI handlers ============
-
-use crate::db::ClientWithConfig;
-use askama::Template;
-use axum::response::Html;
-
-#[derive(Template)]
-#[template(path = "configs.html")]
-struct ConfigsTemplate {
-    clients: Vec<ClientWithConfig>,
-}
-
-#[derive(Template)]
-#[template(path = "config_edit.html")]
-struct ConfigEditTemplate {
-    client: ClientWithConfig,
-}
-
-/// GET /configs - List all client configs (admin UI)
-pub async fn list_configs(
-    State(state): State<AppState>,
-) -> Result<Html<String>, (StatusCode, String)> {
-    let clients = state.db.get_all_clients().await.map_err(|e| {
-        error!("Failed to get clients: {}", e);
-        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
-    })?;
-
-    let template = ConfigsTemplate { clients };
-    let html = template.render().map_err(|e| {
-        error!("Failed to render template: {}", e);
-        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
-    })?;
-
-    Ok(Html(html))
-}
-
-/// GET /config/{id} - Edit form for a single client (admin UI)
-pub async fn get_config_edit(
-    State(state): State<AppState>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Html<String>, (StatusCode, String)> {
-    let client = state
-        .db
-        .get_client_by_id(&id)
-        .await
-        .map_err(|e| {
-            error!("Failed to get client: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
-        })?
-        .ok_or((StatusCode::NOT_FOUND, "Client not found".to_string()))?;
-
-    let template = ConfigEditTemplate { client };
-    let html = template.render().map_err(|e| {
-        error!("Failed to render template: {}", e);
-        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
-    })?;
-
-    Ok(Html(html))
-}
-
-/// PUT /config/:id - Update client config (admin UI)
-pub async fn update_config(
-    State(state): State<AppState>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-    Json(config): Json<ClientConfigDto>,
-) -> Result<String, (StatusCode, String)> {
-    let updated = state
-        .db
-        .update_client_config(&id, config)
-        .await
-        .map_err(|e| {
-            error!("Failed to update client config: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
-        })?;
-
-    if updated {
-        info!("Updated config for client {}", id);
-        Ok("Config updated successfully".to_string())
-    } else {
-        Err((StatusCode::NOT_FOUND, "Client not found".to_string()))
     }
 }

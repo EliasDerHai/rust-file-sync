@@ -6,12 +6,9 @@ use crate::write::{
 };
 use axum::extract::{DefaultBodyLimit, Multipart, State};
 use axum::http::HeaderMap;
-use axum::http::StatusCode;
-use axum::response::IntoResponse;
 use axum::routing::{post, put};
 use axum::{routing::get, Router};
 use axum_server::tls_rustls::RustlsConfig;
-use rust_embed::RustEmbed;
 use shared::endpoint::ServerEndpoint;
 use sqlx::migrate::Migrator;
 use sqlx::sqlite::SqliteConnectOptions;
@@ -21,12 +18,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::{path::Path, sync::LazyLock};
-use tracing::{error, info};
+use tracing::error;
 use tracing_subscriber::EnvFilter;
-
-#[derive(RustEmbed)]
-#[folder = "link-share-pwa/"]
-struct PwaAssets;
 
 mod client_file_event;
 mod db;
@@ -169,9 +162,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ServerEndpoint::Version.to_str(),
             get(|| async { env!("CARGO_PKG_VERSION") }),
         )
-        // TODO: Config and Regsiter should be same endpoint
-        .route(ServerEndpoint::Register.to_str(), post(handler::register))
-        .route(ServerEndpoint::Config.to_str(), get(handler::get_config))
+        .route(
+            ServerEndpoint::Config.to_str(),
+            get(handler::get_config).post(handler::post_config),
+        )
         // admin ui
         .route(
             ServerEndpoint::AdminConfigs.to_str(),
@@ -186,12 +180,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             put(handler::update_config),
         )
         // link share
+        .nest_service(
+            ServerEndpoint::ServePWA.to_str(),
+            get(handler::serve_embedded_pwa),
+        )
         .route(
             ServerEndpoint::ShareLink.to_str(),
             post(handler::receive_shared_link),
         )
-        // Serve PWA static files (embedded in binary)
-        .nest_service("/pwa", get(serve_embedded_pwa))
         // .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state);
 
@@ -216,18 +212,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
-}
-
-async fn serve_embedded_pwa(uri: axum::http::Uri) -> axum::response::Response {
-    let path = uri.path().trim_start_matches('/');
-    let path = if path.is_empty() { "index.html" } else { path };
-    info!("serve_embedded_pwa's path: {}", path);
-    match PwaAssets::get(path) {
-        Some(file) => (
-            [(axum::http::header::CONTENT_TYPE, file.metadata.mimetype())],
-            file.data,
-        )
-            .into_response(),
-        None => StatusCode::NOT_FOUND.into_response(),
-    }
 }

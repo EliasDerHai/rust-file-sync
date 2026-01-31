@@ -13,15 +13,14 @@ pub struct ClientWithConfig {
     pub min_poll_interval_in_ms: u16,
 }
 
-#[derive(Clone)]
-pub struct ServerDatabase {
-    pool: SqlitePool,
+pub struct ClientConfigRepository<'a> {
+    pool: &'a SqlitePool,
 }
 
 type Result<T> = sqlx::Result<T>;
 
-impl ServerDatabase {
-    pub fn new(pool: SqlitePool) -> Self {
+impl<'a> ClientConfigRepository<'a> {
+    pub fn new(pool: &'a SqlitePool) -> Self {
         Self { pool }
     }
 
@@ -108,7 +107,7 @@ impl ServerDatabase {
             "#,
             client_id
         )
-        .fetch_optional(&self.pool)
+        .fetch_optional(self.pool)
         .await?;
 
         let Some(wg) = watch_group else {
@@ -120,7 +119,7 @@ impl ServerDatabase {
             "SELECT exclude_dir FROM client_watch_group_excluded_dir WHERE client_watch_group = ?",
             wg.watch_group_id
         )
-        .fetch_all(&self.pool)
+        .fetch_all(self.pool)
         .await?;
 
         Ok(Some(ClientConfigDto {
@@ -147,7 +146,7 @@ impl ServerDatabase {
             ORDER BY c.host_name
             "#
         )
-        .fetch_all(&self.pool)
+        .fetch_all(self.pool)
         .await?;
 
         let mut result = Vec::new();
@@ -157,7 +156,7 @@ impl ServerDatabase {
                     "SELECT exclude_dir FROM client_watch_group_excluded_dir WHERE client_watch_group = ?",
                     wg_id
                 )
-                .fetch_all(&self.pool)
+                .fetch_all(self.pool)
                 .await?
             } else {
                 Vec::new()
@@ -193,7 +192,7 @@ impl ServerDatabase {
             "#,
             client_id
         )
-        .fetch_optional(&self.pool)
+        .fetch_optional(self.pool)
         .await?;
 
         let Some(client) = client else {
@@ -205,7 +204,7 @@ impl ServerDatabase {
                 "SELECT exclude_dir FROM client_watch_group_excluded_dir WHERE client_watch_group = ?",
                 wg_id
             )
-            .fetch_all(&self.pool)
+            .fetch_all(self.pool)
             .await?
         } else {
             Vec::new()
@@ -219,18 +218,6 @@ impl ServerDatabase {
             exclude_dot_dirs: client.exclude_dot_dirs.unwrap_or(true),
             min_poll_interval_in_ms: client.min_poll_interval_in_ms as u16,
         }))
-    }
-
-    /// Store a shared link from the PWA
-    pub async fn store_shared_link(&self, url: &str, title: Option<&str>) -> Result<()> {
-        sqlx::query!(
-            "INSERT INTO shared_link (url, title) VALUES (?, ?)",
-            url,
-            title
-        )
-        .execute(&self.pool)
-        .await?;
-        Ok(())
     }
 
     /// Update client config by ID (for admin UI)
@@ -299,6 +286,7 @@ impl ServerDatabase {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::ServerDatabase;
     use sqlx::migrate::Migrator;
     use sqlx::sqlite::SqlitePoolOptions;
 
@@ -318,6 +306,7 @@ mod tests {
     #[tokio::test]
     async fn test_register_client_insert() {
         let db = setup_test_db().await;
+        let repo = db.client_config();
 
         let request = ClientConfigDto {
             path_to_monitor: "/home/test/sync".to_string(),
@@ -326,13 +315,13 @@ mod tests {
             min_poll_interval_in_ms: 5000,
         };
 
-        db.register_client("client-uuid-123", "test-host", request)
+        repo.register_client("client-uuid-123", "test-host", request)
             .await
             .expect("Failed to register client");
 
         // Verify client was inserted
         let client = sqlx::query!("SELECT * FROM client WHERE id = ?", "client-uuid-123")
-            .fetch_one(&db.pool)
+            .fetch_one(db.pool())
             .await
             .expect("Failed to fetch client");
 
@@ -344,7 +333,7 @@ mod tests {
             "SELECT * FROM client_watch_group WHERE client_id = ?",
             "client-uuid-123"
         )
-        .fetch_one(&db.pool)
+        .fetch_one(db.pool())
         .await
         .expect("Failed to fetch watch group");
 
@@ -355,7 +344,7 @@ mod tests {
             "SELECT exclude_dir FROM client_watch_group_excluded_dir WHERE client_watch_group = ?",
             watch_group.id
         )
-        .fetch_all(&db.pool)
+        .fetch_all(db.pool())
         .await
         .expect("Failed to fetch excluded dirs");
 
@@ -365,6 +354,7 @@ mod tests {
     #[tokio::test]
     async fn test_register_client_upsert_overwrites_existing() {
         let db = setup_test_db().await;
+        let repo = db.client_config();
 
         // First registration
         let request1 = ClientConfigDto {
@@ -374,7 +364,7 @@ mod tests {
             min_poll_interval_in_ms: 3000,
         };
 
-        db.register_client("client-uuid-456", "old-hostname", request1)
+        repo.register_client("client-uuid-456", "old-hostname", request1)
             .await
             .expect("Failed to register client");
 
@@ -386,13 +376,13 @@ mod tests {
             min_poll_interval_in_ms: 10000,
         };
 
-        db.register_client("client-uuid-456", "new-hostname", request2)
+        repo.register_client("client-uuid-456", "new-hostname", request2)
             .await
             .expect("Failed to upsert client");
 
         // Verify client was updated (not duplicated)
         let clients: Vec<_> = sqlx::query!("SELECT * FROM client WHERE id = ?", "client-uuid-456")
-            .fetch_all(&db.pool)
+            .fetch_all(db.pool())
             .await
             .expect("Failed to fetch clients");
 
@@ -405,7 +395,7 @@ mod tests {
             "SELECT * FROM client_watch_group WHERE client_id = ?",
             "client-uuid-456"
         )
-        .fetch_all(&db.pool)
+        .fetch_all(db.pool())
         .await
         .expect("Failed to fetch watch groups");
 
@@ -417,7 +407,7 @@ mod tests {
             "SELECT exclude_dir FROM client_watch_group_excluded_dir WHERE client_watch_group = ?",
             watch_groups[0].id
         )
-        .fetch_all(&db.pool)
+        .fetch_all(db.pool())
         .await
         .expect("Failed to fetch excluded dirs");
 
@@ -430,8 +420,9 @@ mod tests {
     #[tokio::test]
     async fn test_get_client_config_returns_none_for_unknown_client() {
         let db = setup_test_db().await;
+        let repo = db.client_config();
 
-        let config = db
+        let config = repo
             .get_client_config("nonexistent-client")
             .await
             .expect("Query should succeed");
@@ -442,6 +433,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_client_config_returns_registered_config() {
         let db = setup_test_db().await;
+        let repo = db.client_config();
 
         // Register a client
         let request = ClientConfigDto {
@@ -451,12 +443,12 @@ mod tests {
             min_poll_interval_in_ms: 7500,
         };
 
-        db.register_client("test-client-789", "my-laptop", request)
+        repo.register_client("test-client-789", "my-laptop", request)
             .await
             .expect("Failed to register client");
 
         // Fetch the config
-        let config = db
+        let config = repo
             .get_client_config("test-client-789")
             .await
             .expect("Query should succeed")

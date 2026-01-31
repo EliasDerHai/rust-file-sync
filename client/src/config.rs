@@ -112,8 +112,7 @@ pub async fn fetch_or_register_config(
         min_poll_interval_in_ms: local_config.min_poll_interval_in_ms,
     };
 
-    let register_endpoint = ServerEndpoint::Register.to_uri(&local_config.server_url);
-    match client.post(&register_endpoint).json(&request).send().await {
+    match client.post(&config_endpoint).json(&request).send().await {
         Ok(response) if response.status().is_success() => {
             info!("Registered local config with server");
         }
