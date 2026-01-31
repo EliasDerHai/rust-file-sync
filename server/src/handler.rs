@@ -366,6 +366,33 @@ fn header_value_as_string<'header>(
         .ok_or((StatusCode::BAD_REQUEST, format!("Missing {key} header")))
 }
 
+// ============ Share Link handler ============
+
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+pub struct ShareLinkRequest {
+    pub url: String,
+    pub title: Option<String>,
+}
+
+pub async fn receive_shared_link(
+    State(state): State<AppState>,
+    Json(request): Json<ShareLinkRequest>,
+) -> Result<String, (StatusCode, String)> {
+    state
+        .db
+        .store_shared_link(&request.url, request.title.as_deref())
+        .await
+        .map_err(|e| {
+            error!("Failed to store shared link: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?;
+
+    info!("Stored shared link: {}", request.url);
+    Ok("ok".to_string())
+}
+
 // ============ Admin UI handlers ============
 
 use crate::db::ClientWithConfig;

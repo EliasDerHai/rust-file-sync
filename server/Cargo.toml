@@ -13,7 +13,7 @@ tokio-util = { version = "0.7.13", features = ["io"] }
 shared = { path = "../shared" }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["ansi", "env-filter"] }
-tower-http = { version = "0.6.2", features = ["limit", "trace"] }
+tower-http = { version = "0.6.2", features = ["limit", "trace", "fs"] }
 sysinfo = { version = "0.33.1" }
 indoc = "2.0.7"
 sqlx = { version = "0.8.6", features = [

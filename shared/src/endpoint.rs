@@ -12,7 +12,7 @@ pub enum ServerEndpoint {
     Register,
     /// Get client config from server
     Config,
-    
+
     /// not used from client - can be directly accessed from browser etc. for inspection
     Scan,
     Monitor,
@@ -22,6 +22,10 @@ pub enum ServerEndpoint {
     AdminConfig,
     /// List all client configs (admin UI)
     AdminConfigs,
+    /// PWA
+    ServePWA,
+    /// Receive shared links from PWA
+    ShareLink,
 }
 
 impl ServerEndpoint {
@@ -45,6 +49,8 @@ impl ServerEndpoint {
             ServerEndpoint::Config => "/config",
             ServerEndpoint::AdminConfig => "/admin/config/{id}",
             ServerEndpoint::AdminConfigs => "/admin/configs",
+            ServerEndpoint::ServePWA => "/pwa",
+            ServerEndpoint::ShareLink => "/share-link",
         }
     }
 }
@@ -54,7 +60,7 @@ mod tests {
     use super::*;
     use ServerEndpoint::*;
 
-    const ALL_ENDPOINTS: [ServerEndpoint; 12] = [
+    const ALL_ENDPOINTS: [ServerEndpoint; 14] = [
         Ping,
         Scan,
         Sync,
@@ -67,6 +73,8 @@ mod tests {
         Config,
         AdminConfig,
         AdminConfigs,
+        ServePWA,
+        ShareLink,
     ];
 
     #[test]
@@ -85,8 +93,10 @@ mod tests {
                 Version => assert_eq!("http://localhost/version", actual),
                 Register => assert_eq!("http://localhost/register", actual),
                 Config => assert_eq!("http://localhost/config", actual),
-                AdminConfig => assert_eq!("http://localhost/admin/config/:id", actual),
+                AdminConfig => assert_eq!("http://localhost/admin/config/{id}", actual),
                 AdminConfigs => assert_eq!("http://localhost/admin/configs", actual),
+                ServePWA => assert_eq!("http://localhost/pwa", actual),
+                ShareLink => assert_eq!("http://localhost/share-link", actual),
             }
         })
     }

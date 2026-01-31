@@ -221,6 +221,18 @@ impl ServerDatabase {
         }))
     }
 
+    /// Store a shared link from the PWA
+    pub async fn store_shared_link(&self, url: &str, title: Option<&str>) -> Result<()> {
+        sqlx::query!(
+            "INSERT INTO shared_link (url, title) VALUES (?, ?)",
+            url,
+            title
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     /// Update client config by ID (for admin UI)
     pub async fn update_client_config(
         &self,

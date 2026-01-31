@@ -16,6 +16,7 @@ use std::env;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::{path::Path, sync::LazyLock};
+use tower_http::services::ServeDir;
 use tracing::error;
 use tracing_subscriber::EnvFilter;
 
@@ -175,6 +176,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route(
             ServerEndpoint::AdminConfig.to_str(),
             put(handler::update_config),
+        )
+        // link share
+        .route(
+            ServerEndpoint::ShareLink.to_str(),
+            post(handler::receive_shared_link),
+        )
+        // Serve PWA static files
+        .nest_service(
+            ServerEndpoint::ServePWA.to_str(),
+            ServeDir::new("./server/link-share-pwa"),
         )
         // .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state);
