@@ -1,9 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-cd $(git rev-parse --show-toplevel) 
+cd $(git rev-parse --show-toplevel)
 
-touch ./server/comptime.db
-cargo sqlx migrate run
-
+cargo sqlx database create
+cargo sqlx migrate run --source server/migrations
 cargo build
