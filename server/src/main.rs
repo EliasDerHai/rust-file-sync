@@ -6,19 +6,27 @@ use crate::write::{
 };
 use axum::extract::{DefaultBodyLimit, Multipart, State};
 use axum::http::HeaderMap;
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
 use axum::routing::{post, put};
 use axum::{routing::get, Router};
+use axum_server::tls_rustls::RustlsConfig;
+use rust_embed::RustEmbed;
 use shared::endpoint::ServerEndpoint;
 use sqlx::migrate::Migrator;
 use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::SqlitePool;
 use std::env;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::{path::Path, sync::LazyLock};
-use tower_http::services::ServeDir;
-use tracing::error;
+use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
+
+#[derive(RustEmbed)]
+#[folder = "link-share-pwa/"]
+struct PwaAssets;
 
 mod client_file_event;
 mod db;
@@ -182,18 +190,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ServerEndpoint::ShareLink.to_str(),
             post(handler::receive_shared_link),
         )
-        // Serve PWA static files
-        .nest_service(
-            ServerEndpoint::ServePWA.to_str(),
-            ServeDir::new("./server/link-share-pwa"),
-        )
+        // Serve PWA static files (embedded in binary)
+        .nest_service("/pwa", get(serve_embedded_pwa))
         // .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
 
-    axum::serve(listener, app).await.unwrap();
-    tracing::info!("axum::served");
+    match (env::var("TLS_CERT_PATH"), env::var("TLS_KEY_PATH")) {
+        (Ok(cert_path), Ok(key_path)) => {
+            tracing::info!("Starting HTTPS server on {addr}");
+            let tls_config = RustlsConfig::from_pem_file(&cert_path, &key_path)
+                .await
+                .expect("Failed to load TLS certificate/key");
+            axum_server::bind_rustls(addr, tls_config)
+                .serve(app.into_make_service())
+                .await
+                .unwrap();
+        }
+        _ => {
+            tracing::info!("Starting HTTP server on {addr} (no TLS_CERT_PATH/TLS_KEY_PATH)");
+            let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+            axum::serve(listener, app).await.unwrap();
+        }
+    }
 
     Ok(())
+}
+
+async fn serve_embedded_pwa(uri: axum::http::Uri) -> axum::response::Response {
+    let path = uri.path().trim_start_matches('/');
+    let path = if path.is_empty() { "index.html" } else { path };
+    info!("serve_embedded_pwa's path: {}", path);
+    match PwaAssets::get(path) {
+        Some(file) => (
+            [(axum::http::header::CONTENT_TYPE, file.metadata.mimetype())],
+            file.data,
+        )
+            .into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
 }

@@ -24,8 +24,7 @@ Let's see if that law holds once more.
 - add real DB for server (maybe ~~DuckDb?~~ or SQLite✅)
     - add more metrics (up/download per day etc.)
 - implement backup strategy (currently mocked TODOs)
-- switch to https (see [axum example](https://github.com/tokio-rs/axum/blob/main/examples/tls-rustls/src/main.rs)
-  and [mkcert](https://github.com/FiloSottile/mkcert))
+- ~~switch to https~~ ✅ (optional TLS via `TLS_CERT_PATH`/`TLS_KEY_PATH` env vars + `axum-server` with rustls)
 
 ### Bugs
 
@@ -39,4 +38,3 @@ Let's see if that law holds once more.
 
 ## Open
 
-- Filter by path/regex/gitignore-syntax? (eg. avoid syncing ".obsidian" when monitoring obsidian vault)

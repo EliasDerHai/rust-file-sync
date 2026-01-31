@@ -29,9 +29,8 @@ pub enum ServerEndpoint {
 }
 
 impl ServerEndpoint {
-    /// endpoint without ssl
     pub fn to_uri(&self, base: &str) -> String {
-        format!("http://{base}{}", self.to_str())
+        format!("{base}{}", self.to_str())
     }
 
     pub fn to_str(&self) -> &str {
@@ -80,7 +79,7 @@ mod tests {
     #[test]
     fn should_build_uris() {
         ALL_ENDPOINTS.into_iter().for_each(|endpoint| {
-            let actual = endpoint.to_uri("localhost");
+            let actual = endpoint.to_uri("http://localhost");
             match endpoint {
                 Hello => assert_eq!("http://localhost/", actual),
                 Ping => assert_eq!("http://localhost/ping", actual),

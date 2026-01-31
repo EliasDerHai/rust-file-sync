@@ -57,7 +57,7 @@ ssh ${REMOTE_USER}@${REMOTE_HOST} "sudo systemctl start ${SERVICE_NAME}"
 echo "Waiting for the server to start..."
 # Poll the /ping endpoint for up to (10 attempts every 2 second intervals)
 for i in {1..10}; do
-  response=$(curl -s http://${REMOTE_HOST}:3000/ping || true)
+  response=$(curl -sk https://${REMOTE_HOST}:3000/ping || true)
   if [ "$response" == "pong" ]; then
     echo "Server is up and running!"
     exit 0
