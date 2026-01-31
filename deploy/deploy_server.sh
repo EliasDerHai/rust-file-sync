@@ -8,7 +8,7 @@ REMOTE_HOST="pi"
 REMOTE_PATH="/home/pi/Downloads/Rust-File-Sync_Server"
 SERVICE_NAME="rust-file-sync_server.service"
 PROJECT="server"
-TARGET="aarch64-unknown-linux-gnu"
+TARGET="aarch64-unknown-linux-musl"
 BINARY_PATH="../target/${TARGET}/release/server"
 
 function yes_or_no {

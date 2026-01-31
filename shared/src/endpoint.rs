@@ -7,16 +7,17 @@ pub enum ServerEndpoint {
     Upload,
     Download,
     Delete,
-    /// not used from client - can be directly accessed from browser etc. for inspection
-    Scan,
-    Monitor,
-    Version,
-    Hello,
     // TODO: Config and Regsiter should be same endpoint
     /// Temporary endpoint for migrating client configs to server DB
     Register,
     /// Get client config from server
     Config,
+    
+    /// not used from client - can be directly accessed from browser etc. for inspection
+    Scan,
+    Monitor,
+    Version,
+    Hello,
     /// Get/set client config (admin UI)
     AdminConfig,
     /// List all client configs (admin UI)
