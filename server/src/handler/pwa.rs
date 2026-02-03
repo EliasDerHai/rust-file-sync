@@ -4,7 +4,7 @@ use rust_embed::RustEmbed;
 use tracing::info;
 
 #[derive(RustEmbed)]
-#[folder = "link-share-pwa/"]
+#[folder = "pwa/"]
 struct PwaAssets;
 
 pub async fn serve_embedded_pwa(uri: axum::http::Uri) -> axum::response::Response {
