@@ -15,6 +15,10 @@ pub enum ServerEndpoint {
     Monitor,
     Version,
     Hello,
+    /// Get/set server-watch-group (admin UI)
+    AdminWatchGroup,
+    /// List all server-watch-groups (admin UI)
+    AdminWatchGroups,
     /// Get/set client config (admin UI)
     AdminConfig,
     /// List all client configs (admin UI)
@@ -44,6 +48,8 @@ impl ServerEndpoint {
             ServerEndpoint::Config => "/config",
             ServerEndpoint::AdminConfig => "/admin/config/{id}",
             ServerEndpoint::AdminConfigs => "/admin/configs",
+            ServerEndpoint::AdminWatchGroup => "/admin/watch-group/{id}",
+            ServerEndpoint::AdminWatchGroups => "/admin/watch-groups",
             ServerEndpoint::ServePWA => "/pwa",
             ServerEndpoint::ShareLink => "/share-link",
         }
@@ -55,7 +61,7 @@ mod tests {
     use super::*;
     use ServerEndpoint::*;
 
-    const ALL_ENDPOINTS: [ServerEndpoint; 13] = [
+    const ALL_ENDPOINTS: [ServerEndpoint; 15] = [
         Ping,
         Scan,
         Sync,
@@ -67,6 +73,8 @@ mod tests {
         Config,
         AdminConfig,
         AdminConfigs,
+        AdminWatchGroup,
+        AdminWatchGroups,
         ServePWA,
         ShareLink,
     ];
@@ -88,6 +96,8 @@ mod tests {
                 Config => assert_eq!("http://localhost/config", actual),
                 AdminConfig => assert_eq!("http://localhost/admin/config/{id}", actual),
                 AdminConfigs => assert_eq!("http://localhost/admin/configs", actual),
+                AdminWatchGroup => assert_eq!("http://localhost/admin/watch-group/{id}", actual),
+                AdminWatchGroups => assert_eq!("http://localhost/admin/watch-groups", actual),
                 ServePWA => assert_eq!("http://localhost/pwa", actual),
                 ShareLink => assert_eq!("http://localhost/share-link", actual),
             }

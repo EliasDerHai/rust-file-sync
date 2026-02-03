@@ -17,7 +17,7 @@ pub async fn receive_shared_link(
 ) -> Result<String, (StatusCode, String)> {
     state
         .db
-        .shared_link()
+        .link()
         .store_shared_link(&request.url, request.title.as_deref())
         .await
         .map_err(|e| {

@@ -21,18 +21,13 @@ struct ConfigEditTemplate {
 }
 
 /// GET /configs - List all client configs (admin UI)
-pub async fn list_configs(
+pub async fn list_admin_configs(
     State(state): State<AppState>,
 ) -> Result<Html<String>, (StatusCode, String)> {
-    let clients = state
-        .db
-        .client_config()
-        .get_all_clients()
-        .await
-        .map_err(|e| {
-            error!("Failed to get clients: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
-        })?;
+    let clients = state.db.client().get_all_clients().await.map_err(|e| {
+        error!("Failed to get clients: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     let template = ConfigsTemplate { clients };
     let html = template.render().map_err(|e| {
@@ -43,14 +38,14 @@ pub async fn list_configs(
     Ok(Html(html))
 }
 
-/// GET /config/{id} - Edit form for a single client (admin UI)
-pub async fn get_config_edit(
+/// GET /config/{id} - Get client config (admin UI)
+pub async fn get_admin_config(
     State(state): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<Html<String>, (StatusCode, String)> {
     let client = state
         .db
-        .client_config()
+        .client()
         .get_client_by_id(&id)
         .await
         .map_err(|e| {
@@ -69,14 +64,14 @@ pub async fn get_config_edit(
 }
 
 /// PUT /config/:id - Update client config (admin UI)
-pub async fn update_config(
+pub async fn update_admin_config(
     State(state): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(config): Json<ClientConfigDto>,
 ) -> Result<String, (StatusCode, String)> {
     let updated = state
         .db
-        .client_config()
+        .client()
         .update_client_config(&id, config)
         .await
         .map_err(|e| {

@@ -15,7 +15,7 @@ pub async fn get_config(
 ) -> Result<Json<ClientConfigDto>, (StatusCode, String)> {
     let client_id = header_value_as_string(&headers, CLIENT_ID_HEADER_KEY)?;
 
-    match state.db.client_config().get_client_config(client_id).await {
+    match state.db.client().get_client_config(client_id).await {
         Ok(Some(config)) => {
             debug!("Returning config for client {}", client_id);
             Ok(Json(config))
@@ -42,8 +42,8 @@ pub async fn post_config(
 
     state
         .db
-        .client_config()
-        .register_client(client_id, host_name, request)
+        .client()
+        .upsert_client_config(client_id, host_name, request)
         .await
         .map_err(|e| {
             error!("Failed to register client: {}", e);

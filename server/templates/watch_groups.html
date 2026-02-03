@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Watch Groups</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2rem;
+        background: #f5f5f5;
+      }
+      h1 {
+        color: #333;
+      }
+      .group-list {
+        list-style: none;
+        padding: 0;
+      }
+      .group-card {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+      .group-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .group-name {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #333;
+      }
+      .group-id {
+        font-size: 0.75rem;
+        color: #888;
+        font-family: monospace;
+      }
+      .name-input {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #333;
+        font-family: inherit;
+        border: 1px solid #4a90d9;
+        border-radius: 4px;
+        padding: 0.25rem 0.5rem;
+        outline: none;
+      }
+      .btn {
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+      }
+      .btn-edit {
+        background: #4a90d9;
+        color: white;
+      }
+      .btn-edit:hover {
+        background: #357abd;
+      }
+      .btn-save {
+        background: #28a745;
+        color: white;
+      }
+      .btn-save:hover {
+        background: #218838;
+      }
+      .btn-cancel {
+        background: #e0e0e0;
+        color: #333;
+        margin-left: 0.5rem;
+      }
+      .btn-cancel:hover {
+        background: #d0d0d0;
+      }
+      .message {
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        margin-top: 0.75rem;
+        font-size: 0.85rem;
+      }
+      .message.success {
+        background: #d4edda;
+        color: #155724;
+      }
+      .message.error {
+        background: #f8d7da;
+        color: #721c24;
+      }
+      .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #666;
+      }
+      .create-card {
+        background: white;
+        border: 2px dashed #ccc;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+      .create-card input {
+        flex: 1;
+        font-size: 1rem;
+        font-family: inherit;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 0.5rem 0.75rem;
+        outline: none;
+      }
+      .create-card input:focus {
+        border-color: #4a90d9;
+      }
+      .btn-create {
+        background: #28a745;
+        color: white;
+        white-space: nowrap;
+      }
+      .btn-create:hover {
+        background: #218838;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Watch Groups</h1>
+
+    <div class="create-card">
+      <input type="text" id="new-group-name" placeholder="New watch group name" />
+      <button class="btn btn-create" onclick="createGroup()">Create</button>
+    </div>
+    <div id="create-message"></div>
+
+    {% if groups.is_empty() %}
+    <div class="empty-state">
+      <p>No watch groups configured yet.</p>
+    </div>
+    {% else %}
+    <ul class="group-list">
+      {% for group in groups %}
+      <li class="group-card" data-id="{{ group.id }}">
+        <div class="group-header">
+          <div>
+            <span class="group-name">{{ group.name }}</span>
+            <input
+              class="name-input"
+              type="text"
+              value="{{ group.name }}"
+              style="display: none"
+            />
+            <div class="group-id">ID: {{ group.id }}</div>
+          </div>
+          <div>
+            <button class="btn btn-edit" onclick="startEdit(this)">
+              Edit
+            </button>
+            <button
+              class="btn btn-save"
+              onclick="saveEdit(this)"
+              style="display: none"
+            >
+              Save
+            </button>
+            <button
+              class="btn btn-cancel"
+              onclick="cancelEdit(this)"
+              style="display: none"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+        <div class="card-message"></div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    <script>
+      async function createGroup() {
+        const input = document.getElementById("new-group-name");
+        const msgEl = document.getElementById("create-message");
+        const name = input.value.trim();
+
+        if (!name) return;
+
+        try {
+          const response = await fetch("/admin/watch-groups", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name }),
+          });
+
+          if (response.ok) {
+            location.reload();
+          } else {
+            const error = await response.text();
+            msgEl.className = "message error";
+            msgEl.textContent = "Error: " + error;
+          }
+        } catch (err) {
+          msgEl.className = "message error";
+          msgEl.textContent = "Error: " + err.message;
+        }
+      }
+
+      function getCard(btn) {
+        return btn.closest(".group-card");
+      }
+
+      function startEdit(btn) {
+        const card = getCard(btn);
+        card.querySelector(".group-name").style.display = "none";
+        card.querySelector(".name-input").style.display = "";
+        card.querySelector(".name-input").focus();
+        card.querySelector(".btn-edit").style.display = "none";
+        card.querySelector(".btn-save").style.display = "";
+        card.querySelector(".btn-cancel").style.display = "";
+      }
+
+      function cancelEdit(btn) {
+        const card = getCard(btn);
+        const nameEl = card.querySelector(".group-name");
+        card.querySelector(".name-input").value = nameEl.textContent;
+        nameEl.style.display = "";
+        card.querySelector(".name-input").style.display = "none";
+        card.querySelector(".btn-edit").style.display = "";
+        card.querySelector(".btn-save").style.display = "none";
+        card.querySelector(".btn-cancel").style.display = "none";
+      }
+
+      async function saveEdit(btn) {
+        const card = getCard(btn);
+        const id = card.dataset.id;
+        const input = card.querySelector(".name-input");
+        const msgEl = card.querySelector(".card-message");
+
+        try {
+          const response = await fetch("/admin/watch-group/" + id, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: input.value }),
+          });
+
+          if (response.ok) {
+            card.querySelector(".group-name").textContent = input.value;
+            cancelEdit(btn);
+            msgEl.className = "card-message message success";
+            msgEl.textContent = "Saved!";
+          } else {
+            const error = await response.text();
+            msgEl.className = "card-message message error";
+            msgEl.textContent = "Error: " + error;
+          }
+        } catch (err) {
+          msgEl.className = "card-message message error";
+          msgEl.textContent = "Error: " + err.message;
+        }
+
+        setTimeout(() => {
+          msgEl.className = "card-message";
+          msgEl.textContent = "";
+        }, 3000);
+      }
+    </script>
+  </body>
+</html>

@@ -13,19 +13,19 @@ pub struct ClientWithConfig {
     pub min_poll_interval_in_ms: u16,
 }
 
-pub struct ClientConfigRepository<'a> {
+pub struct ClientRepository<'a> {
     pool: &'a SqlitePool,
 }
 
 type Result<T> = sqlx::Result<T>;
 
-impl<'a> ClientConfigRepository<'a> {
+impl<'a> ClientRepository<'a> {
     pub fn new(pool: &'a SqlitePool) -> Self {
         Self { pool }
     }
 
     /// Register or update a client and its watch configuration
-    pub async fn register_client(
+    pub async fn upsert_client_config(
         &self,
         client_id: &str,
         host_name: &str,
@@ -307,7 +307,7 @@ mod tests {
     #[tokio::test]
     async fn test_register_client_insert() {
         let (pool, db) = setup_test_db().await;
-        let repo = db.client_config();
+        let repo = db.client();
 
         let request = ClientConfigDto {
             path_to_monitor: "/home/test/sync".to_string(),
@@ -316,7 +316,7 @@ mod tests {
             min_poll_interval_in_ms: 5000,
         };
 
-        repo.register_client("client-uuid-123", "test-host", request)
+        repo.upsert_client_config("client-uuid-123", "test-host", request)
             .await
             .expect("Failed to register client");
 
@@ -355,7 +355,7 @@ mod tests {
     #[tokio::test]
     async fn test_register_client_upsert_overwrites_existing() {
         let (pool, db) = setup_test_db().await;
-        let repo = db.client_config();
+        let repo = db.client();
 
         // First registration
         let request1 = ClientConfigDto {
@@ -365,7 +365,7 @@ mod tests {
             min_poll_interval_in_ms: 3000,
         };
 
-        repo.register_client("client-uuid-456", "old-hostname", request1)
+        repo.upsert_client_config("client-uuid-456", "old-hostname", request1)
             .await
             .expect("Failed to register client");
 
@@ -377,7 +377,7 @@ mod tests {
             min_poll_interval_in_ms: 10000,
         };
 
-        repo.register_client("client-uuid-456", "new-hostname", request2)
+        repo.upsert_client_config("client-uuid-456", "new-hostname", request2)
             .await
             .expect("Failed to upsert client");
 
@@ -421,7 +421,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_client_config_returns_none_for_unknown_client() {
         let (_, db) = setup_test_db().await;
-        let repo = db.client_config();
+        let repo = db.client();
 
         let config = repo
             .get_client_config("nonexistent-client")
@@ -434,7 +434,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_client_config_returns_registered_config() {
         let (_, db) = setup_test_db().await;
-        let repo = db.client_config();
+        let repo = db.client();
 
         // Register a client
         let request = ClientConfigDto {
@@ -444,7 +444,7 @@ mod tests {
             min_poll_interval_in_ms: 7500,
         };
 
-        repo.register_client("test-client-789", "my-laptop", request)
+        repo.upsert_client_config("test-client-789", "my-laptop", request)
             .await
             .expect("Failed to register client");
 
