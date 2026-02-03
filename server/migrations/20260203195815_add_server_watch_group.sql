@@ -1,0 +1,14 @@
+CREATE TABLE IF NOT EXISTS server_watch_group (
+	id			INTEGER PRIMARY KEY,
+	created_at		DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	updated_at		DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	name			TEXT NOT NULL UNIQUE
+);
+
+CREATE TRIGGER server_watch_group_updated_at
+AFTER UPDATE ON server_watch_group 
+FOR EACH ROW
+BEGIN
+	UPDATE server_watch_group SET updated_at = CURRENT_TIMESTAMP WHERE id = OLD.id;
+END;
+
