@@ -289,10 +289,11 @@ mod tests {
     use crate::db::ServerDatabase;
     use sqlx::migrate::Migrator;
     use sqlx::sqlite::SqlitePoolOptions;
+    use sqlx::{Pool, Sqlite};
 
     static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
 
-    async fn setup_test_db() -> ServerDatabase {
+    async fn setup_test_db() -> (Pool<Sqlite>, ServerDatabase) {
         let pool = SqlitePoolOptions::new()
             .connect("sqlite::memory:")
             .await
@@ -300,12 +301,12 @@ mod tests {
 
         MIGRATOR.run(&pool).await.expect("Failed to run migrations");
 
-        ServerDatabase::new(pool)
+        (pool.clone(), ServerDatabase::new(pool))
     }
 
     #[tokio::test]
     async fn test_register_client_insert() {
-        let db = setup_test_db().await;
+        let (pool, db) = setup_test_db().await;
         let repo = db.client_config();
 
         let request = ClientConfigDto {
@@ -321,7 +322,7 @@ mod tests {
 
         // Verify client was inserted
         let client = sqlx::query!("SELECT * FROM client WHERE id = ?", "client-uuid-123")
-            .fetch_one(db.pool())
+            .fetch_one(&pool)
             .await
             .expect("Failed to fetch client");
 
@@ -333,7 +334,7 @@ mod tests {
             "SELECT * FROM client_watch_group WHERE client_id = ?",
             "client-uuid-123"
         )
-        .fetch_one(db.pool())
+        .fetch_one(&pool)
         .await
         .expect("Failed to fetch watch group");
 
@@ -344,7 +345,7 @@ mod tests {
             "SELECT exclude_dir FROM client_watch_group_excluded_dir WHERE client_watch_group = ?",
             watch_group.id
         )
-        .fetch_all(db.pool())
+        .fetch_all(&pool)
         .await
         .expect("Failed to fetch excluded dirs");
 
@@ -353,7 +354,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_register_client_upsert_overwrites_existing() {
-        let db = setup_test_db().await;
+        let (pool, db) = setup_test_db().await;
         let repo = db.client_config();
 
         // First registration
@@ -382,7 +383,7 @@ mod tests {
 
         // Verify client was updated (not duplicated)
         let clients: Vec<_> = sqlx::query!("SELECT * FROM client WHERE id = ?", "client-uuid-456")
-            .fetch_all(db.pool())
+            .fetch_all(&pool)
             .await
             .expect("Failed to fetch clients");
 
@@ -395,7 +396,7 @@ mod tests {
             "SELECT * FROM client_watch_group WHERE client_id = ?",
             "client-uuid-456"
         )
-        .fetch_all(db.pool())
+        .fetch_all(&pool)
         .await
         .expect("Failed to fetch watch groups");
 
@@ -407,7 +408,7 @@ mod tests {
             "SELECT exclude_dir FROM client_watch_group_excluded_dir WHERE client_watch_group = ?",
             watch_groups[0].id
         )
-        .fetch_all(db.pool())
+        .fetch_all(&pool)
         .await
         .expect("Failed to fetch excluded dirs");
 
@@ -419,7 +420,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_client_config_returns_none_for_unknown_client() {
-        let db = setup_test_db().await;
+        let (_, db) = setup_test_db().await;
         let repo = db.client_config();
 
         let config = repo
@@ -432,7 +433,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_client_config_returns_registered_config() {
-        let db = setup_test_db().await;
+        let (_, db) = setup_test_db().await;
         let repo = db.client_config();
 
         // Register a client

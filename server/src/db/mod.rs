@@ -23,9 +23,4 @@ impl ServerDatabase {
     pub fn shared_link(&self) -> SharedLinkRepository<'_> {
         SharedLinkRepository::new(&self.pool)
     }
-
-    #[cfg(test)]
-    pub fn pool(&self) -> &SqlitePool {
-        &self.pool
-    }
 }
