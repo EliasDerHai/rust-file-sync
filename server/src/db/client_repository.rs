@@ -11,6 +11,8 @@ pub struct ClientWithConfig {
     pub exclude_dirs: Vec<String>,
     pub exclude_dot_dirs: bool,
     pub min_poll_interval_in_ms: u16,
+    pub server_watch_group_id: i64,
+    pub server_watch_group_name: String,
 }
 
 pub struct ClientRepository<'a> {
@@ -140,9 +142,12 @@ impl<'a> ClientRepository<'a> {
                 c.min_poll_interval_in_ms as "min_poll_interval_in_ms!",
                 wg.id as watch_group_id,
                 wg.path_to_monitor as "path_to_monitor?",
-                wg.exclude_dot_dirs as "exclude_dot_dirs?"
+                wg.exclude_dot_dirs as "exclude_dot_dirs?",
+                wg.server_watch_group_id as "server_watch_group_id?",
+                swg.name as "server_watch_group_name?"
             FROM client c
             LEFT JOIN client_watch_group wg ON wg.client_id = c.id
+            LEFT JOIN server_watch_group swg ON swg.id = wg.server_watch_group_id
             ORDER BY c.host_name
             "#
         )
@@ -169,6 +174,8 @@ impl<'a> ClientRepository<'a> {
                 exclude_dirs,
                 exclude_dot_dirs: client.exclude_dot_dirs.unwrap_or(true),
                 min_poll_interval_in_ms: client.min_poll_interval_in_ms as u16,
+                server_watch_group_id: client.server_watch_group_id.unwrap_or(1),
+                server_watch_group_name: client.server_watch_group_name.unwrap_or_default(),
             });
         }
 
@@ -185,9 +192,12 @@ impl<'a> ClientRepository<'a> {
                 c.min_poll_interval_in_ms as "min_poll_interval_in_ms!",
                 wg.id as watch_group_id,
                 wg.path_to_monitor as "path_to_monitor?",
-                wg.exclude_dot_dirs as "exclude_dot_dirs?"
+                wg.exclude_dot_dirs as "exclude_dot_dirs?",
+                wg.server_watch_group_id as "server_watch_group_id?",
+                swg.name as "server_watch_group_name?"
             FROM client c
             LEFT JOIN client_watch_group wg ON wg.client_id = c.id
+            LEFT JOIN server_watch_group swg ON swg.id = wg.server_watch_group_id
             WHERE c.id = ?
             "#,
             client_id
@@ -217,6 +227,8 @@ impl<'a> ClientRepository<'a> {
             exclude_dirs,
             exclude_dot_dirs: client.exclude_dot_dirs.unwrap_or(true),
             min_poll_interval_in_ms: client.min_poll_interval_in_ms as u16,
+            server_watch_group_id: client.server_watch_group_id.unwrap_or(1),
+            server_watch_group_name: client.server_watch_group_name.unwrap_or_default(),
         }))
     }
 
@@ -225,6 +237,7 @@ impl<'a> ClientRepository<'a> {
         &self,
         client_id: &str,
         config: ClientConfigDto,
+        server_watch_group_id: i64,
     ) -> Result<bool> {
         let mut tx = self.pool.begin().await?;
         let poll_interval = config.min_poll_interval_in_ms as i32;
@@ -253,13 +266,14 @@ impl<'a> ClientRepository<'a> {
         // Insert new watch group
         let watch_group_id = sqlx::query_scalar!(
             r#"
-            INSERT INTO client_watch_group (client_id, path_to_monitor, exclude_dot_dirs)
-            VALUES (?, ?, ?)
+            INSERT INTO client_watch_group (client_id, path_to_monitor, exclude_dot_dirs, server_watch_group_id)
+            VALUES (?, ?, ?, ?)
             RETURNING id
             "#,
             client_id,
             config.path_to_monitor,
-            config.exclude_dot_dirs
+            config.exclude_dot_dirs,
+            server_watch_group_id
         )
         .fetch_one(&mut *tx)
         .await?;

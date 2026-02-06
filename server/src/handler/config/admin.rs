@@ -1,12 +1,23 @@
-use crate::db::ClientWithConfig;
+use crate::db::{ClientWithConfig, ServerWatchGroup};
 use crate::AppState;
 use askama::Template;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::Html;
 use axum::Json;
+use serde::Deserialize;
 use shared::register::ClientConfigDto;
 use tracing::{error, info};
+
+/// Admin-specific DTO for config updates (includes server_watch_group_id)
+#[derive(Debug, Deserialize)]
+pub struct AdminConfigUpdateDto {
+    pub path_to_monitor: String,
+    pub min_poll_interval_in_ms: u16,
+    pub exclude_dirs: Vec<String>,
+    pub exclude_dot_dirs: bool,
+    pub server_watch_group_id: i64,
+}
 
 #[derive(Template)]
 #[template(path = "configs.html")]
@@ -18,6 +29,7 @@ struct ConfigsTemplate {
 #[template(path = "config_edit.html")]
 struct ConfigEditTemplate {
     client: ClientWithConfig,
+    watch_groups: Vec<ServerWatchGroup>,
 }
 
 /// GET /configs - List all client configs (admin UI)
@@ -54,7 +66,20 @@ pub async fn get_admin_config(
         })?
         .ok_or((StatusCode::NOT_FOUND, "Client not found".to_string()))?;
 
-    let template = ConfigEditTemplate { client };
+    let watch_groups = state
+        .db
+        .server()
+        .get_all_watch_groups()
+        .await
+        .map_err(|e| {
+            error!("Failed to get watch groups: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?;
+
+    let template = ConfigEditTemplate {
+        client,
+        watch_groups,
+    };
     let html = template.render().map_err(|e| {
         error!("Failed to render template: {}", e);
         (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
@@ -67,12 +92,19 @@ pub async fn get_admin_config(
 pub async fn update_admin_config(
     State(state): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<String>,
-    Json(config): Json<ClientConfigDto>,
+    Json(update): Json<AdminConfigUpdateDto>,
 ) -> Result<String, (StatusCode, String)> {
+    let config = ClientConfigDto {
+        path_to_monitor: update.path_to_monitor,
+        min_poll_interval_in_ms: update.min_poll_interval_in_ms,
+        exclude_dirs: update.exclude_dirs,
+        exclude_dot_dirs: update.exclude_dot_dirs,
+    };
+
     let updated = state
         .db
         .client()
-        .update_client_config(&id, config)
+        .update_client_config(&id, config, update.server_watch_group_id)
         .await
         .map_err(|e| {
             error!("Failed to update client config: {}", e);

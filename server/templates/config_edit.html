@@ -54,7 +54,8 @@
       }
       input[type="text"],
       input[type="number"],
-      textarea {
+      textarea,
+      select {
         width: 100%;
         padding: 0.75rem;
         border: 1px solid #ddd;
@@ -63,7 +64,8 @@
         font-family: monospace;
       }
       input:focus,
-      textarea:focus {
+      textarea:focus,
+      select:focus {
         outline: none;
         border-color: #4a90d9;
       }
@@ -156,6 +158,23 @@
       </div>
 
       <div class="form-group">
+        <label for="server_watch_group_id">Server Watch Group</label>
+        <select id="server_watch_group_id" name="server_watch_group_id" required>
+          {% for group in watch_groups %}
+          <option
+            value="{{ group.id }}"
+            {% if group.id == client.server_watch_group_id %}selected{% endif %}
+          >
+            {{ group.name }}
+          </option>
+          {% endfor %}
+        </select>
+        <div class="help-text">
+          Select which server watch group this client belongs to
+        </div>
+      </div>
+
+      <div class="form-group">
         <label for="exclude_dirs">Exclude directories</label>
         <textarea
           id="exclude_dirs"
@@ -218,6 +237,9 @@
             ),
             exclude_dirs: excludeDirs,
             exclude_dot_dirs: form.exclude_dot_dirs.checked,
+            server_watch_group_id: parseInt(
+              form.server_watch_group_id.value,
+            ),
           };
 
           try {
