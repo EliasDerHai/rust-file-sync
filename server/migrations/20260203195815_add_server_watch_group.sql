@@ -15,7 +15,7 @@ END;
 INSERT INTO server_watch_group (name) VALUES ('default');
 
 ALTER TABLE client_watch_group
-	ADD COLUMN server_watch_group_id INTEGER NOT NULL DEFAULT 1 REFERENCES server_watch_group(id);
+	ADD COLUMN server_watch_group_id INTEGER NOT NULL DEFAULT 1;
 
 CREATE UNIQUE INDEX uq_client_watch_group_client_server
 	ON client_watch_group(client_id, server_watch_group_id);
