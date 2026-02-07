@@ -1,9 +1,9 @@
-use crate::config::{fetch_or_register_config, read_config, RuntimeConfig};
+use crate::config::{RuntimeConfig, fetch_or_register_config, read_config};
 use futures_util::future::join_all;
-use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Client;
-use shared::endpoint::{ServerEndpoint, CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY};
-use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
+use reqwest::header::{HeaderMap, HeaderValue};
+use shared::endpoint::{CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY, ServerEndpoint};
+use shared::get_files_of_directory::{FileDescription, get_all_file_descriptions};
 use shared::sync_instruction::SyncInstruction;
 use std::ops::Add;
 use std::path::PathBuf;
@@ -61,15 +61,14 @@ async fn main() {
                             );
                         }
                         for instruction in instructions {
-                            if let SyncInstruction::Download(ref path) = &instruction {
-                                if deleted_files
+                            if let SyncInstruction::Download(path) = &instruction
+                                && deleted_files
                                     .iter()
                                     .any(|deleted| deleted.relative_path == *path)
-                                {
-                                    // no need to follow the download instruction,
-                                    // because we now that this file was just deleted (breaking the loop)
-                                    continue;
-                                }
+                            {
+                                // no need to follow the download instruction,
+                                // because we now that this file was just deleted (breaking the loop)
+                                continue;
                             }
 
                             match execute::execute(
@@ -149,13 +148,13 @@ async fn load_runtime_config() -> (RuntimeConfig, Client) {
 
 fn build_http_client(hostname: &Option<String>, client_id: &Option<String>) -> Client {
     let mut headers = HeaderMap::new();
-    if let Some(ref h) = hostname {
+    if let Some(h) = hostname {
         headers.insert(
             CLIENT_HOST_HEADER_KEY,
             HeaderValue::from_str(h).expect("Invalid hostname for header"),
         );
     }
-    if let Some(ref id) = client_id {
+    if let Some(id) = client_id {
         headers.insert(
             CLIENT_ID_HEADER_KEY,
             HeaderValue::from_str(id).expect("Invalid client_id for header"),
