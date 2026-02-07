@@ -1,23 +1,24 @@
 use crate::db::ServerDatabase;
 use crate::file_history::InMemoryFileHistory;
 use crate::write::{
-    create_all_paths_if_not_exist, create_csv_file_if_not_exists, create_file_if_not_exists,
-    schedule_data_backups, RotatingFileWriter,
+    RotatingFileWriter, create_all_paths_if_not_exist, create_csv_file_if_not_exists,
+    create_file_if_not_exists, schedule_data_backups,
 };
 use axum::extract::{DefaultBodyLimit, Multipart, State};
 use axum::http::HeaderMap;
 use axum::routing::{post, put};
-use axum::{routing::get, Router};
+use axum::{Router, routing::get};
 use axum_server::tls_rustls::RustlsConfig;
 use shared::endpoint::ServerEndpoint;
+use sqlx::SqlitePool;
 use sqlx::migrate::Migrator;
 use sqlx::sqlite::SqliteConnectOptions;
-use sqlx::SqlitePool;
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::{path::Path, sync::LazyLock};
+use tower_http::services::{ServeDir, ServeFile};
 use tracing::error;
 use tracing_subscriber::EnvFilter;
 
@@ -183,6 +184,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ServerEndpoint::AdminWatchGroup.to_str(),
             put(handler::update_admin_watch_group),
         )
+        // json api (for leptos frontend)
+        .route(
+            ServerEndpoint::ApiConfigs.to_str(),
+            get(handler::api_list_configs),
+        )
+        .route(
+            ServerEndpoint::ApiConfig.to_str(),
+            get(handler::api_get_config),
+        )
+        .route(
+            ServerEndpoint::ApiWatchGroups.to_str(),
+            get(handler::api_list_watch_groups),
+        )
+        .route(
+            ServerEndpoint::ApiMonitor.to_str(),
+            get(|state: State<AppState>| monitor::api_get_monitoring(state.monitor_writer.clone())),
+        )
         // link share
         .nest_service(
             ServerEndpoint::ServePWA.to_str(),
@@ -191,6 +209,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route(
             ServerEndpoint::ShareLink.to_str(),
             post(handler::receive_shared_link),
+        )
+        // spa frontend
+        .nest_service(
+            ServerEndpoint::App.to_str(),
+            ServeDir::new("web/dist").not_found_service(ServeFile::new("web/dist/index.html")),
         )
         // .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state);

@@ -79,10 +79,13 @@ fn inner_get_files_of_dir_rec(
 
         if entry_path.is_file() {
             // mac os specific
-            if let Some(file_name) = entry_path.file_name() {
-                if file_name.to_string_lossy().to_lowercase() == ".ds_store" {
-                    continue;
-                }
+            if let Some(s) = entry_path
+                .file_name()
+                .map(std::ffi::OsStr::to_string_lossy)
+                .map(|s| s.to_lowercase())
+                && &s == ".ds_store"
+            {
+                continue;
             }
 
             let relative_path = Path::new("./").join(

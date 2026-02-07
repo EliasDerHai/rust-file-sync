@@ -1,0 +1,301 @@
+/* === Reset & Base === */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+  margin: 0;
+  background: #1a1a2e;
+  color: #eee;
+}
+
+a {
+  color: #4a90d9;
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* === Layout === */
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+.container-narrow {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+/* === Navbar === */
+.navbar {
+  background: #0f1528;
+  padding: 0.75rem 2rem;
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+  border-bottom: 1px solid #333;
+}
+.brand {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #e94560 !important;
+  text-decoration: none;
+}
+.navbar a {
+  color: #aaa;
+  text-decoration: none;
+  font-size: 0.95rem;
+  padding: 0.25rem 0;
+  border-bottom: 2px solid transparent;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+.navbar a:hover {
+  color: #eee;
+  text-decoration: none;
+}
+.navbar a[aria-current="page"] {
+  color: #eee;
+  border-bottom-color: #4a90d9;
+}
+
+/* === Card === */
+.card {
+  background: #16213e;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.card-dashed {
+  background: #16213e;
+  border: 2px dashed #333;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+/* === Typography === */
+h1 {
+  color: #eee;
+}
+.text-muted {
+  color: #888;
+}
+.text-mono {
+  font-family: monospace;
+}
+.text-sm {
+  font-size: 0.8rem;
+}
+.text-xs {
+  font-size: 0.75rem;
+}
+.text-lg {
+  font-size: 1.25rem;
+}
+.font-semibold {
+  font-weight: 600;
+}
+
+/* === Detail grid (config details) === */
+.detail-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+.detail-label {
+  color: #888;
+}
+.detail-value {
+  color: #ccc;
+  font-family: monospace;
+}
+
+/* === Buttons === */
+.btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  transition: background 0.15s;
+}
+.btn-primary {
+  background: #4a90d9;
+  color: white;
+}
+.btn-primary:hover {
+  background: #357abd;
+}
+.btn-success {
+  background: #28a745;
+  color: white;
+}
+.btn-success:hover {
+  background: #218838;
+}
+.btn-secondary {
+  background: #2a2a40;
+  color: #ccc;
+}
+.btn-secondary:hover {
+  background: #3a3a55;
+}
+.btn-lg {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+}
+
+/* === Forms === */
+.form-group {
+  margin-bottom: 1.25rem;
+}
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #ccc;
+}
+.form-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #333;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-family: monospace;
+  background: #0f1a30;
+  color: #eee;
+}
+.form-input:focus {
+  outline: none;
+  border-color: #4a90d9;
+}
+select.form-input {
+  font-family:
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.checkbox-group input {
+  width: auto;
+}
+.checkbox-group label {
+  margin-bottom: 0;
+}
+.help-text {
+  font-size: 0.8rem;
+  color: #666;
+  margin-top: 0.25rem;
+}
+
+/* === Messages === */
+.message {
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+.message-success {
+  background: rgba(40, 167, 69, 0.2);
+  color: #6fcf7c;
+  border: 1px solid rgba(40, 167, 69, 0.3);
+}
+.message-error {
+  background: rgba(233, 69, 96, 0.2);
+  color: #f08090;
+  border: 1px solid rgba(233, 69, 96, 0.3);
+}
+
+/* === Flex utilities === */
+.flex {
+  display: flex;
+}
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.flex-center {
+  display: flex;
+  align-items: center;
+}
+.gap-1 {
+  gap: 0.5rem;
+}
+.gap-2 {
+  gap: 1rem;
+}
+
+/* === Empty state === */
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  color: #666;
+}
+
+/* === Back link === */
+.back-link {
+  display: inline-block;
+  margin-bottom: 1rem;
+  color: #4a90d9;
+}
+.back-link:hover {
+  text-decoration: underline;
+}
+
+/* === Chart (monitor) === */
+.chart-wrapper {
+  background: #16213e;
+  border-radius: 8px;
+  padding: 1rem;
+}
+.chart-wrapper canvas {
+  width: 100% !important;
+}
+
+/* === Name input (inline edit) === */
+.name-input {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #eee;
+  font-family: inherit;
+  border: 1px solid #4a90d9;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  background: #0f1a30;
+  outline: none;
+}
+
+/* === Button group === */
+.btn-group {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+/* === Loading === */
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: #888;
+}

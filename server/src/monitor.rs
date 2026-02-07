@@ -67,6 +67,22 @@ pub async fn monitor_sys(writer: Arc<Mutex<RotatingFileWriter>>) {
     }
 }
 
+/// GET /api/monitor - JSON monitoring data
+pub async fn api_get_monitoring(writer: Arc<Mutex<RotatingFileWriter>>) -> impl IntoResponse {
+    let csv_content = match writer.lock().unwrap().read_current_file() {
+        Ok(content) => content,
+        Err(err) => {
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Error reading monitoring data: {}", err),
+            )
+                .into_response()
+        }
+    };
+    let data_json = csv_to_json(&csv_content);
+    ([("content-type", "application/json")], data_json).into_response()
+}
+
 /// chartjs rendered data
 pub async fn get_monitoring(writer: Arc<Mutex<RotatingFileWriter>>) -> impl IntoResponse {
     let csv_content = match writer.lock().unwrap().read_current_file() {

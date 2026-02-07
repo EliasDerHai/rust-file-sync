@@ -19,6 +19,17 @@ pub struct WatchGroupNameDto {
     pub name: String,
 }
 
+/// GET /api/watch-groups - JSON list of all watch groups
+pub async fn api_list_watch_groups(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<ServerWatchGroup>>, (StatusCode, String)> {
+    let groups = state.db.server().get_all_watch_groups().await.map_err(|e| {
+        error!("Failed to get watch groups: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
+    Ok(Json(groups))
+}
+
 /// GET /admin/watch-groups - List all watch groups (admin UI)
 pub async fn list_admin_watch_groups(
     State(state): State<AppState>,

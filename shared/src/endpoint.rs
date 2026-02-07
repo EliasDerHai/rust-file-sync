@@ -7,7 +7,7 @@ pub enum ServerEndpoint {
     Upload,
     Download,
     Delete,
-    /// Get/register client config from server
+    /// Get/register client config
     Config,
 
     /// not used from client - can be directly accessed from browser etc. for inspection
@@ -15,18 +15,35 @@ pub enum ServerEndpoint {
     Monitor,
     Version,
     Hello,
+
+    #[deprecated]
     /// Get/set server-watch-group (admin UI)
     AdminWatchGroup,
+    #[deprecated]
     /// List all server-watch-groups (admin UI)
     AdminWatchGroups,
+    #[deprecated]
     /// Get/set client config (admin UI)
     AdminConfig,
+    #[deprecated]
     /// List all client configs (admin UI)
     AdminConfigs,
+
     /// PWA
     ServePWA,
     /// Receive shared links from PWA
     ShareLink,
+
+    /// JSON API: list all client configs
+    ApiConfigs,
+    /// JSON API: get single client config
+    ApiConfig,
+    /// JSON API: list all watch groups
+    ApiWatchGroups,
+    /// JSON API: monitoring data
+    ApiMonitor,
+    /// SPA frontend
+    App,
 }
 
 impl ServerEndpoint {
@@ -52,6 +69,11 @@ impl ServerEndpoint {
             ServerEndpoint::AdminWatchGroups => "/admin/watch-groups",
             ServerEndpoint::ServePWA => "/pwa",
             ServerEndpoint::ShareLink => "/share-link",
+            ServerEndpoint::ApiConfigs => "/api/configs",
+            ServerEndpoint::ApiConfig => "/api/config/{id}",
+            ServerEndpoint::ApiWatchGroups => "/api/watch-groups",
+            ServerEndpoint::ApiMonitor => "/api/monitor",
+            ServerEndpoint::App => "/app",
         }
     }
 }
@@ -61,7 +83,7 @@ mod tests {
     use super::*;
     use ServerEndpoint::*;
 
-    const ALL_ENDPOINTS: [ServerEndpoint; 15] = [
+    const ALL_ENDPOINTS: [ServerEndpoint; 20] = [
         Ping,
         Scan,
         Sync,
@@ -77,6 +99,11 @@ mod tests {
         AdminWatchGroups,
         ServePWA,
         ShareLink,
+        ApiConfigs,
+        ApiConfig,
+        ApiWatchGroups,
+        ApiMonitor,
+        App,
     ];
 
     #[test]
@@ -100,6 +127,11 @@ mod tests {
                 AdminWatchGroups => assert_eq!("http://localhost/admin/watch-groups", actual),
                 ServePWA => assert_eq!("http://localhost/pwa", actual),
                 ShareLink => assert_eq!("http://localhost/share-link", actual),
+                ApiConfigs => assert_eq!("http://localhost/api/configs", actual),
+                ApiConfig => assert_eq!("http://localhost/api/config/{id}", actual),
+                ApiWatchGroups => assert_eq!("http://localhost/api/watch-groups", actual),
+                ApiMonitor => assert_eq!("http://localhost/api/monitor", actual),
+                App => assert_eq!("http://localhost/app", actual),
             }
         })
     }

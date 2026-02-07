@@ -1,14 +1,14 @@
 use crate::client_file_event::{ClientFileEvent, ClientFileEventDto};
 use crate::file_history::FileHistory;
 use crate::write::append_line;
-use crate::{multipart, AppState};
+use crate::{AppState, multipart};
+use axum::Json;
 use axum::extract::{Multipart, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
-use axum::Json;
 use shared::endpoint::CLIENT_HOST_HEADER_KEY;
 use shared::file_event::{FileEvent, FileEventType};
-use shared::get_files_of_directory::{get_all_file_descriptions, FileDescription};
+use shared::get_files_of_directory::{FileDescription, get_all_file_descriptions};
 use shared::matchable_path::MatchablePath;
 use shared::sync_instruction::SyncInstruction;
 use shared::utc_millis::UtcMillis;
@@ -55,10 +55,10 @@ pub async fn upload_handler(
 
     process_upload(upload_root_path, history_file_path, state, dto, client_host).map_err(
         |(tmp_file_path, status, error_msg)| {
-            if let Some(tmp_file) = tmp_file_path {
-                if let Err(e) = fs::remove_file(tmp_file) {
-                    tracing::warn!("couldn't clean up tmp file - {e}");
-                }
+            if let Some(tmp_file) = tmp_file_path
+                && let Err(e) = fs::remove_file(tmp_file)
+            {
+                tracing::warn!("couldn't clean up tmp file - {e}");
             }
             (status, error_msg)
         },
@@ -192,8 +192,7 @@ pub async fn sync_handler(
             Some(client_equivalent) => {
                 trace!(
                     "Server has {} - client has {}",
-                    event.utc_millis,
-                    client_equivalent.last_updated_utc_millis
+                    event.utc_millis, client_equivalent.last_updated_utc_millis
                 );
 
                 if client_equivalent.size_in_bytes == event.size_in_bytes

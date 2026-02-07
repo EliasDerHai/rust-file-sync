@@ -1,0 +1,3 @@
+[build]
+# Assets are served under /app on the server
+public_url = "/app/"

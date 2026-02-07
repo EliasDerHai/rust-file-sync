@@ -4,12 +4,17 @@ mod share_link;
 mod sync;
 mod watch_group;
 
-pub use config::admin::{get_admin_config, list_admin_configs, update_admin_config};
+pub use config::admin::{
+    api_get_config, api_list_configs, get_admin_config, list_admin_configs, update_admin_config,
+};
 pub use config::client::{get_config, post_config};
 pub use pwa::serve_embedded_pwa;
 pub use share_link::receive_shared_link;
 pub use sync::{delete, download, scan_disk, sync_handler, upload_handler};
-pub use watch_group::{create_admin_watch_group, list_admin_watch_groups, update_admin_watch_group};
+pub use watch_group::{
+    api_list_watch_groups, create_admin_watch_group, list_admin_watch_groups,
+    update_admin_watch_group,
+};
 
 use axum::http::{HeaderMap, StatusCode};
 

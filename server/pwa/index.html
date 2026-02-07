@@ -39,13 +39,16 @@
       <p id="status" style="color: #999; font-size: 14px">
         Registering service worker...
       </p>
+
+      <ul id="links"></ul>
     </div>
     <script>
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker
           .register("sw.js")
           .then(() => {
-            document.getElementById("status").textContent = "Ready.";
+            document.getElementById("status").textContent =
+              "Service worker is ready.";
           })
           .catch((err) => {
             document.getElementById("status").textContent =
