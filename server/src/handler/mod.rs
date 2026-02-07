@@ -1,6 +1,6 @@
 mod config;
 mod pwa;
-mod share_link;
+pub mod share_link;
 mod sync;
 mod watch_group;
 
@@ -9,7 +9,7 @@ pub use config::admin::{
 };
 pub use config::client::{get_config, post_config};
 pub use pwa::serve_embedded_pwa;
-pub use share_link::receive_shared_link;
+pub use share_link::{get_links, post_link};
 pub use sync::{delete, download, scan_disk, sync_handler, upload_handler};
 pub use watch_group::{
     api_list_watch_groups, create_admin_watch_group, list_admin_watch_groups,

@@ -207,8 +207,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             get(handler::serve_embedded_pwa),
         )
         .route(
-            ServerEndpoint::ShareLink.to_str(),
-            post(handler::receive_shared_link),
+            ServerEndpoint::ApiLinks.to_str(),
+            get(handler::get_links).post(handler::post_link),
         )
         // spa frontend
         .nest_service(

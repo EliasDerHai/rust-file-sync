@@ -32,7 +32,7 @@ pub enum ServerEndpoint {
     /// PWA
     ServePWA,
     /// Receive shared links from PWA
-    ShareLink,
+    ApiLinks,
 
     /// JSON API: list all client configs
     ApiConfigs,
@@ -68,7 +68,7 @@ impl ServerEndpoint {
             ServerEndpoint::AdminWatchGroup => "/admin/watch-group/{id}",
             ServerEndpoint::AdminWatchGroups => "/admin/watch-groups",
             ServerEndpoint::ServePWA => "/pwa",
-            ServerEndpoint::ShareLink => "/share-link",
+            ServerEndpoint::ApiLinks => "/api/links",
             ServerEndpoint::ApiConfigs => "/api/configs",
             ServerEndpoint::ApiConfig => "/api/config/{id}",
             ServerEndpoint::ApiWatchGroups => "/api/watch-groups",
@@ -98,7 +98,7 @@ mod tests {
         AdminWatchGroup,
         AdminWatchGroups,
         ServePWA,
-        ShareLink,
+        ApiLinks,
         ApiConfigs,
         ApiConfig,
         ApiWatchGroups,
@@ -126,7 +126,7 @@ mod tests {
                 AdminWatchGroup => assert_eq!("http://localhost/admin/watch-group/{id}", actual),
                 AdminWatchGroups => assert_eq!("http://localhost/admin/watch-groups", actual),
                 ServePWA => assert_eq!("http://localhost/pwa", actual),
-                ShareLink => assert_eq!("http://localhost/share-link", actual),
+                ApiLinks => assert_eq!("http://localhost/api/links", actual),
                 ApiConfigs => assert_eq!("http://localhost/api/configs", actual),
                 ApiConfig => assert_eq!("http://localhost/api/config/{id}", actual),
                 ApiWatchGroups => assert_eq!("http://localhost/api/watch-groups", actual),

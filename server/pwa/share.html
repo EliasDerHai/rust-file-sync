@@ -4,27 +4,41 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#2196F3" />
-    <base href="/pwa/">
+    <base href="/pwa/" />
     <title>Sharing Link...</title>
+    <script src="api.js"></script>
     <style>
       body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         padding: 20px;
         max-width: 600px;
         margin: 0 auto;
         background: #f5f5f5;
       }
-      h1 { color: #2196f3; margin-bottom: 20px; }
+      h1 {
+        color: #2196f3;
+        margin-bottom: 20px;
+      }
       .card {
         background: white;
         border-radius: 8px;
         padding: 20px;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       }
-      .status { font-size: 16px; margin-bottom: 16px; }
-      .status.processing { color: #2196f3; }
-      .status.success { color: #4caf50; }
-      .status.error { color: #f44336; }
+      .status {
+        font-size: 16px;
+        margin-bottom: 16px;
+      }
+      .status.processing {
+        color: #2196f3;
+      }
+      .status.success {
+        color: #4caf50;
+      }
+      .status.error {
+        color: #f44336;
+      }
       .url-display {
         background: #f9f9f9;
         padding: 12px;
@@ -79,19 +93,6 @@
         return null;
       }
 
-      async function postUrl(url, title) {
-        const response = await fetch("/share-link", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url, title }),
-        });
-
-        if (!response.ok) {
-          const text = await response.text();
-          throw new Error(`HTTP ${response.status}: ${text}`);
-        }
-      }
-
       (async function () {
         const statusEl = document.getElementById("status");
         const urlContainer = document.getElementById("url-container");
@@ -110,7 +111,7 @@
           urlContainer.style.display = "block";
           urlDisplay.textContent = extracted.url;
 
-          await postUrl(extracted.url, extracted.title);
+          await postLink(extracted.url, extracted.title);
 
           statusEl.textContent = "Shared!";
           statusEl.className = "status success";
