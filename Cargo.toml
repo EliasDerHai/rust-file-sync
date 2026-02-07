@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.1.12"
+version = "0.1.13"
 
 [workspace]
 resolver = "2"
@@ -9,6 +9,7 @@ members = [
     "server",
     "shared",
     "deploy/version-bump",
+    "web",
 ]
 
 [workspace.dependencies]

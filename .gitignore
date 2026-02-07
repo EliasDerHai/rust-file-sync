@@ -6,3 +6,4 @@ data/
 .claude
 CLAUDE.md
 *.db
+*dist
