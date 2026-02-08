@@ -6,7 +6,6 @@
     <meta name="theme-color" content="#2196F3" />
     <base href="/pwa/" />
     <title>Sharing Link...</title>
-    <script src="api.js"></script>
     <style>
       body {
         font-family:
@@ -39,6 +38,9 @@
       .status.error {
         color: #f44336;
       }
+      .status.queued {
+        color: #ff9800;
+      }
       .url-display {
         background: #f9f9f9;
         padding: 12px;
@@ -69,7 +71,9 @@
       <div id="detail" class="detail" style="display: none"></div>
     </div>
 
-    <script>
+    <script type="module">
+      import { postLink, syncPendingLinks, getPendingCount } from "./api.js";
+
       function extractUrl() {
         const params = new URLSearchParams(window.location.search);
         const urlParam = params.get("url");
@@ -93,35 +97,40 @@
         return null;
       }
 
-      (async function () {
-        const statusEl = document.getElementById("status");
-        const urlContainer = document.getElementById("url-container");
-        const urlDisplay = document.getElementById("url-display");
-        const detailEl = document.getElementById("detail");
+      const statusEl = document.getElementById("status");
+      const urlContainer = document.getElementById("url-container");
+      const urlDisplay = document.getElementById("url-display");
+      const detailEl = document.getElementById("detail");
 
-        try {
-          const extracted = extractUrl();
+      // Sync any pending links first
+      const syncResult = await syncPendingLinks();
+      if (syncResult.synced > 0) {
+        detailEl.style.display = "block";
+        detailEl.textContent = `Also synced ${syncResult.synced} pending link${syncResult.synced > 1 ? "s" : ""}`;
+      }
 
-          if (!extracted) {
-            statusEl.textContent = "No URL found in shared content.";
-            statusEl.className = "status error";
-            return;
-          }
+      const extracted = extractUrl();
 
-          urlContainer.style.display = "block";
-          urlDisplay.textContent = extracted.url;
+      if (!extracted) {
+        statusEl.textContent = "No URL found in shared content.";
+        statusEl.className = "status error";
+      } else {
+        urlContainer.style.display = "block";
+        urlDisplay.textContent = extracted.url;
 
-          await postLink(extracted.url, extracted.title);
+        const result = await postLink(extracted.url, extracted.title);
 
+        if (result.synced) {
           statusEl.textContent = "Shared!";
           statusEl.className = "status success";
-        } catch (error) {
-          statusEl.textContent = "Failed to share";
-          statusEl.className = "status error";
+        } else {
+          statusEl.textContent = "Queued for sync";
+          statusEl.className = "status queued";
+          const pendingCount = getPendingCount();
           detailEl.style.display = "block";
-          detailEl.textContent = error.message;
+          detailEl.textContent = `${pendingCount} link${pendingCount > 1 ? "s" : ""} waiting to sync when online`;
         }
-      })();
+      }
     </script>
   </body>
 </html>

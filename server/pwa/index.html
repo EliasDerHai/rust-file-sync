@@ -102,6 +102,18 @@
         font-style: italic;
         padding: 12px;
       }
+      .pending {
+        background: #fff3e0;
+        color: #e65100;
+        padding: 10px 12px;
+        border-radius: 4px;
+        font-size: 14px;
+        margin: 12px 0;
+      }
+      .synced {
+        background: #e8f5e9;
+        color: #2e7d32;
+      }
     </style>
   </head>
   <body>
@@ -111,6 +123,7 @@
       <p id="status" style="color: #999; font-size: 14px">
         Registering service worker...
       </p>
+      <p id="pending" class="pending" style="display: none"></p>
 
       <ul id="links"></ul>
 
@@ -123,7 +136,12 @@
       </form>
     </div>
     <script type="module">
-      import { getLinks, postLink } from "./api.js";
+      import {
+        getLinks,
+        postLink,
+        syncPendingLinks,
+        getPendingCount,
+      } from "./api.js";
 
       if ("serviceWorker" in navigator) {
         navigator.serviceWorker
@@ -142,6 +160,28 @@
       const form = document.getElementById("link-form");
       const urlInput = document.getElementById("link-input");
       const titleInput = document.getElementById("title-input");
+      const pendingEl = document.getElementById("pending");
+
+      function updatePendingIndicator(count, syncResult = null) {
+        if (syncResult && syncResult.synced > 0) {
+          pendingEl.style.display = "block";
+          pendingEl.className = "pending synced";
+          pendingEl.textContent = `Synced ${syncResult.synced} link${syncResult.synced > 1 ? "s" : ""}`;
+          setTimeout(() => {
+            pendingEl.style.display = count > 0 ? "block" : "none";
+            pendingEl.className = "pending";
+            if (count > 0) {
+              pendingEl.textContent = `${count} link${count > 1 ? "s" : ""} pending sync`;
+            }
+          }, 3000);
+        } else if (count > 0) {
+          pendingEl.style.display = "block";
+          pendingEl.className = "pending";
+          pendingEl.textContent = `${count} link${count > 1 ? "s" : ""} pending sync`;
+        } else {
+          pendingEl.style.display = "none";
+        }
+      }
 
       function renderLinks(links) {
         ul.innerHTML = "";
@@ -164,24 +204,45 @@
         });
       }
 
-      renderLinks(await getLinks());
+      // Sync pending links on load
+      const pendingCount = getPendingCount();
+      updatePendingIndicator(pendingCount);
+      const syncResult = await syncPendingLinks();
+      updatePendingIndicator(getPendingCount(), syncResult);
+
+      // Render links (try server, fall back to empty)
+      try {
+        renderLinks(await getLinks());
+      } catch {
+        renderLinks([]);
+      }
 
       form.addEventListener("submit", async (e) => {
         e.preventDefault();
         const btn = form.querySelector("button");
         btn.disabled = true;
         btn.textContent = "Adding...";
-        try {
-          await postLink(urlInput.value, titleInput.value);
-          urlInput.value = "";
-          titleInput.value = "";
-          renderLinks(await getLinks());
-        } catch (err) {
-          alert("Failed to add link: " + err.message);
-        } finally {
+
+        const result = await postLink(urlInput.value, titleInput.value);
+        urlInput.value = "";
+        titleInput.value = "";
+
+        if (result.synced) {
+          btn.textContent = "Added!";
+          try {
+            renderLinks(await getLinks());
+          } catch {
+            // Server unreachable, keep current list
+          }
+        } else {
+          btn.textContent = "Queued";
+          updatePendingIndicator(getPendingCount());
+        }
+
+        setTimeout(() => {
           btn.disabled = false;
           btn.textContent = "Add Link";
-        }
+        }, 1000);
       });
     </script>
   </body>
