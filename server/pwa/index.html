@@ -129,7 +129,12 @@
 
       <form id="link-form">
         <label for="link-input">URL</label>
-        <input id="link-input" type="url" placeholder="https://example.com" required />
+        <input
+          id="link-input"
+          type="url"
+          placeholder="https://example.com"
+          required
+        />
         <label for="title-input">Title</label>
         <input id="title-input" type="text" placeholder="Link title" required />
         <button type="submit">Add Link</button>
@@ -185,6 +190,13 @@
 
       function renderLinks(links) {
         ul.innerHTML = "";
+        if (!links) {
+          const empty = document.createElement("li");
+          empty.className = "empty";
+          empty.textContent = "Loading...";
+          ul.appendChild(empty);
+          return;
+        }
         if (links.length === 0) {
           const empty = document.createElement("li");
           empty.className = "empty";
@@ -204,18 +216,17 @@
         });
       }
 
-      // Sync pending links on load
-      const pendingCount = getPendingCount();
-      updatePendingIndicator(pendingCount);
-      const syncResult = await syncPendingLinks();
-      updatePendingIndicator(getPendingCount(), syncResult);
+      // Show pending count immediately, then sync and fetch in parallel
+      updatePendingIndicator(getPendingCount());
+      renderLinks(null);
 
-      // Render links (try server, fall back to empty)
-      try {
-        renderLinks(await getLinks());
-      } catch {
-        renderLinks([]);
-      }
+      syncPendingLinks().then((syncResult) => {
+        updatePendingIndicator(getPendingCount(), syncResult);
+      });
+
+      getLinks()
+        .then((links) => renderLinks(links))
+        .catch((e) => console.warn(e));
 
       form.addEventListener("submit", async (e) => {
         e.preventDefault();

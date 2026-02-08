@@ -102,13 +102,6 @@
       const urlDisplay = document.getElementById("url-display");
       const detailEl = document.getElementById("detail");
 
-      // Sync any pending links first
-      const syncResult = await syncPendingLinks();
-      if (syncResult.synced > 0) {
-        detailEl.style.display = "block";
-        detailEl.textContent = `Also synced ${syncResult.synced} pending link${syncResult.synced > 1 ? "s" : ""}`;
-      }
-
       const extracted = extractUrl();
 
       if (!extracted) {
@@ -118,7 +111,16 @@
         urlContainer.style.display = "block";
         urlDisplay.textContent = extracted.url;
 
-        const result = await postLink(extracted.url, extracted.title);
+        // Post the shared link and sync pending links in parallel
+        const [result] = await Promise.all([
+          postLink(extracted.url, extracted.title),
+          syncPendingLinks().then((syncResult) => {
+            if (syncResult.synced > 0) {
+              detailEl.style.display = "block";
+              detailEl.textContent = `Also synced ${syncResult.synced} pending link${syncResult.synced > 1 ? "s" : ""}`;
+            }
+          }),
+        ]);
 
         if (result.synced) {
           statusEl.textContent = "Shared!";

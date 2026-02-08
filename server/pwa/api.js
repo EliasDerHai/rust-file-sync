@@ -55,24 +55,26 @@ export async function syncPendingLinks() {
   const results = { synced: 0, failed: 0 };
   const stillPending = [];
 
-  for (const link of pending) {
-    try {
-      const response = await fetch(linksPath, {
+  const outcomes = await Promise.allSettled(
+    pending.map((link) =>
+      fetch(linksPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: link.url, title: link.title }),
-      });
-      if (response.ok) {
-        results.synced++;
-      } else {
-        stillPending.push(link);
-        results.failed++;
-      }
-    } catch {
-      stillPending.push(link);
+      }).then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      })
+    )
+  );
+
+  outcomes.forEach((outcome, i) => {
+    if (outcome.status === "fulfilled") {
+      results.synced++;
+    } else {
+      stillPending.push(pending[i]);
       results.failed++;
     }
-  }
+  });
 
   savePendingLinks(stillPending);
   return results;
