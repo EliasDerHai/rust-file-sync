@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 REMOTE_USER="pi"
-REMOTE_HOST="pi"
+REMOTE_HOST="raspberrypi.local"
 REMOTE_PATH="/home/pi/Downloads/Rust-File-Sync_Server"
 SERVICE_NAME="rust-file-sync_server.service"
 PROJECT="server"
