@@ -62,6 +62,7 @@
   </head>
   <body>
     <h1>LinkShare</h1>
+    <p id="version" style="margin-top: -16px; margin-bottom: 16px; font-size: 12px; color: #999"></p>
     <div class="card">
       <div id="status" class="status processing">Processing shared link...</div>
       <div id="url-container" style="display: none">
@@ -72,7 +73,7 @@
     </div>
 
     <script type="module">
-      import { postLink, syncPendingLinks, getPendingCount } from "./api.js";
+      import { postLink, syncPendingLinks, getPendingCount, getVersion, getCachedVersion } from "./api.js";
 
       function extractUrl() {
         const params = new URLSearchParams(window.location.search);
@@ -96,6 +97,13 @@
 
         return null;
       }
+
+      const versionEl = document.getElementById("version");
+      const cached = getCachedVersion();
+      if (cached) versionEl.textContent = "v" + cached;
+      getVersion().then((v) => {
+        if (v) versionEl.textContent = "v" + v;
+      });
 
       const statusEl = document.getElementById("status");
       const urlContainer = document.getElementById("url-container");

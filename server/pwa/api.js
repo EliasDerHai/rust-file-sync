@@ -1,5 +1,6 @@
 export const linksPath = "/api/links";
 const PENDING_KEY = "pendingLinks";
+const VERSION_KEY = "serverVersion";
 
 // Get pending queue from localStorage
 function getPendingLinks() {
@@ -83,4 +84,22 @@ export async function syncPendingLinks() {
 // Get count of pending links (for UI)
 export function getPendingCount() {
   return getPendingLinks().length;
+}
+
+// Fetch server version, cache in localStorage
+export async function getVersion() {
+  try {
+    const response = await fetch("/version");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const version = await response.text();
+    localStorage.setItem(VERSION_KEY, version);
+    return version;
+  } catch {
+    return localStorage.getItem(VERSION_KEY);
+  }
+}
+
+// Synchronous read of cached version
+export function getCachedVersion() {
+  return localStorage.getItem(VERSION_KEY);
 }
