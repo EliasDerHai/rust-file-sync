@@ -18,7 +18,6 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::{path::Path, sync::LazyLock};
-use tower_http::services::{ServeDir, ServeFile};
 use tracing::error;
 use tracing_subscriber::EnvFilter;
 
@@ -184,7 +183,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ServerEndpoint::AdminWatchGroup.to_str(),
             put(handler::update_admin_watch_group),
         )
-        // json api (for leptos frontend)
+        // json api - for frontends
         .route(
             ServerEndpoint::ApiConfigs.to_str(),
             get(handler::api_list_configs),
@@ -201,19 +200,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ServerEndpoint::ApiMonitor.to_str(),
             get(|state: State<AppState>| monitor::api_get_monitoring(state.monitor_writer.clone())),
         )
-        // link share
-        .nest_service(
-            ServerEndpoint::ServePWA.to_str(),
-            get(handler::serve_embedded_pwa),
-        )
         .route(
             ServerEndpoint::ApiLinks.to_str(),
             get(handler::get_links).post(handler::post_link),
         )
-        // spa frontend
+        // apps
+        .nest_service(
+            ServerEndpoint::ServePWA.to_str(),
+            get(handler::serve_embedded_pwa),
+        )
         .nest_service(
             ServerEndpoint::App.to_str(),
-            ServeDir::new("web/dist").not_found_service(ServeFile::new("web/dist/index.html")),
+            get(handler::serve_embedded_app),
         )
         // .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state);
