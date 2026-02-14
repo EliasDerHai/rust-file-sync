@@ -12,14 +12,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Stale-while-revalidate: serve from cache immediately, update cache in background
+  // Stale-while-revalidate with ignoreSearch so share.html?title=...&text=...
+  // matches the cached share.html
   event.respondWith(
     caches.open(CACHE).then((cache) =>
-      cache.match(event.request).then((cached) => {
-        const fetched = fetch(event.request).then((response) => {
-          cache.put(event.request, response.clone());
-          return response;
-        });
+      cache.match(event.request, { ignoreSearch: true }).then((cached) => {
+        const fetched = fetch(event.request)
+          .then((response) => {
+            cache.put(event.request, response.clone());
+            return response;
+          })
+          .catch(() => cached);
         return cached || fetched;
       })
     )
