@@ -23,7 +23,7 @@ pub async fn fetch_config(id: &str) -> Result<ClientWithConfig, String> {
 }
 
 pub async fn update_config(id: &str, dto: &AdminConfigUpdateDto) -> Result<String, String> {
-    let resp = Request::put(&format!("/admin/config/{}", id))
+    let resp = Request::put(&format!("/api/config/{}", id))
         .json(dto)
         .map_err(|e| e.to_string())?
         .send()
@@ -48,7 +48,7 @@ pub async fn fetch_watch_groups() -> Result<Vec<ServerWatchGroup>, String> {
 }
 
 pub async fn create_watch_group(dto: &WatchGroupNameDto) -> Result<String, String> {
-    let resp = Request::post("/admin/watch-groups")
+    let resp = Request::post("/api/watch-groups")
         .json(dto)
         .map_err(|e| e.to_string())?
         .send()
@@ -63,7 +63,7 @@ pub async fn create_watch_group(dto: &WatchGroupNameDto) -> Result<String, Strin
 }
 
 pub async fn update_watch_group(id: i64, dto: &WatchGroupNameDto) -> Result<String, String> {
-    let resp = Request::put(&format!("/admin/watch-group/{}", id))
+    let resp = Request::put(&format!("/api/watch-groups/{}", id))
         .json(dto)
         .map_err(|e| e.to_string())?
         .send()

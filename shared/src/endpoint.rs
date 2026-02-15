@@ -2,48 +2,34 @@ pub const CLIENT_HOST_HEADER_KEY: &str = "X-Client-Hostname";
 pub const CLIENT_ID_HEADER_KEY: &str = "X-Client-Id";
 
 pub enum ServerEndpoint {
+    Hello,
     Ping,
+    Version,
+    Scan,
+
     Sync,
     Upload,
     Download,
     Delete,
-    /// Get/register client config
     Config,
-
-    /// not used from client - can be directly accessed from browser etc. for inspection
-    Scan,
-    Monitor,
-    Version,
-    Hello,
-
-    #[deprecated]
-    /// Get/set server-watch-group (admin UI)
-    AdminWatchGroup,
-    #[deprecated]
-    /// List all server-watch-groups (admin UI)
-    AdminWatchGroups,
-    #[deprecated]
-    /// Get/set client config (admin UI)
-    AdminConfig,
-    #[deprecated]
-    /// List all client configs (admin UI)
-    AdminConfigs,
 
     /// PWA
     ServePWA,
+    /// SPA frontend
+    App,
+
     /// Receive shared links from PWA
     ApiLinks,
-
     /// JSON API: list all client configs
     ApiConfigs,
     /// JSON API: get single client config
     ApiConfig,
     /// JSON API: list all watch groups
     ApiWatchGroups,
+    /// JSON API: single watch group by ID
+    ApiWatchGroup,
     /// JSON API: monitoring data
     ApiMonitor,
-    /// SPA frontend
-    App,
 }
 
 impl ServerEndpoint {
@@ -55,25 +41,24 @@ impl ServerEndpoint {
         match self {
             ServerEndpoint::Hello => "/",
             ServerEndpoint::Ping => "/ping",
-            ServerEndpoint::Scan => "/scan",
-            ServerEndpoint::Sync => "/sync",
-            ServerEndpoint::Upload => "/upload",
-            ServerEndpoint::Download => "/download",
-            ServerEndpoint::Delete => "/delete",
-            ServerEndpoint::Monitor => "/monitor",
             ServerEndpoint::Version => "/version",
-            ServerEndpoint::Config => "/config",
-            ServerEndpoint::AdminConfig => "/admin/config/{id}",
-            ServerEndpoint::AdminConfigs => "/admin/configs",
-            ServerEndpoint::AdminWatchGroup => "/admin/watch-group/{id}",
-            ServerEndpoint::AdminWatchGroups => "/admin/watch-groups",
+            ServerEndpoint::Scan => "/scan",
+            // sys
+            ServerEndpoint::Sync => "/sys/sync",
+            ServerEndpoint::Upload => "/sys/upload",
+            ServerEndpoint::Download => "/sys/download",
+            ServerEndpoint::Delete => "/sys/delete",
+            ServerEndpoint::Config => "/sys/config",
+            // apps
             ServerEndpoint::ServePWA => "/pwa",
+            ServerEndpoint::App => "/app",
+            // apps
             ServerEndpoint::ApiLinks => "/api/links",
             ServerEndpoint::ApiConfigs => "/api/configs",
             ServerEndpoint::ApiConfig => "/api/config/{id}",
             ServerEndpoint::ApiWatchGroups => "/api/watch-groups",
+            ServerEndpoint::ApiWatchGroup => "/api/watch-groups/{id}",
             ServerEndpoint::ApiMonitor => "/api/monitor",
-            ServerEndpoint::App => "/app",
         }
     }
 }
@@ -83,27 +68,24 @@ mod tests {
     use super::*;
     use ServerEndpoint::*;
 
-    const ALL_ENDPOINTS: [ServerEndpoint; 20] = [
+    const ALL_ENDPOINTS: [ServerEndpoint; 17] = [
+        Hello,
         Ping,
+        Version,
         Scan,
         Sync,
         Upload,
         Download,
         Delete,
-        Monitor,
-        Version,
         Config,
-        AdminConfig,
-        AdminConfigs,
-        AdminWatchGroup,
-        AdminWatchGroups,
         ServePWA,
+        App,
         ApiLinks,
         ApiConfigs,
         ApiConfig,
         ApiWatchGroups,
+        ApiWatchGroup,
         ApiMonitor,
-        App,
     ];
 
     #[test]
@@ -113,25 +95,24 @@ mod tests {
             match endpoint {
                 Hello => assert_eq!("http://localhost/", actual),
                 Ping => assert_eq!("http://localhost/ping", actual),
-                Scan => assert_eq!("http://localhost/scan", actual),
-                Sync => assert_eq!("http://localhost/sync", actual),
-                Upload => assert_eq!("http://localhost/upload", actual),
-                Download => assert_eq!("http://localhost/download", actual),
-                Delete => assert_eq!("http://localhost/delete", actual),
-                Monitor => assert_eq!("http://localhost/monitor", actual),
                 Version => assert_eq!("http://localhost/version", actual),
-                Config => assert_eq!("http://localhost/config", actual),
-                AdminConfig => assert_eq!("http://localhost/admin/config/{id}", actual),
-                AdminConfigs => assert_eq!("http://localhost/admin/configs", actual),
-                AdminWatchGroup => assert_eq!("http://localhost/admin/watch-group/{id}", actual),
-                AdminWatchGroups => assert_eq!("http://localhost/admin/watch-groups", actual),
+                Scan => assert_eq!("http://localhost/scan", actual),
+
+                Sync => assert_eq!("http://localhost/sys/sync", actual),
+                Upload => assert_eq!("http://localhost/sys/upload", actual),
+                Download => assert_eq!("http://localhost/sys/download", actual),
+                Delete => assert_eq!("http://localhost/sys/delete", actual),
+                Config => assert_eq!("http://localhost/sys/config", actual),
+
                 ServePWA => assert_eq!("http://localhost/pwa", actual),
+                App => assert_eq!("http://localhost/app", actual),
+
                 ApiLinks => assert_eq!("http://localhost/api/links", actual),
                 ApiConfigs => assert_eq!("http://localhost/api/configs", actual),
                 ApiConfig => assert_eq!("http://localhost/api/config/{id}", actual),
                 ApiWatchGroups => assert_eq!("http://localhost/api/watch-groups", actual),
+                ApiWatchGroup => assert_eq!("http://localhost/api/watch-groups/{id}", actual),
                 ApiMonitor => assert_eq!("http://localhost/api/monitor", actual),
-                App => assert_eq!("http://localhost/app", actual),
             }
         })
     }

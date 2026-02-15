@@ -1,15 +1,8 @@
 use crate::write::RotatingFileWriter;
-use askama::Template;
-use axum::response::{Html, IntoResponse};
+use axum::response::IntoResponse;
 use std::sync::{Arc, Mutex};
 use sysinfo::System;
 use tracing::{error, trace};
-
-#[derive(Template)]
-#[template(path = "monitor.html")]
-struct MonitorTemplate {
-    data_json: String,
-}
 
 const BACKOFF_MS: u64 = 10_000;
 
@@ -76,35 +69,11 @@ pub async fn api_get_monitoring(writer: Arc<Mutex<RotatingFileWriter>>) -> impl 
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Error reading monitoring data: {}", err),
             )
-                .into_response()
+                .into_response();
         }
     };
     let data_json = csv_to_json(&csv_content);
     ([("content-type", "application/json")], data_json).into_response()
-}
-
-/// chartjs rendered data
-pub async fn get_monitoring(writer: Arc<Mutex<RotatingFileWriter>>) -> impl IntoResponse {
-    let csv_content = match writer.lock().unwrap().read_current_file() {
-        Ok(content) => content,
-        Err(err) => {
-            return Html(format!(
-                "<html><body><h1>Error reading monitoring data: {}</h1></body></html>",
-                err
-            ))
-        }
-    };
-
-    let data_json = csv_to_json(&csv_content);
-
-    let template = MonitorTemplate { data_json };
-    match template.render() {
-        Ok(html) => Html(html),
-        Err(err) => Html(format!(
-            "<html><body><h1>Error rendering template: {}</h1></body></html>",
-            err
-        )),
-    }
 }
 
 fn csv_to_json(csv: &str) -> String {

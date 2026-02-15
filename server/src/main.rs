@@ -124,10 +124,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             get(|| handler::scan_disk(&UPLOAD_PATH)),
         )
         .route(
-            ServerEndpoint::Monitor.to_str(),
-            get(|state: State<AppState>| monitor::get_monitoring(state.monitor_writer.clone())),
-        )
-        .route(
             ServerEndpoint::Upload.to_str(),
             post(
                 |state: State<AppState>, headers: HeaderMap, multipart: Multipart| {
@@ -166,23 +162,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ServerEndpoint::Config.to_str(),
             get(handler::get_config).post(handler::post_config),
         )
-        // admin ui
-        .route(
-            ServerEndpoint::AdminConfigs.to_str(),
-            get(handler::list_admin_configs),
-        )
-        .route(
-            ServerEndpoint::AdminConfig.to_str(),
-            get(handler::get_admin_config).put(handler::update_admin_config),
-        )
-        .route(
-            ServerEndpoint::AdminWatchGroups.to_str(),
-            get(handler::list_admin_watch_groups).post(handler::create_admin_watch_group),
-        )
-        .route(
-            ServerEndpoint::AdminWatchGroup.to_str(),
-            put(handler::update_admin_watch_group),
-        )
         // json api - for frontends
         .route(
             ServerEndpoint::ApiConfigs.to_str(),
@@ -190,11 +169,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route(
             ServerEndpoint::ApiConfig.to_str(),
-            get(handler::api_get_config),
+            get(handler::api_get_config).put(handler::api_update_config),
         )
         .route(
             ServerEndpoint::ApiWatchGroups.to_str(),
-            get(handler::api_list_watch_groups),
+            get(handler::api_list_watch_groups).post(handler::api_create_watch_group),
+        )
+        .route(
+            ServerEndpoint::ApiWatchGroup.to_str(),
+            put(handler::api_update_watch_group),
         )
         .route(
             ServerEndpoint::ApiMonitor.to_str(),

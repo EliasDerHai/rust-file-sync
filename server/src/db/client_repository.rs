@@ -2,7 +2,7 @@ use serde::Serialize;
 use shared::register::ClientConfigDto;
 use sqlx::SqlitePool;
 
-/// Full client info including ID and hostname (for admin UI)
+/// Full client info including ID and hostname
 #[derive(Debug, Clone, Serialize)]
 pub struct ClientWithConfig {
     pub id: String,
@@ -232,7 +232,7 @@ impl<'a> ClientRepository<'a> {
         }))
     }
 
-    /// Update client config by ID (for admin UI)
+    /// Update client config by ID
     pub async fn update_client_config(
         &self,
         client_id: &str,
@@ -242,7 +242,6 @@ impl<'a> ClientRepository<'a> {
         let mut tx = self.pool.begin().await?;
         let poll_interval = config.min_poll_interval_in_ms as i32;
 
-        // Update client poll interval
         let result = sqlx::query!(
             "UPDATE client SET min_poll_interval_in_ms = ? WHERE id = ?",
             poll_interval,
@@ -255,7 +254,6 @@ impl<'a> ClientRepository<'a> {
             return Ok(false);
         }
 
-        // Delete existing watch groups
         sqlx::query!(
             "DELETE FROM client_watch_group WHERE client_id = ?",
             client_id
@@ -263,7 +261,6 @@ impl<'a> ClientRepository<'a> {
         .execute(&mut *tx)
         .await?;
 
-        // Insert new watch group
         let watch_group_id = sqlx::query_scalar!(
             r#"
             INSERT INTO client_watch_group (client_id, path_to_monitor, exclude_dot_dirs, server_watch_group_id)
@@ -278,7 +275,6 @@ impl<'a> ClientRepository<'a> {
         .fetch_one(&mut *tx)
         .await?;
 
-        // Insert excluded dirs
         for exclude_dir in config.exclude_dirs {
             sqlx::query!(
                 r#"

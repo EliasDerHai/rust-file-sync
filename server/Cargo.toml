@@ -21,7 +21,6 @@ sqlx = { version = "0.8.6", features = [
 	"macros",
 	"chrono",
 ] }
-askama = "0.15.1"
 axum-server = { version = "0.8", features = ["tls-rustls"] }
 rust-embed = { version = "8", features = ["axum", "mime-guess"] }
 
