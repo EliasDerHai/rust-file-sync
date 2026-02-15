@@ -22,7 +22,7 @@ pub fn ConfigEditPage() -> impl IntoView {
 
     view! {
         <div class="container-narrow">
-            <A href="/configs" attr:class="back-link">"← Back to list"</A>
+            <A href="/app/configs" attr:class="back-link">"← Back to list"</A>
             <Suspense fallback=Loading>
                 {move || Suspend::new(async move {
                     let client_result = client_data.await;
@@ -116,7 +116,7 @@ pub fn ConfigEditPage() -> impl IntoView {
 
                                     <div class="btn-group">
                                         <button class="btn btn-primary btn-lg" on:click=on_save>"Save Changes"</button>
-                                        <A href="/configs" attr:class="btn btn-secondary btn-lg">"Cancel"</A>
+                                        <A href="/app/configs" attr:class="btn btn-secondary btn-lg">"Cancel"</A>
                                     </div>
                                 </Card>
                             }.into_any()

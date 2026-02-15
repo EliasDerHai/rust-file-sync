@@ -22,7 +22,7 @@ pub fn ConfigsPage() -> impl IntoView {
                                     <ul style="list-style: none; padding: 0;">
                                         {clients.into_iter().map(|client| {
                                             let id = client.id.clone();
-                                            let edit_href = format!("/config/{}", id);
+                                            let edit_href = format!("/app/config/{}", id);
                                             view! {
                                                 <li>
                                                     <Card>

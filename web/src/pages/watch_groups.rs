@@ -98,7 +98,7 @@ fn WatchGroupCard(
         leptos::task::spawn_local(async move {
             match api::update_watch_group(group_id, &dto).await {
                 Ok(_) => {
-                    display_name.set(edit_name.get());
+                    display_name.set(edit_name.get_untracked());
                     editing.set(false);
                     set_card_msg.set(Some((true, "Saved!".to_string())));
                     set_trigger.update(|t| *t += 1);
