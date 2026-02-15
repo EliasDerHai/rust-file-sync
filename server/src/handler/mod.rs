@@ -6,8 +6,8 @@ mod sync;
 mod watch_group;
 
 pub use app::serve_embedded_app;
-pub use config::admin::{api_get_config, api_list_configs, api_update_config};
-pub use config::client::{get_config, post_config};
+pub use config::api::{api_get_config, api_list_configs, api_update_config};
+pub use config::sys::{get_config, post_config};
 pub use pwa::serve_embedded_pwa;
 pub use share_link::{get_links, post_link};
 pub use sync::{delete, download, scan_disk, sync_handler, upload_handler};
