@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use shared::file_event::FileEvent;
@@ -11,21 +9,23 @@ use tracing::{info, warn};
 pub trait FileHistory: Send + Sync {
     /// add new event (insert at end of nested vec)
     fn add(&self, event: FileEvent);
-    /// get all events of a path (chronologically = oldest first, latest last)
-    fn get_events(&self, path: &MatchablePath) -> Option<Vec<FileEvent>>;
-    /// get the latest event of one specific path
-    fn get_latest_event(&self, path: &MatchablePath) -> Option<FileEvent>;
-    /// get the latest event of every path
-    fn get_latest_events(&self) -> Vec<FileEvent>;
+    /// get all events of a path within a watch group (chronologically = oldest first, latest last)
+    fn get_events(&self, wg_id: i64, path: &MatchablePath) -> Option<Vec<FileEvent>>;
+    /// get the latest event of one specific path within a watch group
+    fn get_latest_event(&self, wg_id: i64, path: &MatchablePath) -> Option<FileEvent>;
+    /// get the latest event of every path within a watch group
+    fn get_latest_events(&self, wg_id: i64) -> Vec<FileEvent>;
     /// check if compliant with rules (chronologically sorted + grouped by path) - may panic
     fn sanity_check(&self);
 }
 
+/// outer key = watch_group_id, inner key = rel. file path, value = events (chronological)
+type HistoryStore = HashMap<i64, HashMap<MatchablePath, Vec<FileEvent>>>;
+
 /// multiple [`FileEvent`]s represent a history which allows to draw conclusions for synchronization of clients
 #[derive(Default, Clone)]
 pub struct InMemoryFileHistory {
-    /// key = rel. file path - value = events (chronological) of given path
-    store: Arc<Mutex<HashMap<MatchablePath, Vec<FileEvent>>>>,
+    store: Arc<Mutex<HistoryStore>>,
 }
 
 impl From<Vec<FileEvent>> for InMemoryFileHistory {
@@ -35,17 +35,18 @@ impl From<Vec<FileEvent>> for InMemoryFileHistory {
             warn!("History not chronological - correcting order...");
             value.sort_by_key(|e| e.utc_millis.clone());
         }
-        let inner = value.into_iter().fold(HashMap::new(), |mut acc, curr| {
-            match acc.get_mut(&curr.relative_path) {
-                None => {
-                    acc.insert(curr.relative_path.clone(), vec![curr]);
-                }
-                Some(events) => {
-                    events.push(curr);
-                }
-            }
-            acc
-        });
+
+        let inner: HistoryStore =
+            value
+                .into_iter()
+                .fold(HashMap::new(), |mut outer, curr| {
+                    let wg_map = outer.entry(curr.watch_group_id).or_default();
+                    wg_map
+                        .entry(curr.relative_path.clone())
+                        .or_default()
+                        .push(curr);
+                    outer
+                });
 
         let history = InMemoryFileHistory {
             store: Arc::new(Mutex::new(inner)),
@@ -59,79 +60,63 @@ impl From<Vec<FileEvent>> for InMemoryFileHistory {
     }
 }
 
-impl TryFrom<&Path> for InMemoryFileHistory {
-    type Error = std::io::Error;
-
-    fn try_from(value: &Path) -> Result<Self, Self::Error> {
-        let content = fs::read_to_string(value)?;
-
-        let events: Vec<FileEvent> = content
-            .lines()
-            .skip(1) // skip header
-            .filter_map(|line| {
-                let result = FileEvent::try_from(line);
-
-                if result.is_err() {
-                    warn!(
-                        "Deserialization error while parsing event history: {:?}",
-                        result
-                    );
-                }
-
-                result.ok()
-            })
-            .collect();
-
-        Ok(InMemoryFileHistory::from(events))
-    }
-}
-
 impl FileHistory for InMemoryFileHistory {
     fn add(&self, event: FileEvent) {
         let mut guard = self.store.lock().unwrap();
-        match guard.get_mut(&event.relative_path) {
-            None => {
-                guard.insert(event.relative_path.clone(), vec![event]);
-            }
-            Some(vec) => vec.push(event),
-        }
+        let wg_map = guard.entry(event.watch_group_id).or_default();
+        wg_map
+            .entry(event.relative_path.clone())
+            .or_default()
+            .push(event);
     }
 
-    fn get_events(&self, path: &MatchablePath) -> Option<Vec<FileEvent>> {
-        self.store.lock().unwrap().get(path).cloned()
-    }
-
-    fn get_latest_event(&self, path: &MatchablePath) -> Option<FileEvent> {
-        self.get_events(path).and_then(|vec| vec.last().cloned())
-    }
-
-    fn get_latest_events(&self) -> Vec<FileEvent> {
+    fn get_events(&self, wg_id: i64, path: &MatchablePath) -> Option<Vec<FileEvent>> {
         self.store
             .lock()
             .unwrap()
-            .iter()
-            .filter_map(|(_, events)| events.last().cloned())
-            .collect()
+            .get(&wg_id)
+            .and_then(|wg_map| wg_map.get(path).cloned())
+    }
+
+    fn get_latest_event(&self, wg_id: i64, path: &MatchablePath) -> Option<FileEvent> {
+        self.get_events(wg_id, path)
+            .and_then(|vec| vec.last().cloned())
+    }
+
+    fn get_latest_events(&self, wg_id: i64) -> Vec<FileEvent> {
+        self.store
+            .lock()
+            .unwrap()
+            .get(&wg_id)
+            .map(|wg_map| {
+                wg_map
+                    .iter()
+                    .filter_map(|(_, events)| events.last().cloned())
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     /// might panic if there is a programmatic error (sorting / grouping)
     fn sanity_check(&self) {
-        for (key, value) in self.store.lock().unwrap().iter() {
-            if let Some(false_path) = value
-                .iter()
-                .find(|e| &e.relative_path != key)
-                .map(|e| e.relative_path.clone())
-            {
-                panic!(
-                    "History invalid - should be grouped by relative_path - key: {:?} - found: {:?}",
-                    key.get(), false_path
-                );
-            }
-            if !value.is_sorted_by_key(|e| &e.utc_millis) {
-                panic!(
-                    "History invalid - should be sorted by time - key: {:?} ",
-                    key
-                );
+        for (_, wg_map) in self.store.lock().unwrap().iter() {
+            for (key, value) in wg_map.iter() {
+                if let Some(false_path) = value
+                    .iter()
+                    .find(|e| &e.relative_path != key)
+                    .map(|e| e.relative_path.clone())
+                {
+                    panic!(
+                        "History invalid - should be grouped by relative_path - key: {:?} - found: {:?}",
+                        key.get(), false_path
+                    );
+                }
+                if !value.is_sorted_by_key(|e| &e.utc_millis) {
+                    panic!(
+                        "History invalid - should be sorted by time - key: {:?} ",
+                        key
+                    );
+                }
             }
         }
     }
@@ -145,6 +130,8 @@ mod tests {
     use shared::utc_millis::UtcMillis;
     use uuid::Uuid;
 
+    const WG: i64 = 1;
+
     #[test]
     fn should_get_latest() {
         let history = InMemoryFileHistory::from(Vec::new());
@@ -156,6 +143,7 @@ mod tests {
             1024,
             ChangeEvent,
             None,
+            WG,
         );
         let e2 = FileEvent::new(
             Uuid::new_v4(),
@@ -164,17 +152,19 @@ mod tests {
             1024,
             ChangeEvent,
             None,
+            WG,
         );
 
         history.add(e1);
         history.add(e2.clone());
 
-        let latest = history.get_latest_event(&MatchablePath::from(vec!["dir", "file.txt"]));
+        let latest =
+            history.get_latest_event(WG, &MatchablePath::from(vec!["dir", "file.txt"]));
         assert_eq!(Some(e2), latest);
         assert_eq!(
             2,
             history
-                .get_events(&MatchablePath::from(vec!["dir", "file.txt"]))
+                .get_events(WG, &MatchablePath::from(vec!["dir", "file.txt"]))
                 .unwrap()
                 .len()
         );
@@ -182,7 +172,6 @@ mod tests {
 
     #[test]
     fn should_build_history() {
-        // arrange
         let matchable_path = MatchablePath::from(vec!["foo", "bar", "file.txt"]);
         let events: Vec<FileEvent> = (0..500)
             .map(|i: u64| {
@@ -193,39 +182,35 @@ mod tests {
                     1024 * 1024 * 1024,
                     ChangeEvent,
                     None,
+                    WG,
                 )
             })
             .collect();
 
-        // act
         let history = InMemoryFileHistory::from(events);
 
-        // assert
-        let expected_latest_utc_millis = 499; // 500 elements but starts at 0
         assert_eq!(
-            UtcMillis::from(expected_latest_utc_millis),
+            UtcMillis::from(499),
             history
-                .get_latest_event(&matchable_path)
+                .get_latest_event(WG, &matchable_path)
                 .unwrap()
                 .utc_millis
         );
 
-        let events_in_history = history
-            .store
-            .lock()
+        let guard = history.store.lock().unwrap();
+        let events_in_history = guard
+            .get(&WG)
             .unwrap()
             .get(&MatchablePath::from(vec!["foo", "bar", "file.txt"]))
-            .unwrap()
-            .clone();
+            .unwrap();
         assert_eq!(500, events_in_history.len());
     }
 
     #[test]
     fn should_correct_bad_order_when_building_history() {
-        // arrange
         let matchable_path = MatchablePath::from(vec!["foo", "bar", "file.txt"]);
         let events: Vec<FileEvent> = (0..500)
-            .rev() // effectively different from `should_build_history` test
+            .rev()
             .map(|i: u64| {
                 FileEvent::new(
                     Uuid::new_v4(),
@@ -234,20 +219,53 @@ mod tests {
                     1024 * 1024 * 1024,
                     ChangeEvent,
                     None,
+                    WG,
                 )
             })
             .collect();
 
-        // act
         let history = InMemoryFileHistory::from(events);
 
-        // assert
         assert_eq!(
             UtcMillis::from(499),
             history
-                .get_latest_event(&matchable_path)
+                .get_latest_event(WG, &matchable_path)
                 .unwrap()
                 .utc_millis
         );
+    }
+
+    #[test]
+    fn should_isolate_watch_groups() {
+        let history = InMemoryFileHistory::from(Vec::new());
+        let path = MatchablePath::from(vec!["file.txt"]);
+
+        let e1 = FileEvent::new(
+            Uuid::new_v4(),
+            UtcMillis::from(100),
+            path.clone(),
+            1024,
+            ChangeEvent,
+            None,
+            1,
+        );
+        let e2 = FileEvent::new(
+            Uuid::new_v4(),
+            UtcMillis::from(200),
+            path.clone(),
+            2048,
+            ChangeEvent,
+            None,
+            2,
+        );
+
+        history.add(e1.clone());
+        history.add(e2.clone());
+
+        assert_eq!(Some(e1), history.get_latest_event(1, &path));
+        assert_eq!(Some(e2), history.get_latest_event(2, &path));
+        assert_eq!(1, history.get_latest_events(1).len());
+        assert_eq!(1, history.get_latest_events(2).len());
+        assert_eq!(0, history.get_latest_events(99).len());
     }
 }

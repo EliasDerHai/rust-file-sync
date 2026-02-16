@@ -4,7 +4,6 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use serde::Deserialize;
-use shared::register::ClientConfigDto;
 use tracing::{error, info};
 
 #[derive(Debug, Deserialize)]
@@ -45,23 +44,23 @@ pub async fn api_get_config(
     Ok(Json(client))
 }
 
-/// PUT /api/config/{id} - Update client config
+/// PUT /api/config/{id} - Update client config (admin UI, single watch group at a time)
 pub async fn api_update_config(
     State(state): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(update): Json<AdminConfigUpdateDto>,
 ) -> Result<String, (StatusCode, String)> {
-    let config = ClientConfigDto {
-        path_to_monitor: update.path_to_monitor,
-        min_poll_interval_in_ms: update.min_poll_interval_in_ms,
-        exclude_dirs: update.exclude_dirs,
-        exclude_dot_dirs: update.exclude_dot_dirs,
-    };
-
     let updated = state
         .db
         .client()
-        .update_client_config(&id, config, update.server_watch_group_id)
+        .update_single_watch_group(
+            &id,
+            update.server_watch_group_id,
+            &update.path_to_monitor,
+            update.exclude_dirs,
+            update.exclude_dot_dirs,
+            update.min_poll_interval_in_ms,
+        )
         .await
         .map_err(|e| {
             error!("Failed to update client config: {}", e);

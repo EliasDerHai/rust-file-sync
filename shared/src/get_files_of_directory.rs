@@ -54,8 +54,9 @@ pub fn get_file_description(
 pub fn get_all_file_descriptions(
     path: &Path,
     exclude_dirs: &Vec<String>,
+    exclude_dot_dirs: bool,
 ) -> Result<Vec<FileDescription>, String> {
-    inner_get_files_of_dir_rec(path, path, Vec::new(), exclude_dirs)
+    inner_get_files_of_dir_rec(path, path, Vec::new(), exclude_dirs, exclude_dot_dirs)
 }
 
 fn inner_get_files_of_dir_rec(
@@ -66,13 +67,16 @@ fn inner_get_files_of_dir_rec(
     // the already collected elements in prev. recursive iterations
     mut descriptions: Vec<FileDescription>,
     exclude_dirs: &Vec<String>,
+    exclude_dot_dirs: bool,
 ) -> Result<Vec<FileDescription>, String> {
     for entry_result in fs::read_dir(current_path).map_err(|e| e.to_string())? {
         let entry = entry_result.map_err(|e| e.to_string())?;
         let entry_path = entry.path();
 
         for exclude_dir in exclude_dirs {
-            if entry_path.to_string_lossy().contains(exclude_dir) {
+            if entry_path.to_string_lossy().contains(exclude_dir)
+                || (entry_path.starts_with(".") && exclude_dot_dirs)
+            {
                 continue;
             }
         }
@@ -116,6 +120,7 @@ fn inner_get_files_of_dir_rec(
                 reference_root_path,
                 descriptions,
                 exclude_dirs,
+                exclude_dot_dirs,
             )?;
         }
     }

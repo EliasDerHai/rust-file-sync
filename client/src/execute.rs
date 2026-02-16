@@ -14,6 +14,7 @@ pub async fn execute(
     instruction: SyncInstruction,
     root: &Path,
     base: &str,
+    wg_id: i64,
 ) -> Result<String, String> {
     match instruction {
         SyncInstruction::Upload(p) => {
@@ -35,7 +36,7 @@ pub async fn execute(
                 .map_err(|e| e.to_string())?;
 
             client
-                .post(ServerEndpoint::Upload.to_uri(base))
+                .post(ServerEndpoint::Upload.to_uri_with_wg(base, wg_id))
                 .multipart(form)
                 .send()
                 .await
@@ -50,7 +51,7 @@ pub async fn execute(
             let file_path = p.resolve(root);
 
             let response = client
-                .get(ServerEndpoint::Download.to_uri(base))
+                .get(ServerEndpoint::Download.to_uri_with_wg(base, wg_id))
                 .body(p.to_serialized_string())
                 .send()
                 .await

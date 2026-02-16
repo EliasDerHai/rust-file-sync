@@ -13,6 +13,7 @@ pub struct ClientFileEvent {
     pub temp_file_path: Option<PathBuf>,
     /// the size of the uploaded file or 0 for delete events
     pub content_size: usize,
+    pub watch_group_id: i64,
 }
 
 pub struct ClientFileEventDto {
@@ -20,6 +21,7 @@ pub struct ClientFileEventDto {
     pub relative_path: Option<Vec<String>>,
     pub temp_file_path: Option<PathBuf>,
     pub content_size: Option<usize>,
+    pub watch_group_id: i64,
 }
 
 impl From<ClientFileEvent> for FileEvent {
@@ -31,6 +33,7 @@ impl From<ClientFileEvent> for FileEvent {
             value.content_size as u64,
             FileEventType::ChangeEvent,
             None,
+            value.watch_group_id,
         )
     }
 }
@@ -46,6 +49,7 @@ impl TryFrom<ClientFileEventDto> for ClientFileEvent {
             ),
             temp_file_path: dto.temp_file_path,
             content_size: dto.content_size.unwrap_or(0),
+            watch_group_id: dto.watch_group_id,
         })
     }
 }

@@ -7,6 +7,7 @@ pub enum ServerEndpoint {
     Version,
     Scan,
 
+    /// SYS
     Sync,
     Upload,
     Download,
@@ -37,6 +38,11 @@ impl ServerEndpoint {
         format!("{base}{}", self.to_str())
     }
 
+    /// Build URI with watch group id interpolated
+    pub fn to_uri_with_wg(&self, base: &str, wg_id: i64) -> String {
+        self.to_uri(base).replace("{wg_id}", &wg_id.to_string())
+    }
+
     pub fn to_str(&self) -> &str {
         match self {
             ServerEndpoint::Hello => "/",
@@ -44,10 +50,10 @@ impl ServerEndpoint {
             ServerEndpoint::Version => "/version",
             ServerEndpoint::Scan => "/scan",
             // sys
-            ServerEndpoint::Sync => "/sys/sync",
-            ServerEndpoint::Upload => "/sys/upload",
-            ServerEndpoint::Download => "/sys/download",
-            ServerEndpoint::Delete => "/sys/delete",
+            ServerEndpoint::Sync => "/sys/sync/{wg_id}",
+            ServerEndpoint::Upload => "/sys/upload/{wg_id}",
+            ServerEndpoint::Download => "/sys/download/{wg_id}",
+            ServerEndpoint::Delete => "/sys/delete/{wg_id}",
             ServerEndpoint::Config => "/sys/config",
             // apps
             ServerEndpoint::ServePWA => "/pwa",
@@ -98,10 +104,10 @@ mod tests {
                 Version => assert_eq!("http://localhost/version", actual),
                 Scan => assert_eq!("http://localhost/scan", actual),
 
-                Sync => assert_eq!("http://localhost/sys/sync", actual),
-                Upload => assert_eq!("http://localhost/sys/upload", actual),
-                Download => assert_eq!("http://localhost/sys/download", actual),
-                Delete => assert_eq!("http://localhost/sys/delete", actual),
+                Sync => assert_eq!("http://localhost/sys/sync/{wg_id}", actual),
+                Upload => assert_eq!("http://localhost/sys/upload/{wg_id}", actual),
+                Download => assert_eq!("http://localhost/sys/download/{wg_id}", actual),
+                Delete => assert_eq!("http://localhost/sys/delete/{wg_id}", actual),
                 Config => assert_eq!("http://localhost/sys/config", actual),
 
                 ServePWA => assert_eq!("http://localhost/pwa", actual),
@@ -115,5 +121,25 @@ mod tests {
                 ApiMonitor => assert_eq!("http://localhost/api/monitor", actual),
             }
         })
+    }
+
+    #[test]
+    fn should_build_uris_with_watch_group_id() {
+        assert_eq!(
+            "http://localhost/sys/sync/42",
+            Sync.to_uri_with_wg("http://localhost", 42)
+        );
+        assert_eq!(
+            "http://localhost/sys/upload/1",
+            Upload.to_uri_with_wg("http://localhost", 1)
+        );
+        assert_eq!(
+            "http://localhost/sys/download/7",
+            Download.to_uri_with_wg("http://localhost", 7)
+        );
+        assert_eq!(
+            "http://localhost/sys/delete/99",
+            Delete.to_uri_with_wg("http://localhost", 99)
+        );
     }
 }

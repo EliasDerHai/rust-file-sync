@@ -4,8 +4,8 @@ pub use rotating::RotatingFileWriter;
 
 use axum::extract::multipart::{Field, MultipartError};
 use chrono::{Local, NaiveTime};
-use std::fs::{self, create_dir_all, OpenOptions};
-use std::io::{self, Write};
+use std::fs::{self, create_dir_all};
+use std::io;
 use std::path::Path;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
@@ -118,14 +118,6 @@ pub async fn _write_all_at_once(path: &Path, field: Field<'_>) -> Result<(), io:
     }
 }
 
-pub fn append_line(file_path: &Path, line: &str) {
-    let mut file = OpenOptions::new().append(true).open(file_path).unwrap();
-
-    if let Err(e) = writeln!(file, "{line}") {
-        error!("Couldn't append to file: {}", e);
-    }
-}
-
 /// directories to create (if not existent)
 pub fn create_all_paths_if_not_exist(paths: Vec<&Path>) -> io::Result<()> {
     for path in paths.into_iter() {
@@ -136,17 +128,6 @@ pub fn create_all_paths_if_not_exist(paths: Vec<&Path>) -> io::Result<()> {
     Ok::<(), io::Error>(())
 }
 
-/// csv-files to create (if not existent) - tuple contains path to file & list of headers (optional)
-pub fn create_csv_file_if_not_exists(path: &Path, headers: Option<Vec<String>>) -> io::Result<()> {
-    if !path.exists() {
-        match headers {
-            Some(headers) => fs::write(path, format!("{}\n", headers.join(";")))?,
-            None => fs::write(path, "")?,
-        }
-    }
-
-    Ok(())
-}
 
 pub fn create_file_if_not_exists(path: &Path) -> io::Result<()> {
     if !path.exists() {

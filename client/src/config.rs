@@ -3,8 +3,7 @@ use serde::{Deserialize, Serialize};
 use shared::endpoint::ServerEndpoint;
 use shared::register::ClientConfigDto;
 use std::fs;
-use std::path::PathBuf;
-use tracing::{error, info, warn};
+use tracing::info;
 use uuid::Uuid;
 
 /// local config (config.yaml)
@@ -12,10 +11,6 @@ use uuid::Uuid;
 pub struct LocalConfig {
     pub client_id: Option<String>,
     pub server_url: String,
-    /// gonna be removed after being migrated
-    path_to_monitor: PathBuf,
-    exclude_dirs: Vec<String>,
-    min_poll_interval_in_ms: u16,
 }
 
 pub fn read_config() -> Result<LocalConfig, String> {
@@ -45,30 +40,7 @@ pub fn read_config() -> Result<LocalConfig, String> {
         info!("Persisted client_id to {}", config_path);
     }
 
-    if !config.path_to_monitor.exists() {
-        return Err(format!(
-            "Configured vault_path ('{:?}') does not exist",
-            config.path_to_monitor
-        ));
-    }
-    if !config.path_to_monitor.is_dir() {
-        return Err(format!(
-            "Configured vault_path ('{:?}') is not a directory",
-            config.path_to_monitor
-        ));
-    }
-    if !config.exclude_dirs.is_empty() {
-        info!("Found exclude patterns in config {:?}", config.exclude_dirs);
-    }
     Ok(config)
-}
-
-/// Runtime configuration combining local config (server_url) with server-provided config
-pub struct RuntimeConfig {
-    pub server_url: String,
-    pub path_to_monitor: PathBuf,
-    pub exclude_dirs: Vec<String>,
-    pub min_poll_interval_in_ms: u16,
 }
 
 /// Fetch config from server, or register local config first if not found
@@ -78,69 +50,16 @@ pub async fn fetch_or_register_config(
 ) -> ClientConfigDto {
     let config_endpoint = ServerEndpoint::Config.to_uri(&local_config.server_url);
 
-    // Try to fetch config from server
     match client.get(&config_endpoint).send().await {
-        Ok(response) if response.status().is_success() => {
-            match response.json::<ClientConfigDto>().await {
-                Err(e) => error!("Failed to parse server config: {}", e),
-                Ok(config) => {
-                    info!("Fetched config from server");
-                    return config;
-                }
+        Ok(response) if response.status().is_success() => match response.json().await {
+            Ok(config) => {
+                info!("Fetched registered config from server");
+                config
             }
-        }
-        Ok(response) if response.status() == reqwest::StatusCode::NOT_FOUND => {
-            info!("No config found on server, registering local config...");
-        }
-        Ok(response) => {
-            warn!(
-                "Unexpected response from server: {} - {}",
-                response.status(),
-                response.text().await.unwrap_or_default()
-            );
-        }
-        Err(e) => {
-            error!("Failed to fetch config from server: {}", e);
-        }
-    }
-
-    // Register local config
-    let request = ClientConfigDto {
-        path_to_monitor: local_config.path_to_monitor.to_string_lossy().to_string(),
-        exclude_dirs: local_config.exclude_dirs.clone(),
-        exclude_dot_dirs: true,
-        min_poll_interval_in_ms: local_config.min_poll_interval_in_ms,
-    };
-
-    match client.post(&config_endpoint).json(&request).send().await {
-        Ok(response) if response.status().is_success() => {
-            info!("Registered local config with server");
-        }
-        Ok(response) => {
-            panic!(
-                "Failed to register config: {} - {}",
-                response.status(),
-                response.text().await.unwrap_or_default()
-            );
-        }
-        Err(e) => {
-            panic!("Failed to register config: {}", e);
-        }
-    }
-
-    // Fetch the registered config
-    match client.get(&config_endpoint).send().await {
-        Ok(response) if response.status().is_success() => {
-            match response.json::<ClientConfigDto>().await {
-                Ok(config) => {
-                    info!("Fetched registered config from server");
-                    config
-                }
-                Err(e) => {
-                    panic!("Failed to parse server config after registration: {}", e);
-                }
+            Err(e) => {
+                panic!("Failed to parse server config after registration: {}", e);
             }
-        }
+        },
         Ok(response) => {
             panic!(
                 "Failed to fetch config after registration: {} - {}",

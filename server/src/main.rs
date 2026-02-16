@@ -1,24 +1,26 @@
 use crate::db::ServerDatabase;
 use crate::file_history::InMemoryFileHistory;
 use crate::write::{
-    RotatingFileWriter, create_all_paths_if_not_exist, create_csv_file_if_not_exists,
-    create_file_if_not_exists, schedule_data_backups,
+    RotatingFileWriter, create_all_paths_if_not_exist, create_file_if_not_exists,
+    schedule_data_backups,
 };
-use axum::extract::{DefaultBodyLimit, Multipart, State};
-use axum::http::HeaderMap;
+use axum::extract::{DefaultBodyLimit, State};
 use axum::routing::{post, put};
 use axum::{Router, routing::get};
 use axum_server::tls_rustls::RustlsConfig;
 use shared::endpoint::ServerEndpoint;
+use shared::file_event::FileEvent;
 use sqlx::SqlitePool;
 use sqlx::migrate::Migrator;
 use sqlx::sqlite::SqliteConnectOptions;
+use std::collections::HashMap;
 use std::env;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::{path::Path, sync::LazyLock};
-use tracing::error;
+use std::sync::LazyLock;
+use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
 mod client_file_event;
@@ -29,23 +31,24 @@ mod monitor;
 mod multipart;
 mod write;
 
-/// base directory for files synced from clients
-static UPLOAD_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/upload"));
+/// base directory for files synced from clients (subdirs per watch group: upload/{wg_id}/)
+pub(crate) static UPLOAD_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/upload"));
 /// directory to hold zipped backup files
 static BACKUP_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/backup"));
-/// file to persist the in-mem state ([`InMemoryFileHistory`])
+/// path to legacy CSV history file (used only for one-time migration)
 static HISTORY_CSV_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/history.csv"));
 static MONITORING_DIR: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/monitor"));
 /// dir to which multipart-files can be saved to, before being moved to the actual 'mirrored path'
 /// temporary and might be cleaned upon encountering errors or on scheduled intervals
-static UPLOAD_TMP_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/upload_in_progress"));
+pub(crate) static UPLOAD_TMP_PATH: LazyLock<&Path> =
+    LazyLock::new(|| Path::new("./data/upload_in_progress"));
 /// sqlite file
 static DB_FILE_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/sqlite.db"));
 /// migrations
 static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
 
 #[derive(Clone)]
-struct AppState {
+pub(crate) struct AppState {
     history: Arc<InMemoryFileHistory>,
     monitor_writer: Arc<Mutex<RotatingFileWriter>>,
     db: ServerDatabase,
@@ -63,16 +66,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             BACKUP_PATH.iter().as_path(),
         ])?;
         create_file_if_not_exists(*DB_FILE_PATH)?;
-        create_csv_file_if_not_exists(
-            HISTORY_CSV_PATH.iter().as_path(),
-            Some(vec![
-                "id".to_string(),
-                "utc_millis".to_string(),
-                "relative_path".to_string(),
-                "size_in_bytes".to_string(),
-                "event_type".to_string(),
-            ]),
-        )?;
         Ok::<(), std::io::Error>(())
     });
     tokio::spawn(schedule_data_backups(&UPLOAD_PATH, &BACKUP_PATH));
@@ -80,10 +73,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db = {
         let opts = SqliteConnectOptions::new()
             .filename(*DB_FILE_PATH)
-            .create_if_missing(true);
+            .create_if_missing(true)
+            .pragma("foreign_keys", "ON");
         let pool = SqlitePool::connect_with(opts).await?;
         MIGRATOR.run(&pool).await?;
         ServerDatabase::new(pool)
+    };
+
+    // Migrate CSV history to DB (one-time)
+    migrate_csv_history_to_db(&db).await;
+
+    // Load history from DB into in-memory store
+    let history = match db.file_event().get_all_events().await {
+        Ok(events) => {
+            info!("Loaded {} file events from database", events.len());
+            InMemoryFileHistory::from(events)
+        }
+        Err(err) => {
+            error!("Failed to load file events from database: {}", err);
+            InMemoryFileHistory::from(Vec::new())
+        }
     };
 
     // Create rotating file writer for monitoring (4 files, 5MB each)
@@ -104,12 +113,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tokio::spawn(monitor::monitor_sys(monitor_writer.clone()));
 
-    let history =
-        InMemoryFileHistory::try_from(HISTORY_CSV_PATH.iter().as_path()).unwrap_or_else(|err| {
-            error!("Failed to load history: {}", err);
-            InMemoryFileHistory::from(Vec::new())
-        });
-
     let state = AppState {
         history: Arc::new(history),
         monitor_writer,
@@ -125,34 +128,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route(
             ServerEndpoint::Upload.to_str(),
-            post(
-                |state: State<AppState>, headers: HeaderMap, multipart: Multipart| {
-                    handler::upload_handler(
-                        &UPLOAD_PATH,
-                        &UPLOAD_TMP_PATH,
-                        &HISTORY_CSV_PATH,
-                        state,
-                        multipart,
-                        headers,
-                    )
-                },
-            )
-            .layer(DefaultBodyLimit::max(
+            post(handler::upload_handler).layer(DefaultBodyLimit::max(
                 10 * 1024 * 1024 * 1024, /* 10gb */
             )),
         )
         .route(ServerEndpoint::Sync.to_str(), post(handler::sync_handler))
         .route(
             ServerEndpoint::Download.to_str(),
-            get(|payload: String| handler::download(&UPLOAD_PATH, payload)),
+            get(handler::download),
         )
         .route(
             ServerEndpoint::Delete.to_str(),
-            post(
-                |state: State<AppState>, headers: HeaderMap, payload: String| {
-                    handler::delete(&UPLOAD_PATH, &HISTORY_CSV_PATH, payload, state, headers)
-                },
-            ),
+            post(handler::delete),
         )
         .route(
             ServerEndpoint::Version.to_str(),
@@ -220,4 +207,107 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+/// One-time migration: reads `data/history.csv`, inserts rows into `file_event` table,
+/// then renames the CSV to `history.csv.migrated`.
+async fn migrate_csv_history_to_db(db: &ServerDatabase) {
+    let csv_path = HISTORY_CSV_PATH.iter().as_path();
+    if !csv_path.exists() {
+        return;
+    }
+
+    let content = match std::fs::read_to_string(csv_path) {
+        Ok(c) => c,
+        Err(e) => {
+            warn!("Could not read history.csv for migration: {e}");
+            return;
+        }
+    };
+
+    let events: Vec<FileEvent> = content
+        .lines()
+        .skip(1) // skip CSV header
+        .filter_map(|line| {
+            FileEvent::try_from(line)
+                .map_err(|e| warn!("Skipping CSV line during migration: {e}"))
+                .ok()
+        })
+        .collect();
+
+    if events.is_empty() {
+        info!("history.csv is empty — skipping migration, renaming file");
+        rename_csv_after_migration(csv_path);
+        return;
+    }
+
+    // Build hostname → client_id map from DB
+    let hostname_to_client_id: HashMap<String, String> = match sqlx::query!(
+        r#"SELECT id as "id!", host_name as "host_name!" FROM client ORDER BY created_at ASC"#
+    )
+    .fetch_all(db.file_event().pool())
+    .await
+    {
+        Ok(rows) => rows
+            .into_iter()
+            .map(|r| (r.host_name, r.id))
+            .collect(),
+        Err(e) => {
+            warn!("Could not query clients for CSV migration: {e}");
+            HashMap::new()
+        }
+    };
+
+    // Fallback client_id: oldest client in DB
+    let fallback_client_id = match sqlx::query_scalar!(
+        r#"SELECT id as "id!" FROM client ORDER BY created_at ASC LIMIT 1"#
+    )
+    .fetch_optional(db.file_event().pool())
+    .await
+    {
+        Ok(Some(id)) => id,
+        _ => {
+            warn!("No clients in DB — cannot migrate CSV history (no client_id to assign)");
+            return;
+        }
+    };
+
+    let mut unmapped_hosts = 0u64;
+    let mapped_events: Vec<(FileEvent, String)> = events
+        .into_iter()
+        .map(|event| {
+            let client_id = event
+                .client_host
+                .as_ref()
+                .and_then(|host| hostname_to_client_id.get(host))
+                .cloned()
+                .unwrap_or_else(|| {
+                    unmapped_hosts += 1;
+                    fallback_client_id.clone()
+                });
+            (event, client_id)
+        })
+        .collect();
+
+    let count = mapped_events.len();
+    match db.file_event().bulk_insert(mapped_events).await {
+        Ok(inserted) => {
+            info!(
+                "CSV migration complete: {inserted}/{count} events inserted ({unmapped_hosts} used fallback client)"
+            );
+            rename_csv_after_migration(csv_path);
+        }
+        Err(e) => {
+            error!("CSV migration failed: {e}");
+        }
+    }
+}
+
+fn rename_csv_after_migration(csv_path: &Path) {
+    let migrated_path = csv_path.with_extension("csv.migrated");
+    if let Err(e) = std::fs::rename(csv_path, &migrated_path) {
+        warn!("Could not rename history.csv to history.csv.migrated: {e}");
+    } else {
+        info!("Renamed history.csv → history.csv.migrated");
+    }
 }

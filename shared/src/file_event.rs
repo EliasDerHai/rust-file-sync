@@ -58,6 +58,7 @@ pub struct FileEvent {
     pub size_in_bytes: u64,
     pub event_type: FileEventType,
     pub client_host: Option<String>,
+    pub watch_group_id: i64,
 }
 
 impl FileEvent {
@@ -70,6 +71,7 @@ impl FileEvent {
             self.size_in_bytes.to_string(),
             self.event_type.serialize_to_string(),
             self.client_host.clone().unwrap_or_default(),
+            self.watch_group_id.to_string(),
         ];
 
         parts.join(";")
@@ -82,6 +84,7 @@ impl FileEvent {
         size_in_bytes: u64,
         event_type: FileEventType,
         client_host: Option<String>,
+        watch_group_id: i64,
     ) -> Self {
         FileEvent {
             id,
@@ -90,6 +93,7 @@ impl FileEvent {
             size_in_bytes,
             event_type,
             client_host,
+            watch_group_id,
         }
     }
 }
@@ -107,9 +111,9 @@ impl TryFrom<&str> for FileEvent {
         }
 
         let parts: Vec<&str> = value.split(';').collect();
-        if parts.len() != 5 && parts.len() != 6 {
+        if !(5..=7).contains(&parts.len()) {
             return Err(format!(
-                "Parsing error - expected 5 parts (id;utc_millis;relative_path;size_in_bytes;event_type) or 6 parts (id;utc_millis;relative_path;size_in_bytes;event_type;host_name) but found {} in {:?}",
+                "Parsing error - expected 5-7 parts but found {} in {:?}",
                 parts.len(),
                 value
             ));
@@ -133,10 +137,21 @@ impl TryFrom<&str> for FileEvent {
 
         let event_type = FileEventType::try_from(parts[4])?;
 
-        let client_host = if parts.len() == 6 && !parts[5].is_empty() {
+        let client_host = if parts.len() >= 6 && !parts[5].is_empty() {
             Some(parts[5].to_string())
         } else {
             None
+        };
+
+        let watch_group_id = if parts.len() == 7 && !parts[6].is_empty() {
+            parts[6].parse::<i64>().map_err(|e| {
+                format!(
+                    "Parsing error - invalid watch_group_id '{}': {}",
+                    parts[6], e
+                )
+            })?
+        } else {
+            1 // default to watch group 1 for legacy rows
         };
 
         Ok(FileEvent {
@@ -146,6 +161,7 @@ impl TryFrom<&str> for FileEvent {
             size_in_bytes,
             event_type,
             client_host,
+            watch_group_id,
         })
     }
 }
@@ -168,9 +184,10 @@ mod tests {
             1024 * 1024 * 1024,
             ChangeEvent,
             None,
+            1,
         );
 
-        let expected = format!("{uuid};{millis};foo/bar/file.txt;1073741824;change;");
+        let expected = format!("{uuid};{millis};foo/bar/file.txt;1073741824;change;;1");
         assert_eq!(expected, event.serialize_to_csv_line());
     }
     #[test]
@@ -182,6 +199,7 @@ mod tests {
             size_in_bytes: 1024,
             event_type: ChangeEvent,
             client_host: Some("arch".to_string()),
+            watch_group_id: 3,
         };
 
         let csv_line = original_event.serialize_to_csv_line();
@@ -255,16 +273,35 @@ mod tests {
         let result = FileEvent::try_from(too_few.as_str());
         assert!(result.is_err(), "Fewer than 5 parts should fail");
         assert!(
-            result.unwrap_err().contains("expected 5 parts"),
-            "Error should mention 5 parts"
+            result.unwrap_err().contains("expected 5-7 parts"),
+            "Error should mention 5-7 parts"
         );
     }
 
     #[test]
     fn should_parse_err_incorrect_parts_too_many() {
-        let too_many = format!("{};123456;some/path;300;change;host;other", Uuid::new_v4()); // 6 parts
+        let too_many = format!(
+            "{};123456;some/path;300;change;host;1;extra",
+            Uuid::new_v4()
+        ); // 8 parts
         let result = FileEvent::try_from(too_many.as_str());
-        assert!(result.is_err(), "More than 6 parts should fail");
+        assert!(result.is_err(), "More than 7 parts should fail");
+    }
+
+    #[test]
+    fn should_parse_legacy_5_column_csv_with_default_watch_group() {
+        let csv = format!("{};123456;some/path;300;change", Uuid::new_v4());
+        let event = FileEvent::try_from(csv.as_str()).expect("Should parse legacy 5-col");
+        assert_eq!(event.watch_group_id, 1);
+        assert!(event.client_host.is_none());
+    }
+
+    #[test]
+    fn should_parse_legacy_6_column_csv_with_default_watch_group() {
+        let csv = format!("{};123456;some/path;300;change;myhost", Uuid::new_v4());
+        let event = FileEvent::try_from(csv.as_str()).expect("Should parse legacy 6-col");
+        assert_eq!(event.watch_group_id, 1);
+        assert_eq!(event.client_host, Some("myhost".to_string()));
     }
 
     #[test]

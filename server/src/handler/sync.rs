@@ -1,12 +1,11 @@
 use crate::client_file_event::{ClientFileEvent, ClientFileEventDto};
 use crate::file_history::FileHistory;
-use crate::write::append_line;
-use crate::{AppState, multipart};
+use crate::{AppState, UPLOAD_PATH, UPLOAD_TMP_PATH, multipart};
 use axum::Json;
 use axum::extract::{Multipart, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
-use shared::endpoint::CLIENT_HOST_HEADER_KEY;
+use shared::endpoint::{CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY};
 use shared::file_event::{FileEvent, FileEventType};
 use shared::get_files_of_directory::{FileDescription, get_all_file_descriptions};
 use shared::matchable_path::MatchablePath;
@@ -20,11 +19,15 @@ use tokio_util::io::ReaderStream;
 use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
-use super::header_value_as_opt_string;
+use super::{header_value_as_opt_string, header_value_as_string};
+
+fn upload_path_for_wg(wg_id: i64) -> PathBuf {
+    UPLOAD_PATH.join(wg_id.to_string())
+}
 
 /// returns list of file meta infos
 pub async fn scan_disk(path: &Path) -> Result<Json<Vec<FileDescription>>, StatusCode> {
-    match get_all_file_descriptions(path, &Vec::new()) {
+    match get_all_file_descriptions(path, &Vec::new(), true) {
         Ok(descriptions) => Ok(Json(descriptions)),
         Err(err) => {
             error!("IO Failure - {}", err);
@@ -33,53 +36,49 @@ pub async fn scan_disk(path: &Path) -> Result<Json<Vec<FileDescription>>, Status
     }
 }
 
-/// expects payload like
-/// {
-///   utc_millis: 42,
-///   relative_path: "./directory/file.txt",
-///   file: @File
-/// }
-///
 pub async fn upload_handler(
-    upload_root_path: &Path,
-    upload_root_tmp_path: &Path,
-    history_file_path: &Path,
     State(state): State<AppState>,
-    mut multipart: Multipart,
+    axum::extract::Path(wg_id): axum::extract::Path<i64>,
     headers: HeaderMap,
+    multipart: Multipart,
 ) -> Result<String, (StatusCode, String)> {
-    // parse incoming request
-    let dto = multipart::parse_multipart_request(upload_root_tmp_path, &mut multipart).await?;
+    let upload_root_path = upload_path_for_wg(wg_id);
+    let dto =
+        multipart::parse_multipart_request(&UPLOAD_TMP_PATH, &mut { multipart }, wg_id).await?;
 
     let client_host = header_value_as_opt_string(&headers, CLIENT_HOST_HEADER_KEY);
+    let client_id = header_value_as_string(&headers, CLIENT_ID_HEADER_KEY)
+        .map(|s| s.to_string())
+        .ok();
 
-    process_upload(upload_root_path, history_file_path, state, dto, client_host).map_err(
-        |(tmp_file_path, status, error_msg)| {
+    process_upload(&upload_root_path, state, dto, client_host, client_id)
+        .await
+        .map_err(|(tmp_file_path, status, error_msg)| {
             if let Some(tmp_file) = tmp_file_path
                 && let Err(e) = fs::remove_file(tmp_file)
             {
                 tracing::warn!("couldn't clean up tmp file - {e}");
             }
             (status, error_msg)
-        },
-    )
+        })
 }
 
-fn process_upload(
+async fn process_upload(
     upload_root_path: &Path,
-    history_file_path: &Path,
     state: AppState,
     dto: ClientFileEventDto,
     client_host: Option<String>,
+    client_id: Option<String>,
 ) -> Result<String, (Option<PathBuf>, StatusCode, String)> {
     let tmp_file_path_cpy = dto.temp_file_path.clone();
+    let wg_id = dto.watch_group_id;
     // map to domain object (FileEvent)
     match ClientFileEvent::try_from(dto) {
         Err(e) => Err((tmp_file_path_cpy, StatusCode::BAD_REQUEST, e)),
         Ok(event) => {
             let utc_millis_of_latest_history_event = state
                 .history
-                .get_latest_event(&event.relative_path)
+                .get_latest_event(wg_id, &event.relative_path)
                 .map(|e| e.utc_millis)
                 .unwrap_or(UtcMillis::from(0));
 
@@ -138,14 +137,18 @@ fn process_upload(
             match io_result {
                 Ok(_) => {
                     let message = format!("Updated {} successfully", path_str);
-                    // create FileEvent with client_host
                     let mut fe = FileEvent::from(event);
                     fe.client_host = client_host;
-                    // write to history.csv
-                    append_line(history_file_path, &fe.serialize_to_csv_line());
+                    // write to DB
+                    if let Some(ref cid) = client_id {
+                        if let Err(e) = state.db.file_event().insert(&fe, cid).await {
+                            error!("Failed to persist file event to DB: {e}");
+                        }
+                    } else {
+                        warn!("No client_id header — file event not persisted to DB");
+                    }
                     // add to in-mem state
                     state.history.clone().add(fe);
-                    // log & return
                     info!("{message}");
                     Ok(message)
                 }
@@ -159,25 +162,14 @@ fn process_upload(
     }
 }
 
-/// compares incoming payload with FileHistory to determine and return a list of instructions
-/// in order for the client to achieve a synchronized state
-///
-/// expects payload like:
-/// [{
-///  "file_name": "history.csv",
-///    "relative_path": "./history.csv",
-///    "size_in_bytes": 103,
-///    "file_type": ".csv",
-///    "last_updated_utc_millis": 9585834893
-///  }]
-///
 pub async fn sync_handler(
     State(state): State<AppState>,
+    axum::extract::Path(wg_id): axum::extract::Path<i64>,
     Json(client_sync_state): Json<Vec<FileDescription>>,
 ) -> Result<Json<Vec<SyncInstruction>>, (StatusCode, String)> {
     trace!("Client state received {:#?}", client_sync_state);
     let mut instructions = Vec::new();
-    let target = state.history.clone().get_latest_events();
+    let target = state.history.clone().get_latest_events(wg_id);
 
     for event in target.clone() {
         match client_sync_state.iter().find(|client_file_description| {
@@ -233,7 +225,11 @@ pub async fn sync_handler(
 
 /// expects payload with plain string path (unix-delimiter) like:
 /// `some/path/to/download/file.txt`
-pub async fn download(upload_root_path: &Path, payload: String) -> impl IntoResponse {
+pub async fn download(
+    axum::extract::Path(wg_id): axum::extract::Path<i64>,
+    payload: String,
+) -> impl IntoResponse {
+    let upload_root_path = upload_path_for_wg(wg_id);
     let sub_path: PathBuf = MatchablePath::from(payload.split('/').collect::<Vec<&str>>())
         .get()
         .iter()
@@ -248,7 +244,6 @@ pub async fn download(upload_root_path: &Path, payload: String) -> impl IntoResp
     let stream = ReaderStream::new(file);
     let body = axum::body::Body::from_stream(stream);
 
-    // should we add content_type header? works fine without so I guess we're good
     let headers = [(
         axum::http::header::CONTENT_DISPOSITION,
         format!("attachment; filename=\"{}\"", file_name),
@@ -258,17 +253,20 @@ pub async fn download(upload_root_path: &Path, payload: String) -> impl IntoResp
 }
 
 pub async fn delete(
-    upload_path: &Path,
-    history_file_path: &Path,
-    payload: String,
     state: State<AppState>,
+    axum::extract::Path(wg_id): axum::extract::Path<i64>,
     headers: HeaderMap,
+    payload: String,
 ) -> Result<(), (StatusCode, String)> {
+    let upload_path = upload_path_for_wg(wg_id);
     debug!("Received delete request for '{}'", payload);
     let matchable_path = MatchablePath::from(payload.as_str());
-    let p = matchable_path.resolve(upload_path);
-    let millis = UtcMillis::now(); // good enough, but could be specified by client and sent as part of request
+    let p = matchable_path.resolve(&upload_path);
+    let millis = UtcMillis::now();
     let client_host = header_value_as_opt_string(&headers, CLIENT_HOST_HEADER_KEY);
+    let client_id = header_value_as_string(&headers, CLIENT_ID_HEADER_KEY)
+        .map(|s| s.to_string())
+        .ok();
     let event = FileEvent::new(
         Uuid::new_v4(),
         millis.clone(),
@@ -276,6 +274,7 @@ pub async fn delete(
         0,
         FileEventType::DeleteEvent,
         client_host,
+        wg_id,
     );
 
     if !p.exists() {
@@ -290,10 +289,17 @@ pub async fn delete(
 
     match tokio::fs::remove_file(&p).await {
         Ok(()) => {
-            append_line(history_file_path, &event.clone().serialize_to_csv_line());
+            // write to DB
+            if let Some(ref cid) = client_id {
+                if let Err(e) = state.db.file_event().insert(&event, cid).await {
+                    error!("Failed to persist delete event to DB: {e}");
+                }
+            } else {
+                warn!("No client_id header — delete event not persisted to DB");
+            }
             state.history.add(event);
             info!("Deleted {} successfully", &p.to_string_lossy());
-            info!("Added delete event with time {} to history/csv", millis);
+            info!("Added delete event with time {} to history", millis);
             Ok(())
         }
         Err(err) => {

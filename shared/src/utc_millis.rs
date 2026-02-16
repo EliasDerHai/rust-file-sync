@@ -21,6 +21,10 @@ impl UtcMillis {
     pub fn now() -> Self {
         UtcMillis::from(chrono::Utc::now().timestamp_millis() as u64)
     }
+
+    pub fn as_u64(&self) -> u64 {
+        self.millis
+    }
 }
 
 impl From<UtcMillis> for DateTime<Local> {
