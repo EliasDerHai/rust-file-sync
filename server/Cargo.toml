@@ -7,6 +7,7 @@ version.workspace = true
 axum = { version = "0.8.1", features = ["macros", "multipart"] }
 tokio = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 tokio-util = { version = "0.7.13", features = ["io"] }
@@ -23,4 +24,3 @@ sqlx = { version = "0.8.6", features = [
 ] }
 axum-server = { version = "0.8", features = ["tls-rustls"] }
 rust-embed = { version = "8", features = ["axum", "mime-guess"] }
-

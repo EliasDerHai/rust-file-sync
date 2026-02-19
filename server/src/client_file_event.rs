@@ -1,17 +1,18 @@
-use shared::file_event::{FileEvent, FileEventType};
 use shared::matchable_path::MatchablePath;
 use shared::utc_millis::UtcMillis;
 use std::path::PathBuf;
 use uuid::Uuid;
 
-/// What the client sends upon detecting a change in his file-system
+use crate::file_event::{FileEvent, FileEventType};
+
+/// What the client sends upon detecting a added or changed file (no delete)
 #[derive(Debug, Clone)]
 pub struct ClientFileEvent {
     pub utc_millis: UtcMillis,
     /// relative path of the file on client side from the tracked root dir
     pub relative_path: MatchablePath,
     pub temp_file_path: Option<PathBuf>,
-    /// the size of the uploaded file or 0 for delete events
+    /// the size of the uploaded file
     pub content_size: usize,
     pub watch_group_id: i64,
 }

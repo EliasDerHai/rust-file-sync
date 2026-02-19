@@ -1,5 +1,4 @@
 pub mod endpoint;
-pub mod file_event;
 pub mod get_files_of_directory;
 pub mod matchable_path;
 pub mod register;

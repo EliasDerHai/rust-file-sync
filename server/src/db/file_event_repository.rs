@@ -1,8 +1,9 @@
-use shared::file_event::{FileEvent, FileEventType};
 use shared::matchable_path::MatchablePath;
 use shared::utc_millis::UtcMillis;
 use sqlx::SqlitePool;
 use uuid::Uuid;
+
+use crate::file_event::{FileEvent, FileEventType};
 
 pub struct FileEventRepository<'a> {
     pool: &'a SqlitePool,

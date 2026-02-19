@@ -2786,6 +2786,7 @@ dependencies = [
  "chrono",
  "rust-embed",
  "serde",
+ "serde_json",
  "shared",
  "sqlx",
  "sysinfo",

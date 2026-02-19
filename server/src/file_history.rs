@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use shared::file_event::FileEvent;
 use shared::matchable_path::MatchablePath;
 use tokio::time::Instant;
 use tracing::{info, warn};
+
+use crate::file_event::FileEvent;
 
 pub trait FileHistory: Send + Sync {
     /// add new event (insert at end of nested vec)
@@ -36,17 +37,14 @@ impl From<Vec<FileEvent>> for InMemoryFileHistory {
             value.sort_by_key(|e| e.utc_millis.clone());
         }
 
-        let inner: HistoryStore =
-            value
-                .into_iter()
-                .fold(HashMap::new(), |mut outer, curr| {
-                    let wg_map = outer.entry(curr.watch_group_id).or_default();
-                    wg_map
-                        .entry(curr.relative_path.clone())
-                        .or_default()
-                        .push(curr);
-                    outer
-                });
+        let inner: HistoryStore = value.into_iter().fold(HashMap::new(), |mut outer, curr| {
+            let wg_map = outer.entry(curr.watch_group_id).or_default();
+            wg_map
+                .entry(curr.relative_path.clone())
+                .or_default()
+                .push(curr);
+            outer
+        });
 
         let history = InMemoryFileHistory {
             store: Arc::new(Mutex::new(inner)),
@@ -108,7 +106,8 @@ impl FileHistory for InMemoryFileHistory {
                 {
                     panic!(
                         "History invalid - should be grouped by relative_path - key: {:?} - found: {:?}",
-                        key.get(), false_path
+                        key.get(),
+                        false_path
                     );
                 }
                 if !value.is_sorted_by_key(|e| &e.utc_millis) {
@@ -124,9 +123,9 @@ impl FileHistory for InMemoryFileHistory {
 
 #[cfg(test)]
 mod tests {
+    use super::super::file_event::FileEvent;
+    use super::super::file_event::FileEventType::ChangeEvent;
     use super::*;
-    use shared::file_event::FileEvent;
-    use shared::file_event::FileEventType::ChangeEvent;
     use shared::utc_millis::UtcMillis;
     use uuid::Uuid;
 
@@ -158,8 +157,7 @@ mod tests {
         history.add(e1);
         history.add(e2.clone());
 
-        let latest =
-            history.get_latest_event(WG, &MatchablePath::from(vec!["dir", "file.txt"]));
+        let latest = history.get_latest_event(WG, &MatchablePath::from(vec!["dir", "file.txt"]));
         assert_eq!(Some(e2), latest);
         assert_eq!(
             2,

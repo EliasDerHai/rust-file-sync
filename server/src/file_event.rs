@@ -1,11 +1,10 @@
-use crate::matchable_path::MatchablePath;
-use crate::utc_millis::UtcMillis;
 use serde_json::to_string;
+use shared::matchable_path::MatchablePath;
+use shared::utc_millis::UtcMillis;
 use std::fmt::Debug;
 use std::path::Path;
 use uuid::Uuid;
 
-// TODO consider moving to server (not a client concept)
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum FileEventType {
     ChangeEvent,

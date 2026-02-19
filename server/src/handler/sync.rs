@@ -1,4 +1,5 @@
 use crate::client_file_event::{ClientFileEvent, ClientFileEventDto};
+use crate::file_event::{FileEvent, FileEventType};
 use crate::file_history::FileHistory;
 use crate::{AppState, UPLOAD_PATH, UPLOAD_TMP_PATH, multipart};
 use axum::Json;
@@ -6,7 +7,6 @@ use axum::extract::{Multipart, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use shared::endpoint::{CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY};
-use shared::file_event::{FileEvent, FileEventType};
 use shared::get_files_of_directory::{FileDescription, get_all_file_descriptions};
 use shared::matchable_path::MatchablePath;
 use shared::sync_instruction::SyncInstruction;

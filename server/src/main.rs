@@ -1,4 +1,5 @@
 use crate::db::ServerDatabase;
+use crate::file_event::FileEvent;
 use crate::file_history::InMemoryFileHistory;
 use crate::write::{
     RotatingFileWriter, create_all_paths_if_not_exist, create_file_if_not_exists,
@@ -9,7 +10,6 @@ use axum::routing::{post, put};
 use axum::{Router, routing::get};
 use axum_server::tls_rustls::RustlsConfig;
 use shared::endpoint::ServerEndpoint;
-use shared::file_event::FileEvent;
 use sqlx::SqlitePool;
 use sqlx::migrate::Migrator;
 use sqlx::sqlite::SqliteConnectOptions;
@@ -25,6 +25,7 @@ use tracing_subscriber::EnvFilter;
 
 mod client_file_event;
 mod db;
+mod file_event;
 mod file_history;
 mod handler;
 mod monitor;

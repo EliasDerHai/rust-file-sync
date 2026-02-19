@@ -1,7 +1,6 @@
-use reqwest::multipart::Form;
 use reqwest::Client;
+use reqwest::multipart::Form;
 use shared::endpoint::ServerEndpoint;
-use shared::file_event::FileEventType;
 use shared::get_files_of_directory::get_file_description;
 use shared::sync_instruction::SyncInstruction;
 use std::path::Path;
@@ -27,10 +26,6 @@ pub async fn execute(
                     serde_json::to_string(&description.last_updated_utc_millis).unwrap(),
                 )
                 .text("relative_path", relative_path_to_send)
-                .text(
-                    "event_type",
-                    FileEventType::ChangeEvent.serialize_to_string(),
-                )
                 .file("file", file_path)
                 .await
                 .map_err(|e| e.to_string())?;
