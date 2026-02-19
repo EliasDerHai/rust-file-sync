@@ -1,5 +1,5 @@
 use serde::Serialize;
-use shared::register::{ClientConfigDto, WatchGroupConfigDto};
+use shared::register::{WatchConfigDto, WatchGroupConfigDto};
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 
@@ -32,10 +32,10 @@ impl<'a> ClientRepository<'a> {
         &self,
         client_id: &str,
         host_name: &str,
-        request: ClientConfigDto,
+        config: &WatchConfigDto,
     ) -> Result<()> {
         let mut tx = self.pool.begin().await?;
-        let poll_interval = request.min_poll_interval_in_ms as i32;
+        let poll_interval = config.min_poll_interval_in_ms as i32;
 
         // Upsert client
         sqlx::query!(
@@ -62,7 +62,7 @@ impl<'a> ClientRepository<'a> {
         .await?;
 
         // Insert watch groups
-        for (server_wg_id, wg) in request.watch_groups {
+        for (server_wg_id, wg) in config.watch_groups.iter() {
             let watch_group_id = sqlx::query_scalar!(
                 r#"
                 INSERT INTO client_watch_group (client_id, path_to_monitor, exclude_dot_dirs, server_watch_group_id)
@@ -77,7 +77,7 @@ impl<'a> ClientRepository<'a> {
             .fetch_one(&mut *tx)
             .await?;
 
-            for exclude_dir in wg.exclude_dirs {
+            for exclude_dir in wg.exclude_dirs.iter() {
                 sqlx::query!(
                     r#"
                     INSERT INTO client_watch_group_excluded_dir (client_watch_group, exclude_dir)
@@ -97,7 +97,7 @@ impl<'a> ClientRepository<'a> {
 
     /// Get client config by client_id
     /// Returns None if client doesn't exist
-    pub async fn get_client_config(&self, client_id: &str) -> Result<Option<ClientConfigDto>> {
+    pub async fn get_client_config(&self, client_id: &str) -> Result<Option<WatchConfigDto>> {
         // Get client
         let client = sqlx::query!(
             "SELECT min_poll_interval_in_ms FROM client WHERE id = ?",
@@ -150,7 +150,7 @@ impl<'a> ClientRepository<'a> {
             );
         }
 
-        Ok(Some(ClientConfigDto {
+        Ok(Some(WatchConfigDto {
             min_poll_interval_in_ms: client.min_poll_interval_in_ms as u16,
             watch_groups: wg_map,
         }))
@@ -342,13 +342,13 @@ mod tests {
         (pool.clone(), ServerDatabase::new(pool))
     }
 
-    fn make_config(
+    fn test_config(
         path: &str,
         exclude_dirs: Vec<String>,
         exclude_dot_dirs: bool,
         poll_ms: u16,
         server_wg_id: i64,
-    ) -> ClientConfigDto {
+    ) -> WatchConfigDto {
         let mut watch_groups = HashMap::new();
         watch_groups.insert(
             server_wg_id,
@@ -359,7 +359,7 @@ mod tests {
                 name: "default".to_string(),
             },
         );
-        ClientConfigDto {
+        WatchConfigDto {
             min_poll_interval_in_ms: poll_ms,
             watch_groups,
         }
@@ -370,7 +370,7 @@ mod tests {
         let (pool, db) = setup_test_db().await;
         let repo = db.client();
 
-        let request = make_config(
+        let request = test_config(
             "/home/test/sync",
             vec![".git".to_string(), "node_modules".to_string()],
             true,
@@ -378,7 +378,7 @@ mod tests {
             1,
         );
 
-        repo.upsert_client_config("client-uuid-123", "test-host", request)
+        repo.upsert_client_config("client-uuid-123", "test-host", &request)
             .await
             .expect("Failed to register client");
 
@@ -416,13 +416,19 @@ mod tests {
         let (pool, db) = setup_test_db().await;
         let repo = db.client();
 
-        let request1 = make_config("/home/test/old-path", vec![".git".to_string()], true, 3000, 1);
+        let request1 = test_config(
+            "/home/test/old-path",
+            vec![".git".to_string()],
+            true,
+            3000,
+            1,
+        );
 
-        repo.upsert_client_config("client-uuid-456", "old-hostname", request1)
+        repo.upsert_client_config("client-uuid-456", "old-hostname", &request1)
             .await
             .expect("Failed to register client");
 
-        let request2 = make_config(
+        let request2 = test_config(
             "/home/test/new-path",
             vec!["target".to_string(), "dist".to_string()],
             false,
@@ -430,7 +436,7 @@ mod tests {
             1,
         );
 
-        repo.upsert_client_config("client-uuid-456", "new-hostname", request2)
+        repo.upsert_client_config("client-uuid-456", "new-hostname", &request2)
             .await
             .expect("Failed to upsert client");
 
@@ -486,7 +492,7 @@ mod tests {
         let (_, db) = setup_test_db().await;
         let repo = db.client();
 
-        let request = make_config(
+        let request = test_config(
             "/home/user/documents",
             vec!["node_modules".to_string(), ".cache".to_string()],
             false,
@@ -494,7 +500,7 @@ mod tests {
             1,
         );
 
-        repo.upsert_client_config("test-client-789", "my-laptop", request)
+        repo.upsert_client_config("test-client-789", "my-laptop", &request)
             .await
             .expect("Failed to register client");
 
@@ -505,7 +511,10 @@ mod tests {
             .expect("Config should exist");
 
         assert_eq!(config.min_poll_interval_in_ms, 7500);
-        let wg = config.watch_groups.get(&1).expect("Should have watch group 1");
+        let wg = config
+            .watch_groups
+            .get(&1)
+            .expect("Should have watch group 1");
         assert_eq!(wg.path_to_monitor, "/home/user/documents");
         assert_eq!(wg.exclude_dirs, vec!["node_modules", ".cache"]);
         assert!(!wg.exclude_dot_dirs);

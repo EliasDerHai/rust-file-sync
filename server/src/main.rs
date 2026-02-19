@@ -18,8 +18,8 @@ use std::env;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::sync::LazyLock;
+use std::sync::Mutex;
 use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
@@ -133,22 +133,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )),
         )
         .route(ServerEndpoint::Sync.to_str(), post(handler::sync_handler))
-        .route(
-            ServerEndpoint::Download.to_str(),
-            get(handler::download),
-        )
-        .route(
-            ServerEndpoint::Delete.to_str(),
-            post(handler::delete),
-        )
+        .route(ServerEndpoint::Download.to_str(), get(handler::download))
+        .route(ServerEndpoint::Delete.to_str(), post(handler::delete))
         .route(
             ServerEndpoint::Version.to_str(),
             get(|| async { env!("CARGO_PKG_VERSION") }),
         )
-        .route(
-            ServerEndpoint::Config.to_str(),
-            get(handler::get_config).post(handler::post_config),
-        )
+        .route(ServerEndpoint::Config.to_str(), get(handler::get_config))
         // json api - for frontends
         .route(
             ServerEndpoint::ApiConfigs.to_str(),
@@ -248,10 +239,7 @@ async fn migrate_csv_history_to_db(db: &ServerDatabase) {
     .fetch_all(db.file_event().pool())
     .await
     {
-        Ok(rows) => rows
-            .into_iter()
-            .map(|r| (r.host_name, r.id))
-            .collect(),
+        Ok(rows) => rows.into_iter().map(|r| (r.host_name, r.id)).collect(),
         Err(e) => {
             warn!("Could not query clients for CSV migration: {e}");
             HashMap::new()

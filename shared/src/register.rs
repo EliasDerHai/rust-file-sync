@@ -2,12 +2,20 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-/// DTO for client registration / config migration
-/// Sent from client to server to register the client's config
+/// config needed to start watching directories
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ClientConfigDto {
+pub struct WatchConfigDto {
     pub min_poll_interval_in_ms: u16,
     pub watch_groups: HashMap<i64, WatchGroupConfigDto>,
+}
+
+impl Default for WatchConfigDto {
+    fn default() -> Self {
+        Self {
+            min_poll_interval_in_ms: 5000,
+            watch_groups: Default::default(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

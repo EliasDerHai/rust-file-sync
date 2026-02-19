@@ -1,4 +1,4 @@
-use crate::config::{fetch_or_register_config, read_config};
+use crate::config::{fetch_watch_config, read_config};
 use futures_util::future::join_all;
 use reqwest::Client;
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -14,6 +14,7 @@ use std::time::Duration;
 use tokio::time::Instant;
 use tracing::{error, info, trace, warn};
 use tracing_subscriber::EnvFilter;
+use uuid::Uuid;
 
 mod config;
 mod execute;
@@ -62,26 +63,23 @@ async fn main() {
 // SETUP -----------------------------------------------------------------------
 
 async fn setup() -> (ClientState, Client) {
-    let local_config = match read_config() {
+    let config = match read_config() {
         Ok(config) => config,
-        Err(error) => panic!(
-            "Critical error - config could not be processed: {:?}",
-            error
-        ),
+        Err(error) => panic!("Config could not be processed: {:?}", error),
     };
 
-    check_server_reachable(&local_config.server_url).await;
+    check_server_reachable(&config.server_url).await;
 
     let hostname = Command::new("hostname")
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         .ok();
 
-    let client = build_http_client(&hostname, &local_config.client_id);
+    let client = build_http_client(&hostname, &config.client_id);
 
-    let server_config = fetch_or_register_config(&client, &local_config).await;
+    let watch_config = fetch_watch_config(&client, &config).await;
 
-    server_config.watch_groups.values().for_each(|wg| {
+    watch_config.watch_groups.values().for_each(|wg| {
         info!(
             "{}monitoring '{}'",
             hostname
@@ -92,13 +90,13 @@ async fn setup() -> (ClientState, Client) {
         )
     });
 
-    info!("Poll_interval={}ms", server_config.min_poll_interval_in_ms);
+    info!("Poll_interval={}ms", watch_config.min_poll_interval_in_ms);
 
     (
         ClientState {
-            server_url: local_config.server_url,
-            min_poll_interval_in_ms: server_config.min_poll_interval_in_ms,
-            watch_groups: server_config
+            server_url: config.server_url,
+            min_poll_interval_in_ms: watch_config.min_poll_interval_in_ms,
+            watch_groups: watch_config
                 .watch_groups
                 .into_iter()
                 .map(|(key, value)| {
@@ -118,7 +116,7 @@ async fn setup() -> (ClientState, Client) {
     )
 }
 
-fn build_http_client(hostname: &Option<String>, client_id: &Option<String>) -> Client {
+fn build_http_client(hostname: &Option<String>, client_id: &Uuid) -> Client {
     let mut headers = HeaderMap::new();
     if let Some(h) = hostname {
         headers.insert(
@@ -126,12 +124,10 @@ fn build_http_client(hostname: &Option<String>, client_id: &Option<String>) -> C
             HeaderValue::from_str(h).expect("Invalid hostname for header"),
         );
     }
-    if let Some(id) = client_id {
-        headers.insert(
-            CLIENT_ID_HEADER_KEY,
-            HeaderValue::from_str(id).expect("Invalid client_id for header"),
-        );
-    }
+    headers.insert(
+        CLIENT_ID_HEADER_KEY,
+        HeaderValue::from_str(&client_id.to_string()).expect("Invalid client_id for header"),
+    );
     Client::builder()
         .default_headers(headers)
         .build()

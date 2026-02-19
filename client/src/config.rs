@@ -1,19 +1,25 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use shared::endpoint::ServerEndpoint;
-use shared::register::ClientConfigDto;
+use shared::register::WatchConfigDto;
 use std::fs;
 use tracing::info;
 use uuid::Uuid;
 
 /// local config (config.yaml)
 #[derive(Debug, Deserialize, Serialize)]
-pub struct LocalConfig {
-    pub client_id: Option<String>,
+struct LocalConfig {
+    client_id: Option<String>,
+    server_url: String,
+}
+
+#[derive(Debug)]
+pub struct Config {
+    pub client_id: Uuid,
     pub server_url: String,
 }
 
-pub fn read_config() -> Result<LocalConfig, String> {
+pub fn read_config() -> Result<Config, String> {
     let config_path = if fs::metadata("config.yaml").is_ok() {
         "config.yaml"
     } else {
@@ -24,31 +30,41 @@ pub fn read_config() -> Result<LocalConfig, String> {
         fs::read_to_string(config_path).map_err(|e| format!("Config file not found - {}", e))?;
 
     let mut config: LocalConfig =
-        serde_yaml::from_str(&content).map_err(|e| format!("Failed to parse YAML: {}", e))?;
+        serde_yaml::from_str(&content).map_err(|e| format!("Failed to parse yaml: {}", e))?;
 
-    // Generate and persist client_id if missing
-    if config.client_id.is_none() {
-        let new_id = Uuid::new_v4().to_string();
-        info!("Generated new client_id: {}", new_id);
-        config.client_id = Some(new_id);
+    Ok(match config.client_id {
+        Some(client_id) => {
+            let server_url = config.server_url;
+            let client_id = Uuid::parse_str(&client_id)
+                .map_err(|e| format!("Could not parse uuid from yaml: {}", e))?;
+            Config {
+                client_id,
+                server_url,
+            }
+        }
+        // Generate and persist client_id if missing
+        None => {
+            let new_id = Uuid::new_v4();
+            info!("Generated new client_id: {}", new_id);
+            config.client_id = Some(new_id.to_string());
 
-        let updated_content = serde_yaml::to_string(&config)
-            .map_err(|e| format!("Failed to serialize config: {}", e))?;
-        fs::write(config_path, updated_content)
-            .map_err(|e| format!("Failed to write config with new client_id: {}", e))?;
+            let updated_content = serde_yaml::to_string(&config)
+                .map_err(|e| format!("Failed to serialize config: {}", e))?;
+            fs::write(config_path, updated_content)
+                .map_err(|e| format!("Failed to write config with new client_id: {}", e))?;
 
-        info!("Persisted client_id to {}", config_path);
-    }
-
-    Ok(config)
+            info!("Persisted client_id to {}", config_path);
+            Config {
+                client_id: new_id,
+                server_url: config.server_url,
+            }
+        }
+    })
 }
 
-/// Fetch config from server, or register local config first if not found
-pub async fn fetch_or_register_config(
-    client: &Client,
-    local_config: &LocalConfig,
-) -> ClientConfigDto {
-    let config_endpoint = ServerEndpoint::Config.to_uri(&local_config.server_url);
+/// Fetch config from server
+pub async fn fetch_watch_config(client: &Client, config: &Config) -> WatchConfigDto {
+    let config_endpoint = ServerEndpoint::Config.to_uri(&config.server_url);
 
     match client.get(&config_endpoint).send().await {
         Ok(response) if response.status().is_success() => match response.json().await {
