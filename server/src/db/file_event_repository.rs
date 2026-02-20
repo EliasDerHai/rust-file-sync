@@ -82,7 +82,7 @@ impl<'a> FileEventRepository<'a> {
         let rows = sqlx::query!(
             r#"
             SELECT
-                id as "id!",
+                id,
                 utc_millis,
                 relative_path,
                 size_in_bytes,

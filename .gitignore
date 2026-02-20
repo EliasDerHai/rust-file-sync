@@ -1,7 +1,8 @@
 /target
 data/
 *.idea
-*config.yaml
+*.yaml
+*.yml
 *.DS_Store
 .claude
 CLAUDE.md
