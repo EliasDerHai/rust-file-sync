@@ -117,7 +117,7 @@ impl<'a> ClientRepository<'a> {
                 wg.id as watch_group_id,
                 wg.path_to_monitor,
                 wg.exclude_dot_dirs,
-                wg.server_watch_group_id as "server_watch_group_id?",
+                wg.server_watch_group_id,
                 swg.name as "server_watch_group_name?"
             FROM client_watch_group wg
             LEFT JOIN server_watch_group swg ON swg.id = wg.server_watch_group_id
@@ -130,7 +130,7 @@ impl<'a> ClientRepository<'a> {
 
         let mut wg_map = HashMap::new();
         for wg in watch_groups {
-            let server_wg_id = wg.server_watch_group_id.unwrap_or(1);
+            let server_wg_id = wg.server_watch_group_id;
 
             let exclude_dirs: Vec<String> = sqlx::query_scalar!(
                 "SELECT exclude_dir FROM client_watch_group_excluded_dir WHERE client_watch_group = ?",
@@ -144,7 +144,7 @@ impl<'a> ClientRepository<'a> {
                 WatchGroupConfigDto {
                     path_to_monitor: wg.path_to_monitor,
                     exclude_dirs,
-                    exclude_dot_dirs: wg.exclude_dot_dirs.unwrap_or(true),
+                    exclude_dot_dirs: wg.exclude_dot_dirs,
                     name: wg.server_watch_group_name.unwrap_or_default(),
                 },
             );
@@ -156,15 +156,15 @@ impl<'a> ClientRepository<'a> {
         }))
     }
 
-    /// Get all clients with their configs (for admin UI)
+    /// Get all clients with their configs
     pub async fn get_all_clients(&self) -> Result<Vec<ClientWithConfig>> {
         let clients = sqlx::query!(
             r#"
             SELECT
-                c.id as "id!",
-                c.host_name as "host_name!",
-                c.min_poll_interval_in_ms as "min_poll_interval_in_ms!",
-                wg.id as watch_group_id,
+                c.id,
+                c.host_name,
+                c.min_poll_interval_in_ms,
+                wg.id as "watch_group_id?",
                 wg.path_to_monitor as "path_to_monitor?",
                 wg.exclude_dot_dirs as "exclude_dot_dirs?",
                 wg.server_watch_group_id as "server_watch_group_id?",
@@ -206,15 +206,15 @@ impl<'a> ClientRepository<'a> {
         Ok(result)
     }
 
-    /// Get single client with config by ID (for admin UI edit page)
+    /// Get single client with config by ID
     pub async fn get_client_by_id(&self, client_id: &str) -> Result<Option<ClientWithConfig>> {
         let client = sqlx::query!(
             r#"
             SELECT
-                c.id as "id!",
-                c.host_name as "host_name!",
-                c.min_poll_interval_in_ms as "min_poll_interval_in_ms!",
-                wg.id as watch_group_id,
+                c.id,
+                c.host_name,
+                c.min_poll_interval_in_ms,
+                wg.id as "watch_group_id?",
                 wg.path_to_monitor as "path_to_monitor?",
                 wg.exclude_dot_dirs as "exclude_dot_dirs?",
                 wg.server_watch_group_id as "server_watch_group_id?",
@@ -256,7 +256,7 @@ impl<'a> ClientRepository<'a> {
         }))
     }
 
-    /// Update a single watch group for a client (used by admin UI)
+    /// Update a single watch group for a client
     pub async fn update_single_watch_group(
         &self,
         client_id: &str,
