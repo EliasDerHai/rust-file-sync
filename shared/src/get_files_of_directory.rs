@@ -73,12 +73,20 @@ fn inner_get_files_of_dir_rec(
         let entry = entry_result.map_err(|e| e.to_string())?;
         let entry_path = entry.path();
 
-        for exclude_dir in exclude_dirs {
-            if entry_path.to_string_lossy().contains(exclude_dir)
-                || (entry_path.starts_with(".") && exclude_dot_dirs)
-            {
-                continue;
-            }
+        let entry_name = entry_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
+
+        if exclude_dot_dirs && entry_name.starts_with('.') {
+            continue;
+        }
+
+        if exclude_dirs
+            .iter()
+            .any(|excl| entry_path.to_string_lossy().contains(excl.as_str()))
+        {
+            continue;
         }
 
         if entry_path.is_file() {
@@ -133,4 +141,109 @@ fn get_last_updated(metadata: &Metadata) -> Option<UtcMillis> {
         return Some(UtcMillis::from(modified));
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    /// Creates a file at `path`, creating parent directories as needed.
+    fn touch(path: &Path) {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, b"x").unwrap();
+    }
+
+    fn names(descriptions: &[FileDescription]) -> Vec<String> {
+        let mut names: Vec<String> = descriptions.iter().map(|d| d.file_name.clone()).collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn excludes_dot_dirs_when_flag_is_true() {
+        let root = std::env::temp_dir().join("rfs_test_dot_dirs_excluded");
+        let _ = fs::remove_dir_all(&root);
+        touch(&root.join("normal.txt"));
+        touch(&root.join(".obsidian").join("workspace.json"));
+        touch(&root.join(".git").join("config"));
+
+        let result = get_all_file_descriptions(&root, &vec![], true).unwrap();
+
+        assert_eq!(names(&result), vec!["normal.txt"]);
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn includes_dot_dirs_when_flag_is_false() {
+        let root = std::env::temp_dir().join("rfs_test_dot_dirs_included");
+        let _ = fs::remove_dir_all(&root);
+        touch(&root.join("normal.txt"));
+        touch(&root.join(".obsidian").join("workspace.json"));
+
+        let result = get_all_file_descriptions(&root, &vec![], false).unwrap();
+
+        assert_eq!(names(&result), vec!["normal.txt", "workspace.json"]);
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn excludes_named_dirs() {
+        let root = std::env::temp_dir().join("rfs_test_named_dirs");
+        let _ = fs::remove_dir_all(&root);
+        touch(&root.join("keep.txt"));
+        touch(&root.join("node_modules").join("lodash").join("index.js"));
+        touch(&root.join("src").join("main.rs"));
+
+        let result =
+            get_all_file_descriptions(&root, &vec!["node_modules".to_string()], false).unwrap();
+
+        assert_eq!(names(&result), vec!["keep.txt", "main.rs"]);
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn excludes_dot_dirs_even_when_exclude_dirs_is_empty() {
+        // This was the primary bug: exclude_dot_dirs was nested inside the
+        // `for exclude_dir in exclude_dirs` loop, so it never ran when exclude_dirs
+        // was empty.
+        let root = std::env::temp_dir().join("rfs_test_dot_dirs_empty_excl");
+        let _ = fs::remove_dir_all(&root);
+        touch(&root.join("readme.md"));
+        touch(&root.join(".obsidian").join("workspace.json"));
+
+        let result = get_all_file_descriptions(&root, &vec![], true).unwrap();
+
+        assert_eq!(names(&result), vec!["readme.md"]);
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn dot_files_at_root_are_also_excluded_when_flag_is_true() {
+        let root = std::env::temp_dir().join("rfs_test_dot_files_root");
+        let _ = fs::remove_dir_all(&root);
+        touch(&root.join("normal.txt"));
+        touch(&root.join(".hidden_file"));
+
+        let result = get_all_file_descriptions(&root, &vec![], true).unwrap();
+
+        assert_eq!(names(&result), vec!["normal.txt"]);
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn combines_named_and_dot_exclusions() {
+        let root = std::env::temp_dir().join("rfs_test_combined");
+        let _ = fs::remove_dir_all(&root);
+        touch(&root.join("keep.txt"));
+        touch(&root.join(".obsidian").join("workspace.json"));
+        touch(&root.join("node_modules").join("index.js"));
+        touch(&root.join("src").join("lib.rs"));
+
+        let result =
+            get_all_file_descriptions(&root, &vec!["node_modules".to_string()], true).unwrap();
+
+        assert_eq!(names(&result), vec!["keep.txt", "lib.rs"]);
+        fs::remove_dir_all(&root).unwrap();
+    }
 }

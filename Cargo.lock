@@ -430,7 +430,7 @@ checksum = "c3e64b0cc0439b12df2fa678eae89a1c56a529fd067a9115f7827f1fffd22b32"
 
 [[package]]
 name = "client"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "futures",
  "futures-util",
@@ -2779,7 +2779,7 @@ dependencies = [
 
 [[package]]
 name = "server"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "axum",
  "axum-server",
@@ -2889,7 +2889,7 @@ dependencies = [
 
 [[package]]
 name = "shared"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "chrono",
  "serde",
@@ -3746,7 +3746,7 @@ checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
 name = "version-bump"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "clap",
 ]
@@ -3893,7 +3893,7 @@ dependencies = [
 
 [[package]]
 name = "web"
-version = "0.1.15"
+version = "0.1.16"
 dependencies = [
  "gloo-net",
  "gloo-timers",
