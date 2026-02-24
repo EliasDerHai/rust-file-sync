@@ -2,7 +2,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use shared::endpoint::ServerEndpoint;
 use shared::register::WatchConfigDto;
-use std::fs;
+use std::{collections::VecDeque, env, fs, path::PathBuf};
 use tracing::info;
 use uuid::Uuid;
 
@@ -19,47 +19,65 @@ pub struct Config {
     pub server_url: String,
 }
 
-pub fn read_config() -> Result<Config, String> {
-    let config_path = if fs::metadata("config.yaml").is_ok() {
-        "config.yaml"
-    } else {
-        "config.yml"
-    };
+fn read_local_config() -> Option<(PathBuf, LocalConfig)> {
+    let mut paths: VecDeque<PathBuf> = ["./config.yaml", "./config.yml"]
+        .into_iter()
+        .map(PathBuf::from)
+        .collect();
 
-    let content =
-        fs::read_to_string(config_path).map_err(|e| format!("Config file not found - {}", e))?;
+    if let Some(arg1) = env::args().nth(1) {
+        paths.push_front(PathBuf::from(arg1));
+    }
 
-    let mut config: LocalConfig =
-        serde_yaml::from_str(&content).map_err(|e| format!("Failed to parse yaml: {}", e))?;
-
-    Ok(match config.client_id {
-        Some(client_id) => {
-            let server_url = config.server_url;
-            let client_id = Uuid::parse_str(&client_id)
-                .map_err(|e| format!("Could not parse uuid from yaml: {}", e))?;
-            Config {
-                client_id,
-                server_url,
-            }
-        }
-        // Generate and persist client_id if missing
-        None => {
-            let new_id = Uuid::new_v4();
-            info!("Generated new client_id: {}", new_id);
-            config.client_id = Some(new_id.to_string());
-
-            let updated_content = serde_yaml::to_string(&config)
-                .map_err(|e| format!("Failed to serialize config: {}", e))?;
-            fs::write(config_path, updated_content)
-                .map_err(|e| format!("Failed to write config with new client_id: {}", e))?;
-
-            info!("Persisted client_id to {}", config_path);
-            Config {
-                client_id: new_id,
-                server_url: config.server_url,
-            }
-        }
+    paths.into_iter().find_map(|path| {
+        fs::read_to_string(&path)
+            .map_err(|e| format!("Config read failed ({}): {}", path.display(), e))
+            .and_then(|s| {
+                serde_yaml::from_str::<LocalConfig>(&s)
+                    .map_err(|e| format!("Config parse failed ({}): {}", path.display(), e))
+            })
+            .ok()
+            .map(|config| (path, config))
     })
+}
+
+pub fn read_config() -> Result<Config, String> {
+    match read_local_config() {
+        None => Err("no config.yaml found".to_string()),
+        Some((ref config_path, mut config)) => {
+            Ok(match config.client_id {
+                Some(client_id) => {
+                    let server_url = config.server_url;
+                    let client_id = Uuid::parse_str(&client_id)
+                        .map_err(|e| format!("Could not parse uuid from yaml: {}", e))?;
+                    Config {
+                        client_id,
+                        server_url,
+                    }
+                }
+                // Generate and persist client_id if missing
+                None => {
+                    let new_id = Uuid::new_v4();
+                    info!("Generated new client_id: {}", new_id);
+                    config.client_id = Some(new_id.to_string());
+
+                    let updated_content = serde_yaml::to_string(&config)
+                        .map_err(|e| format!("Failed to serialize config: {}", e))?;
+                    fs::write(config_path, updated_content)
+                        .map_err(|e| format!("Failed to write config with new client_id: {}", e))?;
+
+                    info!(
+                        "Persisted client_id to {}",
+                        config_path.to_str().unwrap_or("")
+                    );
+                    Config {
+                        client_id: new_id,
+                        server_url: config.server_url,
+                    }
+                }
+            })
+        }
+    }
 }
 
 /// Fetch config from server
