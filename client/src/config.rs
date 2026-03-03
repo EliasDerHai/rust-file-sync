@@ -81,8 +81,8 @@ pub fn read_config() -> Result<Config, String> {
 }
 
 /// Fetch config from server
-pub async fn fetch_watch_config(client: &Client, config: &Config) -> WatchConfigDto {
-    let config_endpoint = ServerEndpoint::Config.to_uri(&config.server_url);
+pub async fn fetch_watch_config(client: &Client, server_url: &str) -> WatchConfigDto {
+    let config_endpoint = ServerEndpoint::Config.to_uri(server_url);
 
     match client.get(&config_endpoint).send().await {
         Ok(response) if response.status().is_success() => match response.json().await {

@@ -1,6 +1,6 @@
 // SETUP -----------------------------------------------------------------------
 
-use std::{path::PathBuf, process::Command, thread::sleep, time::Duration};
+use std::{collections::HashMap, path::PathBuf, process::Command, thread::sleep, time::Duration};
 
 use crate::{
     ClientState, WatchGroup,
@@ -10,7 +10,10 @@ use reqwest::{
     Client,
     header::{HeaderMap, HeaderValue},
 };
-use shared::endpoint::{CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY, ServerEndpoint};
+use shared::{
+    endpoint::{CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY, ServerEndpoint},
+    register::WatchGroupConfigDto,
+};
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -29,7 +32,7 @@ pub async fn setup() -> (ClientState, Client) {
 
     let client = build_http_client(&hostname, &config.client_id);
 
-    let watch_config = fetch_watch_config(&client, &config).await;
+    let watch_config = fetch_watch_config(&client, &config.server_url).await;
 
     watch_config.watch_groups.values().for_each(|wg| {
         info!(
@@ -48,24 +51,28 @@ pub async fn setup() -> (ClientState, Client) {
         ClientState {
             server_url: config.server_url,
             min_poll_interval_in_ms: watch_config.min_poll_interval_in_ms,
-            watch_groups: watch_config
-                .watch_groups
-                .into_iter()
-                .map(|(key, value)| {
-                    (
-                        key,
-                        WatchGroup {
-                            name: value.name,
-                            path_to_monitor: PathBuf::from(value.path_to_monitor),
-                            exclude_dirs: value.exclude_dirs,
-                            exclude_dot_dirs: value.exclude_dot_dirs,
-                        },
-                    )
-                })
-                .collect(),
+            watch_groups: to_watch_group(watch_config.watch_groups),
         },
         client,
     )
+}
+
+pub fn to_watch_group(
+    m: HashMap<i64, WatchGroupConfigDto>,
+) -> std::collections::HashMap<i64, WatchGroup> {
+    m.into_iter()
+        .map(|(key, value)| {
+            (
+                key,
+                WatchGroup {
+                    name: value.name,
+                    path_to_monitor: PathBuf::from(value.path_to_monitor),
+                    exclude_dirs: value.exclude_dirs,
+                    exclude_dot_dirs: value.exclude_dot_dirs,
+                },
+            )
+        })
+        .collect()
 }
 
 fn build_http_client(hostname: &Option<String>, client_id: &Uuid) -> Client {
