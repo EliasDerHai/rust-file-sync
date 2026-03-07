@@ -2,8 +2,8 @@ use crate::AppState;
 use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
+use shared::dtos::WatchConfigDto;
 use shared::endpoint::{CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY};
-use shared::register::WatchConfigDto;
 use tracing::{debug, error, info};
 
 use super::super::header_value_as_string;

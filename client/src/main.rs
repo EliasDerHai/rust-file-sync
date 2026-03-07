@@ -1,4 +1,4 @@
-use shared::get_files_of_directory::FileDescription;
+use shared::dtos::FileDescription;
 use std::collections::HashMap;
 use std::ops::Add;
 use std::path::PathBuf;

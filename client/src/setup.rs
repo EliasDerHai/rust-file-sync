@@ -11,8 +11,8 @@ use reqwest::{
     header::{HeaderMap, HeaderValue},
 };
 use shared::{
+    dtos::WatchGroupConfigDto,
     endpoint::{CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY, ServerEndpoint},
-    register::WatchGroupConfigDto,
 };
 use tracing::{info, warn};
 use uuid::Uuid;

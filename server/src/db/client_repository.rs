@@ -1,7 +1,4 @@
-use shared::{
-    dtos::ClientWithConfig,
-    register::{WatchConfigDto, WatchGroupConfigDto},
-};
+use shared::dtos::{ClientWithConfig, WatchConfigDto, WatchGroupConfigDto};
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 

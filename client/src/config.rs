@@ -1,7 +1,6 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use shared::endpoint::ServerEndpoint;
-use shared::register::WatchConfigDto;
+use shared::{dtos::WatchConfigDto, endpoint::ServerEndpoint};
 use std::{collections::VecDeque, env, fs, path::PathBuf};
 use tracing::info;
 use uuid::Uuid;

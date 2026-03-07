@@ -1,9 +1,10 @@
 use futures_util::future::join_all;
 use reqwest::Client;
 use reqwest::multipart::Form;
+use shared::dtos::FileDescription;
 use shared::endpoint::ServerEndpoint;
+use shared::get_files_of_directory::get_all_file_descriptions;
 use shared::get_files_of_directory::get_file_description;
-use shared::get_files_of_directory::{FileDescription, get_all_file_descriptions};
 use shared::sync_instruction::SyncInstruction;
 use std::path::Path;
 use tokio::fs;

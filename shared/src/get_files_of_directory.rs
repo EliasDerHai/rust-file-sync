@@ -1,20 +1,9 @@
+use crate::dtos::FileDescription;
 use crate::matchable_path::MatchablePath;
 use crate::utc_millis::UtcMillis;
-use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::Metadata;
 use std::path::Path;
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct FileDescription {
-    // eg. "test.txt"
-    pub file_name: String,
-    // contains file_name eg. "./dir/test.txt"
-    pub relative_path: MatchablePath,
-    pub size_in_bytes: u64,
-    pub file_type: String,
-    pub last_updated_utc_millis: UtcMillis,
-}
 
 pub fn get_file_description(
     target: &Path,
