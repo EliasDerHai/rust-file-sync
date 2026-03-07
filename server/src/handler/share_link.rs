@@ -2,14 +2,8 @@ use crate::AppState;
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use serde::Deserialize;
+use shared::dtos::ShareLinkRequest;
 use tracing::{error, info};
-
-#[derive(Deserialize, serde::Serialize)]
-pub struct ShareLinkRequest {
-    pub url: String,
-    pub title: Option<String>,
-}
 
 pub async fn post_link(
     State(state): State<AppState>,

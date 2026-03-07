@@ -1,20 +1,9 @@
-use serde::Serialize;
-use shared::register::{WatchConfigDto, WatchGroupConfigDto};
+use shared::{
+    dtos::ClientWithConfig,
+    register::{WatchConfigDto, WatchGroupConfigDto},
+};
 use sqlx::SqlitePool;
 use std::collections::HashMap;
-
-// TODO: needs to be split
-#[derive(Debug, Clone, Serialize)]
-pub struct ClientWithConfig {
-    pub id: String,
-    pub host_name: String,
-    pub path_to_monitor: String,
-    pub exclude_dirs: Vec<String>,
-    pub exclude_dot_dirs: bool,
-    pub min_poll_interval_in_ms: u16,
-    pub server_watch_group_id: i64,
-    pub server_watch_group_name: String,
-}
 
 pub struct ClientRepository<'a> {
     pool: &'a SqlitePool,

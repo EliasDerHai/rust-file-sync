@@ -1,6 +1,5 @@
+use shared::dtos::ShareLinkRequest;
 use sqlx::SqlitePool;
-
-use crate::handler::share_link::ShareLinkRequest;
 
 pub struct SharedLinkRepository<'a> {
     pool: &'a SqlitePool,

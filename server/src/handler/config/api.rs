@@ -1,9 +1,8 @@
 use crate::AppState;
-use crate::db::ClientWithConfig;
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use shared::dtos::AdminConfigUpdateDto;
+use shared::dtos::{AdminConfigUpdateDto, ClientWithConfig};
 use tracing::{error, info};
 
 /// GET /api/configs - JSON list of all client configs

@@ -3,7 +3,7 @@ mod file_event_repository;
 mod link_repository;
 mod server_repository;
 
-pub use client_repository::{ClientRepository, ClientWithConfig};
+pub use client_repository::ClientRepository;
 pub use file_event_repository::FileEventRepository;
 pub use link_repository::SharedLinkRepository;
 pub use server_repository::{ServerRepository, ServerWatchGroup};

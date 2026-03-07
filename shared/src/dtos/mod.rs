@@ -52,3 +52,11 @@ pub struct MonitorData {
     pub sys_cpu: Vec<DataPoint>,
     pub app_cpu: Vec<DataPoint>,
 }
+
+// links
+
+#[derive(Deserialize, serde::Serialize)]
+pub struct ShareLinkRequest {
+    pub url: String,
+    pub title: Option<String>,
+}
