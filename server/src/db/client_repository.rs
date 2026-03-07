@@ -3,7 +3,7 @@ use shared::register::{WatchConfigDto, WatchGroupConfigDto};
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 
-/// Full client info including ID and hostname (one row per client watch group, for admin UI)
+// TODO: needs to be split
 #[derive(Debug, Clone, Serialize)]
 pub struct ClientWithConfig {
     pub id: String,

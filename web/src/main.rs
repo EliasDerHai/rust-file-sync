@@ -5,7 +5,6 @@ use leptos_router::path;
 mod api;
 mod components;
 mod pages;
-mod types;
 
 fn main() {
     leptos::mount::mount_to_body(App);

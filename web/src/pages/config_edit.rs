@@ -1,10 +1,10 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
 use leptos_router::hooks::use_params_map;
+use shared::dtos::AdminConfigUpdateDto;
 
 use crate::api;
 use crate::components::{Card, Loading, Message};
-use crate::types::AdminConfigUpdateDto;
 
 #[component]
 pub fn ConfigEditPage() -> impl IntoView {

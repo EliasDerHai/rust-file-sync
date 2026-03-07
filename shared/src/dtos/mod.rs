@@ -1,13 +1,27 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AdminConfigUpdateDto {
+    pub path_to_monitor: String,
+    pub min_poll_interval_in_ms: u16,
+    pub exclude_dirs: Vec<String>,
+    pub exclude_dot_dirs: bool,
+    pub server_watch_group_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientWithConfig {
+    // client
     pub id: String,
     pub host_name: String,
+    pub min_poll_interval_in_ms: u16,
+
+    // client-watch-group
     pub path_to_monitor: String,
     pub exclude_dirs: Vec<String>,
     pub exclude_dot_dirs: bool,
-    pub min_poll_interval_in_ms: u16,
+
+    // server-watch-group
     pub server_watch_group_id: i64,
     pub server_watch_group_name: String,
 }
@@ -19,18 +33,11 @@ pub struct ServerWatchGroup {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct AdminConfigUpdateDto {
-    pub path_to_monitor: String,
-    pub min_poll_interval_in_ms: u16,
-    pub exclude_dirs: Vec<String>,
-    pub exclude_dot_dirs: bool,
-    pub server_watch_group_id: i64,
-}
-
-#[derive(Debug, Clone, Serialize)]
 pub struct WatchGroupNameDto {
     pub name: String,
 }
+
+// monitoring
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DataPoint {

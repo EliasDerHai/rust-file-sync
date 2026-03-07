@@ -1,6 +1,7 @@
 use gloo_net::http::Request;
-
-use crate::types::*;
+use shared::dtos::{
+    AdminConfigUpdateDto, ClientWithConfig, MonitorData, ServerWatchGroup, WatchGroupNameDto,
+};
 
 pub async fn fetch_configs() -> Result<Vec<ClientWithConfig>, String> {
     Request::get("/api/configs")
@@ -30,11 +31,7 @@ pub async fn update_config(id: &str, dto: &AdminConfigUpdateDto) -> Result<Strin
         .await
         .map_err(|e| e.to_string())?;
     let text = resp.text().await.map_err(|e| e.to_string())?;
-    if resp.ok() {
-        Ok(text)
-    } else {
-        Err(text)
-    }
+    if resp.ok() { Ok(text) } else { Err(text) }
 }
 
 pub async fn fetch_watch_groups() -> Result<Vec<ServerWatchGroup>, String> {
@@ -55,11 +52,7 @@ pub async fn create_watch_group(dto: &WatchGroupNameDto) -> Result<String, Strin
         .await
         .map_err(|e| e.to_string())?;
     let text = resp.text().await.map_err(|e| e.to_string())?;
-    if resp.ok() {
-        Ok(text)
-    } else {
-        Err(text)
-    }
+    if resp.ok() { Ok(text) } else { Err(text) }
 }
 
 pub async fn update_watch_group(id: i64, dto: &WatchGroupNameDto) -> Result<String, String> {
@@ -70,11 +63,7 @@ pub async fn update_watch_group(id: i64, dto: &WatchGroupNameDto) -> Result<Stri
         .await
         .map_err(|e| e.to_string())?;
     let text = resp.text().await.map_err(|e| e.to_string())?;
-    if resp.ok() {
-        Ok(text)
-    } else {
-        Err(text)
-    }
+    if resp.ok() { Ok(text) } else { Err(text) }
 }
 
 pub async fn fetch_monitor_data() -> Result<MonitorData, String> {

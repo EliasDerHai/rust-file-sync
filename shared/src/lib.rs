@@ -1,3 +1,4 @@
+pub mod dtos;
 pub mod endpoint;
 pub mod get_files_of_directory;
 pub mod matchable_path;

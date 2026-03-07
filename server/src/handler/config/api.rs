@@ -3,17 +3,8 @@ use crate::db::ClientWithConfig;
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use serde::Deserialize;
+use shared::dtos::AdminConfigUpdateDto;
 use tracing::{error, info};
-
-#[derive(Debug, Deserialize)]
-pub struct AdminConfigUpdateDto {
-    pub path_to_monitor: String,
-    pub min_poll_interval_in_ms: u16,
-    pub exclude_dirs: Vec<String>,
-    pub exclude_dot_dirs: bool,
-    pub server_watch_group_id: i64,
-}
 
 /// GET /api/configs - JSON list of all client configs
 pub async fn api_list_configs(

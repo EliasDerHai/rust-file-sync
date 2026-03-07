@@ -1,8 +1,8 @@
 use leptos::prelude::*;
+use shared::dtos::WatchGroupNameDto;
 
 use crate::api;
 use crate::components::{Card, EmptyState, Loading, Message};
-use crate::types::WatchGroupNameDto;
 
 #[component]
 pub fn WatchGroupsPage() -> impl IntoView {
