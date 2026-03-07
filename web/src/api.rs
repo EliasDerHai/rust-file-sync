@@ -1,10 +1,13 @@
 use gloo_net::http::Request;
-use shared::dtos::{
-    AdminConfigUpdateDto, ClientWithConfig, MonitorData, ServerWatchGroup, WatchGroupNameDto,
+use shared::{
+    dtos::{
+        AdminConfigUpdateDto, ClientWithConfig, MonitorData, ServerWatchGroup, WatchGroupNameDto,
+    },
+    endpoint::ServerEndpoint,
 };
 
 pub async fn fetch_configs() -> Result<Vec<ClientWithConfig>, String> {
-    Request::get("/api/configs")
+    Request::get(ServerEndpoint::ApiConfigs.to_str())
         .send()
         .await
         .map_err(|e| e.to_string())?
@@ -14,7 +17,7 @@ pub async fn fetch_configs() -> Result<Vec<ClientWithConfig>, String> {
 }
 
 pub async fn fetch_config(id: &str) -> Result<ClientWithConfig, String> {
-    Request::get(&format!("/api/config/{}", id))
+    Request::get(&ServerEndpoint::ApiConfig.to_str().replace("{id}", id))
         .send()
         .await
         .map_err(|e| e.to_string())?
@@ -24,7 +27,7 @@ pub async fn fetch_config(id: &str) -> Result<ClientWithConfig, String> {
 }
 
 pub async fn update_config(id: &str, dto: &AdminConfigUpdateDto) -> Result<String, String> {
-    let resp = Request::put(&format!("/api/config/{}", id))
+    let resp = Request::put(&ServerEndpoint::ApiConfig.to_str().replace("{id}", id))
         .json(dto)
         .map_err(|e| e.to_string())?
         .send()
@@ -35,7 +38,7 @@ pub async fn update_config(id: &str, dto: &AdminConfigUpdateDto) -> Result<Strin
 }
 
 pub async fn fetch_watch_groups() -> Result<Vec<ServerWatchGroup>, String> {
-    Request::get("/api/watch-groups")
+    Request::get(ServerEndpoint::ApiWatchGroups.to_str())
         .send()
         .await
         .map_err(|e| e.to_string())?
@@ -45,7 +48,7 @@ pub async fn fetch_watch_groups() -> Result<Vec<ServerWatchGroup>, String> {
 }
 
 pub async fn create_watch_group(dto: &WatchGroupNameDto) -> Result<String, String> {
-    let resp = Request::post("/api/watch-groups")
+    let resp = Request::post(ServerEndpoint::ApiWatchGroups.to_str())
         .json(dto)
         .map_err(|e| e.to_string())?
         .send()
@@ -56,7 +59,7 @@ pub async fn create_watch_group(dto: &WatchGroupNameDto) -> Result<String, Strin
 }
 
 pub async fn update_watch_group(id: i64, dto: &WatchGroupNameDto) -> Result<String, String> {
-    let resp = Request::put(&format!("/api/watch-groups/{}", id))
+    let resp = Request::put(&ServerEndpoint::ApiWatchGroup.to_str().replace("{id}", &id.to_string()))
         .json(dto)
         .map_err(|e| e.to_string())?
         .send()
@@ -67,7 +70,7 @@ pub async fn update_watch_group(id: i64, dto: &WatchGroupNameDto) -> Result<Stri
 }
 
 pub async fn fetch_monitor_data() -> Result<MonitorData, String> {
-    Request::get("/api/monitor")
+    Request::get(ServerEndpoint::ApiMonitor.to_str())
         .send()
         .await
         .map_err(|e| e.to_string())?
