@@ -1,17 +1,25 @@
 mod app;
+mod client;
+mod client_watch_group;
 mod config;
 mod pwa;
+mod server_watch_group;
 pub mod share_link;
 mod sync;
-mod watch_group;
 
 pub use app::serve_embedded_app;
-pub use config::api::{api_get_config, api_list_configs, api_update_config};
-pub use config::sys::get_config;
+pub use client::{api_delete_client, api_get_client, api_list_clients, api_update_client};
+pub use client_watch_group::{
+    api_create_client_watch_group, api_delete_client_watch_group, api_list_client_watch_groups,
+    api_update_client_watch_group,
+};
+pub use config::get_config;
 pub use pwa::serve_embedded_pwa;
+pub use server_watch_group::{
+    api_create_watch_group, api_delete_watch_group, api_list_watch_groups, api_update_watch_group,
+};
 pub use share_link::{get_links, post_link};
 pub use sync::{delete, download, scan_disk, sync_handler, upload_handler};
-pub use watch_group::{api_create_watch_group, api_list_watch_groups, api_update_watch_group};
 
 use axum::http::{HeaderMap, StatusCode};
 

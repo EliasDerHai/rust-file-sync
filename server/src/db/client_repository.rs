@@ -63,6 +63,27 @@ impl<'a> ClientRepository<'a> {
             .collect())
     }
 
+    /// Update client-level settings. Returns false if client not found.
+    pub async fn update(&self, client_id: &str, min_poll_interval_in_ms: u16) -> Result<bool> {
+        let poll_interval = min_poll_interval_in_ms as i64;
+        let rows = sqlx::query!(
+            "UPDATE client SET min_poll_interval_in_ms = ? WHERE id = ? RETURNING id",
+            poll_interval,
+            client_id
+        )
+        .fetch_optional(self.pool)
+        .await?;
+        Ok(rows.is_some())
+    }
+
+    /// Delete a client by id. Returns false if not found.
+    pub async fn delete(&self, client_id: &str) -> Result<bool> {
+        let result = sqlx::query!("DELETE FROM client WHERE id = ?", client_id)
+            .execute(self.pool)
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
     /// Get single client
     pub async fn get_client_by_id(&self, client_id: &str) -> Result<Option<ClientDto>> {
         let client = sqlx::query!(

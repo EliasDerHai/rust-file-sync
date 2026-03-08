@@ -143,12 +143,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route(ServerEndpoint::Config.to_str(), get(handler::get_config))
         // json api - for frontends
         .route(
-            ServerEndpoint::ApiConfigs.to_str(),
-            get(handler::api_list_configs),
+            ServerEndpoint::ApiClients.to_str(),
+            get(handler::api_list_clients),
         )
         .route(
-            ServerEndpoint::ApiConfig.to_str(),
-            get(handler::api_get_config).put(handler::api_update_config),
+            ServerEndpoint::ApiClient.to_str(),
+            get(handler::api_get_client)
+                .put(handler::api_update_client)
+                .delete(handler::api_delete_client),
+        )
+        .route(
+            ServerEndpoint::ApiClientWatchGroups.to_str(),
+            get(handler::api_list_client_watch_groups)
+                .post(handler::api_create_client_watch_group),
+        )
+        .route(
+            ServerEndpoint::ApiClientWatchGroup.to_str(),
+            put(handler::api_update_client_watch_group)
+                .delete(handler::api_delete_client_watch_group),
         )
         .route(
             ServerEndpoint::ApiWatchGroups.to_str(),
@@ -156,7 +168,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route(
             ServerEndpoint::ApiWatchGroup.to_str(),
-            put(handler::api_update_watch_group),
+            put(handler::api_update_watch_group).delete(handler::api_delete_watch_group),
         )
         .route(
             ServerEndpoint::ApiMonitor.to_str(),

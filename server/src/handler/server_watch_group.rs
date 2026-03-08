@@ -2,16 +2,10 @@ use crate::AppState;
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use serde::Deserialize;
-use shared::dtos::ServerWatchGroup;
+use shared::dtos::{ServerWatchGroup, WatchGroupNameDto};
 use tracing::{error, info};
 
-#[derive(Deserialize)]
-pub struct WatchGroupNameDto {
-    pub name: String,
-}
-
-/// GET /api/watch-groups - JSON list of all watch groups
+/// GET /api/watch-groups
 pub async fn api_list_watch_groups(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<ServerWatchGroup>>, (StatusCode, String)> {
@@ -27,11 +21,11 @@ pub async fn api_list_watch_groups(
     Ok(Json(groups))
 }
 
-/// POST /api/watch-groups - Create a new watch group
+/// POST /api/watch-groups
 pub async fn api_create_watch_group(
     State(state): State<AppState>,
     Json(dto): Json<WatchGroupNameDto>,
-) -> Result<(StatusCode, String), (StatusCode, String)> {
+) -> Result<StatusCode, (StatusCode, String)> {
     state
         .db
         .server_watch_group()
@@ -43,15 +37,15 @@ pub async fn api_create_watch_group(
         })?;
 
     info!("Created watch group '{}'", dto.name);
-    Ok((StatusCode::CREATED, "Watch group created".to_string()))
+    Ok(StatusCode::CREATED)
 }
 
-/// PUT /api/watch-groups/{id} - Rename watch group
+/// PUT /api/watch-groups/{id}
 pub async fn api_update_watch_group(
     State(state): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<i64>,
     Json(dto): Json<WatchGroupNameDto>,
-) -> Result<String, (StatusCode, String)> {
+) -> Result<StatusCode, (StatusCode, String)> {
     state
         .db
         .server_watch_group()
@@ -63,5 +57,28 @@ pub async fn api_update_watch_group(
         })?;
 
     info!("Renamed watch group {}", id);
-    Ok("Watch group updated successfully".to_string())
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// DELETE /api/watch-groups/{id}
+pub async fn api_delete_watch_group(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<i64>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let found = state
+        .db
+        .server_watch_group()
+        .delete(id)
+        .await
+        .map_err(|e| {
+            error!("Failed to delete watch group: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?;
+
+    if found {
+        info!("Deleted watch group {}", id);
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err((StatusCode::NOT_FOUND, "Watch group not found".to_string()))
+    }
 }

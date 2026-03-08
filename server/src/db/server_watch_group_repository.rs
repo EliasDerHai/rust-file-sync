@@ -40,4 +40,12 @@ impl<'a> ServerWatchGroupRepository<'a> {
 
         Ok(())
     }
+
+    /// Delete a server watch group. Returns false if not found.
+    pub async fn delete(&self, id: i64) -> Result<bool> {
+        let result = sqlx::query!("DELETE FROM server_watch_group WHERE id = ?", id)
+            .execute(self.pool)
+            .await?;
+        Ok(result.rows_affected() > 0)
+    }
 }

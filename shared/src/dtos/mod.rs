@@ -17,7 +17,7 @@ pub struct FileDescription {
     pub last_updated_utc_millis: UtcMillis,
 }
 
-// web
+// sys config (client ↔ server)
 
 /// config needed to start watching directories
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,14 +49,7 @@ fn default_exclude_dot_dirs() -> bool {
     true
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ClientWatchGroupUpdateDto {
-    pub path_to_monitor: String,
-    pub min_poll_interval_in_ms: u16,
-    pub exclude_dirs: Vec<String>,
-    pub exclude_dot_dirs: bool,
-    pub server_watch_group_id: i64,
-}
+// api - clients
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientDto {
@@ -65,14 +58,42 @@ pub struct ClientDto {
     pub min_poll_interval_in_ms: u16,
 }
 
+/// PUT /api/clients/{id}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClientUpdateDto {
+    pub min_poll_interval_in_ms: u16,
+}
+
+// api - client watch group assignments
+
+/// GET /api/clients/{id}/watch-groups → Vec<ClientWatchGroupDto>
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClientWatchGroupDto {
-    pub client_id: i64,
+    pub server_watch_group_id: i64,
+    pub server_watch_group_name: String,
+    pub path_to_monitor: String,
+    pub exclude_dirs: Vec<String>,
+    pub exclude_dot_dirs: bool,
+}
+
+/// POST /api/clients/{id}/watch-groups
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClientWatchGroupCreateDto {
     pub server_watch_group_id: i64,
     pub path_to_monitor: String,
     pub exclude_dirs: Vec<String>,
     pub exclude_dot_dirs: bool,
 }
+
+/// PUT /api/clients/{id}/watch-groups/{wg_id}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClientWatchGroupUpdateDto {
+    pub path_to_monitor: String,
+    pub exclude_dirs: Vec<String>,
+    pub exclude_dot_dirs: bool,
+}
+
+// api - server watch groups
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerWatchGroup {
@@ -83,24 +104,6 @@ pub struct ServerWatchGroup {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WatchGroupNameDto {
     pub name: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[deprecated]
-pub struct ClientWithConfig {
-    // client
-    pub id: String,
-    pub host_name: String,
-    pub min_poll_interval_in_ms: u16,
-
-    // server-watch-group
-    pub server_watch_group_id: i64,
-    pub server_watch_group_name: String,
-
-    // client-watch-group
-    pub path_to_monitor: String,
-    pub exclude_dirs: Vec<String>,
-    pub exclude_dot_dirs: bool,
 }
 
 // monitoring

@@ -21,13 +21,17 @@ pub enum ServerEndpoint {
 
     /// Receive shared links from PWA
     ApiLinks,
-    /// JSON API: list all client configs
-    ApiConfigs,
-    /// JSON API: get single client config
-    ApiConfig,
-    /// JSON API: list all watch groups
+    /// JSON API: list / create clients
+    ApiClients,
+    /// JSON API: single client (GET, PUT, DELETE)
+    ApiClient,
+    /// JSON API: list / create client watch group assignments
+    ApiClientWatchGroups,
+    /// JSON API: single client watch group assignment (PUT, DELETE)
+    ApiClientWatchGroup,
+    /// JSON API: list / create server watch groups
     ApiWatchGroups,
-    /// JSON API: single watch group by ID
+    /// JSON API: single server watch group (PUT, DELETE)
     ApiWatchGroup,
     /// JSON API: monitoring data
     ApiMonitor,
@@ -38,9 +42,19 @@ impl ServerEndpoint {
         format!("{base}{}", self.to_str())
     }
 
-    /// Build URI with watch group id interpolated
+    /// Build URI with a set of named path parameter replacements.
+    /// e.g. `endpoint.to_uri_with(base, &[("id", "abc"), ("wg_id", "1")])`
+    pub fn to_uri_with(&self, base: &str, params: &[(&str, &str)]) -> String {
+        let mut uri = self.to_uri(base);
+        for (key, value) in params {
+            uri = uri.replace(&format!("{{{key}}}"), value);
+        }
+        uri
+    }
+
+    /// Build URI with watch group id interpolated (convenience for sys endpoints)
     pub fn to_uri_with_wg(&self, base: &str, wg_id: i64) -> String {
-        self.to_uri(base).replace("{wg_id}", &wg_id.to_string())
+        self.to_uri_with(base, &[("wg_id", &wg_id.to_string())])
     }
 
     pub fn to_str(&self) -> &str {
@@ -58,10 +72,12 @@ impl ServerEndpoint {
             // apps
             ServerEndpoint::ServePWA => "/pwa",
             ServerEndpoint::App => "/app",
-            // apps
+            // api
             ServerEndpoint::ApiLinks => "/api/links",
-            ServerEndpoint::ApiConfigs => "/api/configs",
-            ServerEndpoint::ApiConfig => "/api/config/{id}",
+            ServerEndpoint::ApiClients => "/api/clients",
+            ServerEndpoint::ApiClient => "/api/clients/{id}",
+            ServerEndpoint::ApiClientWatchGroups => "/api/clients/{id}/watch-groups",
+            ServerEndpoint::ApiClientWatchGroup => "/api/clients/{id}/watch-groups/{wg_id}",
             ServerEndpoint::ApiWatchGroups => "/api/watch-groups",
             ServerEndpoint::ApiWatchGroup => "/api/watch-groups/{id}",
             ServerEndpoint::ApiMonitor => "/api/monitor",
@@ -74,7 +90,7 @@ mod tests {
     use super::*;
     use ServerEndpoint::*;
 
-    const ALL_ENDPOINTS: [ServerEndpoint; 17] = [
+    const ALL_ENDPOINTS: [ServerEndpoint; 19] = [
         Hello,
         Ping,
         Version,
@@ -87,8 +103,10 @@ mod tests {
         ServePWA,
         App,
         ApiLinks,
-        ApiConfigs,
-        ApiConfig,
+        ApiClients,
+        ApiClient,
+        ApiClientWatchGroups,
+        ApiClientWatchGroup,
         ApiWatchGroups,
         ApiWatchGroup,
         ApiMonitor,
@@ -114,8 +132,15 @@ mod tests {
                 App => assert_eq!("http://localhost/app", actual),
 
                 ApiLinks => assert_eq!("http://localhost/api/links", actual),
-                ApiConfigs => assert_eq!("http://localhost/api/configs", actual),
-                ApiConfig => assert_eq!("http://localhost/api/config/{id}", actual),
+                ApiClients => assert_eq!("http://localhost/api/clients", actual),
+                ApiClient => assert_eq!("http://localhost/api/clients/{id}", actual),
+                ApiClientWatchGroups => {
+                    assert_eq!("http://localhost/api/clients/{id}/watch-groups", actual)
+                }
+                ApiClientWatchGroup => assert_eq!(
+                    "http://localhost/api/clients/{id}/watch-groups/{wg_id}",
+                    actual
+                ),
                 ApiWatchGroups => assert_eq!("http://localhost/api/watch-groups", actual),
                 ApiWatchGroup => assert_eq!("http://localhost/api/watch-groups/{id}", actual),
                 ApiMonitor => assert_eq!("http://localhost/api/monitor", actual),
@@ -124,7 +149,7 @@ mod tests {
     }
 
     #[test]
-    fn should_build_uris_with_watch_group_id() {
+    fn should_build_uris_with_params() {
         assert_eq!(
             "http://localhost/sys/sync/42",
             Sync.to_uri_with_wg("http://localhost", 42)
