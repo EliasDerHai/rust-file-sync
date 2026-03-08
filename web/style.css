@@ -299,3 +299,52 @@ select.form-input {
   padding: 2rem;
   color: #888;
 }
+
+/* === Watch group list (indented within a client card) === */
+.watch-group-list {
+  margin-top: 1rem;
+  padding-left: 1rem;
+  border-left: 2px solid #2a2a50;
+}
+
+/* === Individual watch group assignment card === */
+.wg-assignment {
+  background: #0f1a30;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+/* === Confirmation modal === */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.dialog {
+  background: #16213e;
+  border-radius: 8px;
+  padding: 2rem;
+  min-width: 320px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+.dialog p {
+  margin: 0 0 1.5rem;
+  color: #eee;
+}
+.dialog-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+.btn-danger {
+  background: #e94560;
+  color: white;
+}
+.btn-danger:hover {
+  background: #c73652;
+}

@@ -1,6 +1,9 @@
 use gloo_net::http::Request;
 use shared::{
-    dtos::{ClientDto, MonitorData, ServerWatchGroup, WatchGroupNameDto},
+    dtos::{
+        ClientDto, ClientUpdateDto, ClientWatchGroupCreateDto, ClientWatchGroupDto,
+        ClientWatchGroupUpdateDto, MonitorData, ServerWatchGroup, WatchGroupNameDto,
+    },
     endpoint::ServerEndpoint,
 };
 
@@ -79,6 +82,100 @@ pub async fn update_watch_group(id: i64, dto: &WatchGroupNameDto) -> Result<Stri
     .map_err(|e| e.to_string())?;
     let text = resp.text().await.map_err(|e| e.to_string())?;
     if resp.ok() { Ok(text) } else { Err(text) }
+}
+
+pub async fn fetch_client_watch_groups(client_id: &str) -> Result<Vec<ClientWatchGroupDto>, String> {
+    Request::get(
+        &ServerEndpoint::ApiClientWatchGroups
+            .to_str()
+            .replace("{id}", client_id),
+    )
+    .send()
+    .await
+    .map_err(|e| e.to_string())?
+    .json()
+    .await
+    .map_err(|e| e.to_string())
+}
+
+pub async fn update_client(client_id: &str, dto: &ClientUpdateDto) -> Result<(), String> {
+    let resp = Request::put(
+        &ServerEndpoint::ApiClient
+            .to_str()
+            .replace("{id}", client_id),
+    )
+    .json(dto)
+    .map_err(|e| e.to_string())?
+    .send()
+    .await
+    .map_err(|e| e.to_string())?;
+    let text = resp.text().await.map_err(|e| e.to_string())?;
+    if resp.ok() { Ok(()) } else { Err(text) }
+}
+
+pub async fn delete_client(client_id: &str) -> Result<(), String> {
+    let resp = Request::delete(
+        &ServerEndpoint::ApiClient
+            .to_str()
+            .replace("{id}", client_id),
+    )
+    .send()
+    .await
+    .map_err(|e| e.to_string())?;
+    let text = resp.text().await.map_err(|e| e.to_string())?;
+    if resp.ok() { Ok(()) } else { Err(text) }
+}
+
+pub async fn create_client_watch_group(
+    client_id: &str,
+    dto: &ClientWatchGroupCreateDto,
+) -> Result<(), String> {
+    let resp = Request::post(
+        &ServerEndpoint::ApiClientWatchGroups
+            .to_str()
+            .replace("{id}", client_id),
+    )
+    .json(dto)
+    .map_err(|e| e.to_string())?
+    .send()
+    .await
+    .map_err(|e| e.to_string())?;
+    let text = resp.text().await.map_err(|e| e.to_string())?;
+    if resp.ok() { Ok(()) } else { Err(text) }
+}
+
+pub async fn update_client_watch_group(
+    client_id: &str,
+    wg_id: i64,
+    dto: &ClientWatchGroupUpdateDto,
+) -> Result<(), String> {
+    let resp = Request::put(
+        &ServerEndpoint::ApiClientWatchGroup
+            .to_str()
+            .replace("{id}", client_id)
+            .replace("{wg_id}", &wg_id.to_string()),
+    )
+    .json(dto)
+    .map_err(|e| e.to_string())?
+    .send()
+    .await
+    .map_err(|e| e.to_string())?;
+    let text = resp.text().await.map_err(|e| e.to_string())?;
+    if resp.ok() { Ok(()) } else { Err(text) }
+}
+
+pub async fn delete_client_watch_group(client_id: &str, wg_id: i64) -> Result<(), String> {
+    let resp = Request::delete(
+        &ServerEndpoint::ApiClientWatchGroup
+            .to_str()
+            .replace("{id}", client_id)
+            .replace("{wg_id}", &wg_id.to_string()),
+    )
+    .send()
+    .await
+    .map_err(|e| e.to_string())?;
+    let text = resp.text().await.map_err(|e| e.to_string())?;
+    if resp.ok() { Ok(()) } else { Err(text) }
 }
 
 pub async fn fetch_monitor_data() -> Result<MonitorData, String> {

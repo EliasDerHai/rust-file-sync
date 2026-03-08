@@ -13,18 +13,16 @@ fn main() {
 #[component]
 fn App() -> impl IntoView {
     view! {
-            <Router base="/app">
-                <components::Navbar />
-                <main>
-                    <Routes fallback=|| view! { <div class="container"><h1>"Page not found"</h1></div> }>
-                        <Route path=path!("/") view=pages::ClientsPage />
-    //                    <Route path=path!("/") view=pages::ConfigsPage />
-    //                    <Route path=path!("/configs") view=pages::ConfigsPage />
-    //                    <Route path=path!("/config/:id") view=pages::ConfigEditPage />
-                        <Route path=path!("/watch-groups") view=pages::WatchGroupsPage />
-                        <Route path=path!("/monitor") view=pages::MonitorPage />
-                    </Routes>
-                </main>
-            </Router>
-        }
+        <Router base="/app">
+            <components::Navbar />
+            <main>
+                <Routes fallback=|| view! { <div class="container"><h1>"Page not found"</h1></div> }>
+                    <Route path=path!("/") view=pages::ClientsPage />
+                    <Route path=path!("/clients") view=pages::ClientsPage />
+                    <Route path=path!("/watch-groups") view=pages::WatchGroupsPage />
+                    <Route path=path!("/monitor") view=pages::MonitorPage />
+                </Routes>
+            </main>
+        </Router>
+    }
 }
