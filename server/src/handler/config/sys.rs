@@ -16,25 +16,27 @@ pub async fn get_config(
     let client_id = header_value_as_string(&headers, CLIENT_ID_HEADER_KEY)?;
     let host_name = header_value_as_string(&headers, CLIENT_HOST_HEADER_KEY)?;
 
-    match state.db.client().get_client_config(client_id).await {
-        Ok(Some(config)) => {
+    match state.db.client().get_client_by_id(client_id).await {
+        Ok(Some(_config)) => {
             debug!("Returning config for client {}", client_id);
-            Ok(Json(config))
+            Ok(Json(todo!(
+                // TODO: impl
+                "prepare repositories, fetch watchgroups and return"
+            )))
         }
         Ok(None) => {
             info!("No config found for client {} - adding one...", client_id);
-            let watch_config = WatchConfigDto::default();
             state
                 .db
                 .client()
-                .upsert_client_config(client_id, host_name, &watch_config)
+                .upsert_client(client_id, host_name)
                 .await
                 .map_err(|e| {
                     error!("Failed to register client: {}", e);
                     (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
                 })?;
             info!("Registered client {} ({})", client_id, host_name);
-            Ok(Json(watch_config))
+            Ok(Json(WatchConfigDto::default()))
         }
         Err(e) => {
             error!("Failed to get client config: {}", e);

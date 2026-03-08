@@ -2,13 +2,13 @@ use crate::AppState;
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use shared::dtos::{AdminConfigUpdateDto, ClientWithConfig};
+use shared::dtos::{ClientDto, ClientWatchGroupUpdateDto, ClientWithConfig};
 use tracing::{error, info};
 
 /// GET /api/configs - JSON list of all client configs
 pub async fn api_list_configs(
     State(state): State<AppState>,
-) -> Result<Json<Vec<ClientWithConfig>>, (StatusCode, String)> {
+) -> Result<Json<Vec<ClientDto>>, (StatusCode, String)> {
     let clients = state.db.client().get_all_clients().await.map_err(|e| {
         error!("Failed to get clients: {}", e);
         (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
@@ -20,7 +20,7 @@ pub async fn api_list_configs(
 pub async fn api_get_config(
     State(state): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<String>,
-) -> Result<Json<ClientWithConfig>, (StatusCode, String)> {
+) -> Result<Json<ClientDto>, (StatusCode, String)> {
     let client = state
         .db
         .client()
@@ -34,11 +34,11 @@ pub async fn api_get_config(
     Ok(Json(client))
 }
 
-/// PUT /api/config/{id} - Update client config (admin UI, single watch group at a time)
+/// PUT /api/config/{id} - Update client config
 pub async fn api_update_config(
     State(state): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<String>,
-    Json(update): Json<AdminConfigUpdateDto>,
+    Json(update): Json<ClientWatchGroupUpdateDto>,
 ) -> Result<String, (StatusCode, String)> {
     let updated = state
         .db
@@ -49,7 +49,6 @@ pub async fn api_update_config(
             &update.path_to_monitor,
             update.exclude_dirs,
             update.exclude_dot_dirs,
-            update.min_poll_interval_in_ms,
         )
         .await
         .map_err(|e| {

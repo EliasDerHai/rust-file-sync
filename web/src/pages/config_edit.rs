@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
 use leptos_router::hooks::use_params_map;
-use shared::dtos::AdminConfigUpdateDto;
+use shared::dtos::ClientWatchGroupUpdateDto;
 
 use crate::api;
 use crate::components::{Card, Loading, Message};
@@ -39,7 +39,7 @@ pub fn ConfigEditPage() -> impl IntoView {
 
                             let on_save = move |_| {
                                 let id = client_id.clone();
-                                let dto = AdminConfigUpdateDto {
+                                let dto = ClientWatchGroupUpdateDto {
                                     path_to_monitor: path.get(),
                                     min_poll_interval_in_ms: poll_interval.get().parse().unwrap_or(1000),
                                     exclude_dirs: exclude_dirs_text.get()
