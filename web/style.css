@@ -348,3 +348,17 @@ select.form-input {
 .btn-danger:hover {
   background: #c73652;
 }
+
+/* === Icon-only button === */
+.btn-icon {
+  padding: 0.35rem 0.5rem;
+  line-height: 1;
+}
+
+/* === Modal form title === */
+.dialog-title {
+  margin: 0 0 1.25rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #eee;
+}
