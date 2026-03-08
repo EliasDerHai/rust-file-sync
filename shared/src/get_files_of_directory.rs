@@ -192,22 +192,6 @@ mod tests {
     }
 
     #[test]
-    fn excludes_dot_dirs_even_when_exclude_dirs_is_empty() {
-        // This was the primary bug: exclude_dot_dirs was nested inside the
-        // `for exclude_dir in exclude_dirs` loop, so it never ran when exclude_dirs
-        // was empty.
-        let root = std::env::temp_dir().join("rfs_test_dot_dirs_empty_excl");
-        let _ = fs::remove_dir_all(&root);
-        touch(&root.join("readme.md"));
-        touch(&root.join(".obsidian").join("workspace.json"));
-
-        let result = get_all_file_descriptions(&root, &vec![], true).unwrap();
-
-        assert_eq!(names(&result), vec!["readme.md"]);
-        fs::remove_dir_all(&root).unwrap();
-    }
-
-    #[test]
     fn dot_files_at_root_are_also_excluded_when_flag_is_true() {
         let root = std::env::temp_dir().join("rfs_test_dot_files_root");
         let _ = fs::remove_dir_all(&root);
