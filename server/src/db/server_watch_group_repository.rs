@@ -1,19 +1,13 @@
-use serde::Serialize;
+use shared::dtos::ServerWatchGroup;
 use sqlx::SqlitePool;
 
-#[derive(Debug, Clone, Serialize)]
-pub struct ServerWatchGroup {
-    pub id: i64,
-    pub name: String,
-}
-
-pub struct ServerRepository<'a> {
+pub struct ServerWatchGroupRepository<'a> {
     pool: &'a SqlitePool,
 }
 
 type Result<T> = sqlx::Result<T>;
 
-impl<'a> ServerRepository<'a> {
+impl<'a> ServerWatchGroupRepository<'a> {
     pub fn new(pool: &'a SqlitePool) -> Self {
         Self { pool }
     }

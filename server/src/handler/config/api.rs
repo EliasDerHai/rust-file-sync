@@ -2,7 +2,7 @@ use crate::AppState;
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use shared::dtos::{ClientDto, ClientWatchGroupUpdateDto, ClientWithConfig};
+use shared::dtos::{ClientDto, ClientWatchGroupUpdateDto};
 use tracing::{error, info};
 
 /// GET /api/configs - JSON list of all client configs
@@ -42,8 +42,8 @@ pub async fn api_update_config(
 ) -> Result<String, (StatusCode, String)> {
     let updated = state
         .db
-        .client()
-        .update_single_watch_group(
+        .client_watch_group()
+        .update(
             &id,
             update.server_watch_group_id,
             &update.path_to_monitor,

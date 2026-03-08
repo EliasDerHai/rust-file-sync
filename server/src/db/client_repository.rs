@@ -90,47 +90,6 @@ impl<'a> ClientRepository<'a> {
         }
     }
 
-    /// Update a single watch group for a client
-    pub async fn update_single_watch_group(
-        &self,
-        client_id: &str,
-        server_watch_group_id: i64,
-        path_to_monitor: &str,
-        exclude_dirs: Vec<String>,
-        exclude_dot_dirs: bool,
-    ) -> Result<bool> {
-        let mut tx = self.pool.begin().await?;
-
-        let watch_group_id = sqlx::query_scalar!(
-            r#"
-            UPDATE client_watch_group SET path_to_monitor = ?, exclude_dot_dirs = ?
-            WHERE server_watch_group_id = ? AND client_id = ?
-            RETURNING id
-            "#,
-            path_to_monitor,
-            exclude_dot_dirs,
-            server_watch_group_id,
-            client_id
-        )
-        .fetch_one(&mut *tx)
-        .await?;
-
-        for exclude_dir in exclude_dirs {
-            sqlx::query!(
-                r#"
-                INSERT INTO client_watch_group_excluded_dir (client_watch_group, exclude_dir)
-                VALUES (?, ?)
-                "#,
-                watch_group_id,
-                exclude_dir
-            )
-            .execute(&mut *tx)
-            .await?;
-        }
-
-        tx.commit().await?;
-        Ok(true)
-    }
 }
 
 #[cfg(test)]

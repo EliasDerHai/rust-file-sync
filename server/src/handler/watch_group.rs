@@ -1,9 +1,9 @@
 use crate::AppState;
-use crate::db::ServerWatchGroup;
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use serde::Deserialize;
+use shared::dtos::ServerWatchGroup;
 use tracing::{error, info};
 
 #[derive(Deserialize)]
@@ -17,7 +17,7 @@ pub async fn api_list_watch_groups(
 ) -> Result<Json<Vec<ServerWatchGroup>>, (StatusCode, String)> {
     let groups = state
         .db
-        .server()
+        .server_watch_group()
         .get_all_watch_groups()
         .await
         .map_err(|e| {
@@ -34,7 +34,7 @@ pub async fn api_create_watch_group(
 ) -> Result<(StatusCode, String), (StatusCode, String)> {
     state
         .db
-        .server()
+        .server_watch_group()
         .insert_watch_group(dto.name.clone())
         .await
         .map_err(|e| {
@@ -54,7 +54,7 @@ pub async fn api_update_watch_group(
 ) -> Result<String, (StatusCode, String)> {
     state
         .db
-        .server()
+        .server_watch_group()
         .rename_watch_group(id, dto.name)
         .await
         .map_err(|e| {
