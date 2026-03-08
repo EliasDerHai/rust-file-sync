@@ -3,7 +3,7 @@ use leptos::task::spawn_local;
 use shared::dtos::ClientUpdateDto;
 
 use crate::api;
-use crate::components::Message;
+use crate::components::{Message, ToastSignal};
 
 #[component]
 pub fn EditClientModal(
@@ -16,13 +16,13 @@ pub fn EditClientModal(
     let on_saved_sv = StoredValue::new(on_saved);
 
     let poll_value = RwSignal::new(current_poll_ms.to_string());
-    let (msg, set_msg) = signal::<Option<(bool, String)>>(None);
+    let msg = ToastSignal::new();
 
     let do_save = move |_| {
         let id = client_id.get_value();
         let ms_str = poll_value.get_untracked();
         let Ok(ms) = ms_str.parse::<u16>() else {
-            set_msg.set(Some((false, "Invalid poll interval".to_string())));
+            msg.error("Invalid poll interval");
             return;
         };
         let dto = ClientUpdateDto {
@@ -34,7 +34,7 @@ pub fn EditClientModal(
                     show.set(false);
                     on_saved_sv.get_value()();
                 }
-                Err(e) => set_msg.set(Some((false, format!("Error: {e}")))),
+                Err(e) => msg.error(e),
             }
         });
     };

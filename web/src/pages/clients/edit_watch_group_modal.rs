@@ -3,13 +3,13 @@ use leptos::task::spawn_local;
 use shared::dtos::ClientWatchGroupUpdateDto;
 
 use crate::api;
-use crate::components::Message;
+use crate::components::{Message, ToastSignal};
 
 #[component]
 pub fn EditWatchGroupModal(
     show: RwSignal<bool>,
     client_id: String,
-    wg_id: i64,
+    watch_group_id: i64,
     initial_path: String,
     initial_exclude_dirs: String,
     initial_exclude_dot: bool,
@@ -21,7 +21,7 @@ pub fn EditWatchGroupModal(
     let path = RwSignal::new(initial_path);
     let exclude_dirs_text = RwSignal::new(initial_exclude_dirs);
     let exclude_dot = RwSignal::new(initial_exclude_dot);
-    let (msg, set_msg) = signal::<Option<(bool, String)>>(None);
+    let msg = ToastSignal::new();
 
     let do_save = move |_| {
         let id = client_id.get_value();
@@ -39,12 +39,12 @@ pub fn EditWatchGroupModal(
             exclude_dot_dirs: excl_dot,
         };
         spawn_local(async move {
-            match api::update_client_watch_group(&id, wg_id, &dto).await {
+            match api::update_client_watch_group(&id, watch_group_id, &dto).await {
                 Ok(()) => {
                     show.set(false);
                     on_saved_sv.get_value()();
                 }
-                Err(e) => set_msg.set(Some((false, format!("Error: {e}")))),
+                Err(e) => msg.error(e),
             }
         });
     };

@@ -3,31 +3,33 @@ use leptos::task::spawn_local;
 use shared::dtos::{ClientDto, ServerWatchGroup};
 
 use crate::api;
-use crate::components::{Card, ConfirmDialog, Loading, Message, PencilIcon, TrashIcon};
+use crate::components::{
+    Card, ConfirmDialog, Loading, Message, PencilIcon, ToastSignal, TrashIcon,
+};
 
-use super::add_wg_form::AddWatchGroupForm;
+use super::add_watch_group_form::AddWatchGroupForm;
 use super::edit_client_modal::EditClientModal;
-use super::wg_assignment::WatchGroupAssignment;
+use super::watch_group_assignment::WatchGroupAssignment;
 
 #[component]
 pub fn ClientCard(
     client: ClientDto,
-    server_wgs: Vec<ServerWatchGroup>,
+    server_watch_groups: Vec<ServerWatchGroup>,
     on_changed: impl Fn() + 'static + Clone + Send + Sync,
 ) -> impl IntoView {
     let client_id = StoredValue::new(client.id);
     let host_name = client.host_name;
     let current_poll_ms = client.min_poll_interval_in_ms;
-    let server_wgs = StoredValue::new(server_wgs);
+    let server_watch_groups = StoredValue::new(server_watch_groups);
     let on_changed_sv = StoredValue::new(on_changed);
 
     let confirm_delete = RwSignal::new(false);
     let show_edit_modal = RwSignal::new(false);
-    let wg_trigger = RwSignal::new(0u32);
-    let (msg, set_msg) = signal::<Option<(bool, String)>>(None);
+    let watch_group_trigger = RwSignal::new(0u32);
+    let msg = ToastSignal::new();
 
     let watch_groups = LocalResource::new(move || {
-        wg_trigger.get();
+        watch_group_trigger.get();
         let id = client_id.get_value();
         async move { api::fetch_client_watch_groups(&id).await }
     });
@@ -37,7 +39,7 @@ pub fn ClientCard(
         spawn_local(async move {
             match api::delete_client(&id).await {
                 Ok(()) => on_changed_sv.get_value()(),
-                Err(e) => set_msg.set(Some((false, format!("Error: {e}")))),
+                Err(e) => msg.error(e),
             }
         });
     };
@@ -80,22 +82,22 @@ pub fn ClientCard(
                     <Suspense fallback=Loading>
                         {move || Suspend::new(async move {
                             match watch_groups.await {
-                                Ok(wg_list) => {
-                                    let svr_wgs = server_wgs.get_value();
+                                Ok(watch_group_list) => {
+                                    let svr_watch_groups = server_watch_groups.get_value();
                                     view! {
-                                        {wg_list.into_iter().map(|wg| {
+                                        {watch_group_list.into_iter().map(|watch_group| {
                                             view! {
                                                 <WatchGroupAssignment
-                                                    assignment=wg
+                                                    assignment=watch_group
                                                     client_id=client_id.get_value()
-                                                    on_changed=move || wg_trigger.update(|t| *t += 1)
+                                                    on_changed=move || watch_group_trigger.update(|t| *t += 1)
                                                 />
                                             }
                                         }).collect_view()}
                                         <AddWatchGroupForm
                                             client_id=client_id.get_value()
-                                            server_wgs=svr_wgs
-                                            on_created=move || wg_trigger.update(|t| *t += 1)
+                                            server_watch_groups=svr_watch_groups
+                                            on_created=move || watch_group_trigger.update(|t| *t += 1)
                                         />
                                     }.into_any()
                                 }

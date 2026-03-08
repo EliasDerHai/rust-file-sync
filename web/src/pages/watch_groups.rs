@@ -2,7 +2,7 @@ use leptos::prelude::*;
 use shared::dtos::WatchGroupNameDto;
 
 use crate::api;
-use crate::components::{Card, EmptyState, Loading, Message};
+use crate::components::{Card, EmptyState, Loading, Message, ToastSignal};
 
 #[component]
 pub fn WatchGroupsPage() -> impl IntoView {
@@ -13,7 +13,7 @@ pub fn WatchGroupsPage() -> impl IntoView {
     });
 
     let new_name = RwSignal::new(String::new());
-    let (create_msg, set_create_msg) = signal::<Option<(bool, String)>>(None);
+    let msg = ToastSignal::new();
 
     let on_create = move |_| {
         let name = new_name.get().trim().to_string();
@@ -27,7 +27,7 @@ pub fn WatchGroupsPage() -> impl IntoView {
                     new_name.set(String::new());
                     set_trigger.update(|t| *t += 1);
                 }
-                Err(e) => set_create_msg.set(Some((false, format!("Error: {}", e)))),
+                Err(e) => msg.error(e),
             }
         });
     };
@@ -45,7 +45,7 @@ pub fn WatchGroupsPage() -> impl IntoView {
                     <button class="btn btn-success" on:click=on_create>"Create"</button>
                 </div>
             </Card>
-            <Message signal=create_msg />
+            <Message signal=msg />
 
             <Suspense fallback=Loading>
                 {move || Suspend::new(async move {
@@ -80,7 +80,7 @@ fn WatchGroupCard(
     let editing = RwSignal::new(false);
     let edit_name = RwSignal::new(group_name.clone());
     let display_name = RwSignal::new(group_name);
-    let (card_msg, set_card_msg) = signal::<Option<(bool, String)>>(None);
+    let msg = ToastSignal::new();
 
     let on_edit = move |_| {
         edit_name.set(display_name.get());
@@ -100,16 +100,11 @@ fn WatchGroupCard(
                 Ok(_) => {
                     display_name.set(edit_name.get_untracked());
                     editing.set(false);
-                    set_card_msg.set(Some((true, "Saved!".to_string())));
+                    msg.success("Saved!");
                     set_trigger.update(|t| *t += 1);
-                    // Auto-dismiss after 3s
-                    gloo_timers::callback::Timeout::new(3_000, move || {
-                        set_card_msg.set(None);
-                    })
-                    .forget();
                 }
                 Err(e) => {
-                    set_card_msg.set(Some((false, format!("Error: {}", e))));
+                    msg.error(e);
                 }
             }
         });
@@ -140,7 +135,7 @@ fn WatchGroupCard(
                         </Show>
                     </div>
                 </div>
-                <Message signal=card_msg />
+                <Message signal=msg />
             </Card>
         </li>
     }

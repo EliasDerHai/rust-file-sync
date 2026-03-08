@@ -1,15 +1,15 @@
-mod navbar;
 mod card;
-mod message;
-mod loading;
-mod empty_state;
 mod confirm_dialog;
+mod empty_state;
 mod icons;
+mod loading;
+mod message;
+mod navbar;
 
-pub use navbar::Navbar;
 pub use card::Card;
-pub use message::Message;
-pub use loading::Loading;
-pub use empty_state::EmptyState;
 pub use confirm_dialog::ConfirmDialog;
+pub use empty_state::EmptyState;
 pub use icons::{PencilIcon, TrashIcon};
+pub use loading::Loading;
+pub use message::*;
+pub use navbar::Navbar;

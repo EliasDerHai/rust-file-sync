@@ -3,9 +3,9 @@ use leptos::task::spawn_local;
 use shared::dtos::ClientWatchGroupDto;
 
 use crate::api;
-use crate::components::{ConfirmDialog, Message, PencilIcon, TrashIcon};
+use crate::components::{ConfirmDialog, Message, PencilIcon, ToastSignal, TrashIcon};
 
-use super::edit_wg_modal::EditWatchGroupModal;
+use super::edit_watch_group_modal::EditWatchGroupModal;
 
 #[component]
 pub fn WatchGroupAssignment(
@@ -13,8 +13,8 @@ pub fn WatchGroupAssignment(
     client_id: String,
     on_changed: impl Fn() + 'static + Clone + Send + Sync,
 ) -> impl IntoView {
-    let wg_id = assignment.server_watch_group_id;
-    let wg_name = assignment.server_watch_group_name;
+    let watch_group_id = assignment.server_watch_group_id;
+    let watch_group_name = assignment.server_watch_group_name;
     let initial_path = assignment.path_to_monitor;
     let initial_exclude_dirs = assignment.exclude_dirs.join("\n");
     let initial_exclude_dot = assignment.exclude_dot_dirs;
@@ -24,19 +24,19 @@ pub fn WatchGroupAssignment(
 
     let confirm_delete = RwSignal::new(false);
     let show_edit_modal = RwSignal::new(false);
-    let (msg, set_msg) = signal::<Option<(bool, String)>>(None);
+    let msg = ToastSignal::new();
 
     let do_delete = move || {
         let id = client_id_sv.get_value();
         spawn_local(async move {
-            match api::delete_client_watch_group(&id, wg_id).await {
+            match api::delete_client_watch_group(&id, watch_group_id).await {
                 Ok(()) => on_changed_sv.get_value()(),
-                Err(e) => set_msg.set(Some((false, format!("Error: {e}")))),
+                Err(e) => msg.error(e),
             }
         });
     };
 
-    let confirm_msg = format!("Delete '{}' assignment?", wg_name);
+    let confirm_msg = format!("Delete '{}' assignment?", watch_group_name);
     let exclude_dirs_display = if initial_exclude_dirs.is_empty() {
         "—".to_string()
     } else {
@@ -48,9 +48,9 @@ pub fn WatchGroupAssignment(
         <div class="wg-assignment">
             <div class="flex-between">
                 <span class="font-semibold">
-                    {wg_name}
+                    {watch_group_name}
                     " "
-                    <span class="text-muted text-xs">"(#" {wg_id} ")"</span>
+                    <span class="text-muted text-xs">"(#" {watch_group_id} ")"</span>
                 </span>
                 <div class="flex gap-1">
                     <button
@@ -84,7 +84,7 @@ pub fn WatchGroupAssignment(
             <EditWatchGroupModal
                 show=show_edit_modal
                 client_id=client_id_sv.get_value()
-                wg_id=wg_id
+                watch_group_id=watch_group_id
                 initial_path=initial_path
                 initial_exclude_dirs=initial_exclude_dirs
                 initial_exclude_dot=initial_exclude_dot
