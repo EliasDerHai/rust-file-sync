@@ -2,12 +2,14 @@ mod client_repository;
 mod client_watch_group_repository;
 mod file_event_repository;
 mod link_repository;
+mod link_tag_repository;
 mod server_watch_group_repository;
 
 pub use client_repository::ClientRepository;
 pub use client_watch_group_repository::ClientWatchGroupRepository;
 pub use file_event_repository::FileEventRepository;
-pub use link_repository::SharedLinkRepository;
+pub use link_repository::LinkRepository;
+pub use link_tag_repository::LinkTagRepository;
 pub use server_watch_group_repository::ServerWatchGroupRepository;
 
 use sqlx::SqlitePool;
@@ -34,8 +36,8 @@ impl ServerDatabase {
         ClientWatchGroupRepository::new(&self.pool)
     }
 
-    pub fn link(&self) -> SharedLinkRepository<'_> {
-        SharedLinkRepository::new(&self.pool)
+    pub fn link(&self) -> LinkRepository<'_> {
+        LinkRepository::new(&self.pool)
     }
 
     pub fn file_event(&self) -> FileEventRepository<'_> {

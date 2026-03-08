@@ -1,13 +1,13 @@
-use shared::dtos::ShareLinkRequest;
+use shared::dtos::ShareLinkRequest as LinkDto;
 use sqlx::SqlitePool;
 
-pub struct SharedLinkRepository<'a> {
+pub struct LinkRepository<'a> {
     pool: &'a SqlitePool,
 }
 
 type Result<T> = sqlx::Result<T>;
 
-impl<'a> SharedLinkRepository<'a> {
+impl<'a> LinkRepository<'a> {
     pub fn new(pool: &'a SqlitePool) -> Self {
         Self { pool }
     }
@@ -28,13 +28,13 @@ impl<'a> SharedLinkRepository<'a> {
         Ok(())
     }
 
-    pub async fn get_links(&self) -> Result<Vec<ShareLinkRequest>> {
+    pub async fn get_links(&self) -> Result<Vec<LinkDto>> {
         sqlx::query!("SELECT url, title FROM link")
             .fetch_all(self.pool)
             .await
             .map(|rows| {
                 rows.into_iter()
-                    .map(|row| ShareLinkRequest {
+                    .map(|row| LinkDto {
                         url: row.url,
                         title: row.title,
                     })
