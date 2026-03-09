@@ -154,8 +154,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route(
             ServerEndpoint::ApiClientWatchGroups.to_str(),
-            get(handler::api_list_client_watch_groups)
-                .post(handler::api_create_client_watch_group),
+            get(handler::api_list_client_watch_groups).post(handler::api_create_client_watch_group),
         )
         .route(
             ServerEndpoint::ApiClientWatchGroup.to_str(),
@@ -173,6 +172,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route(
             ServerEndpoint::ApiMonitor.to_str(),
             get(|state: State<AppState>| monitor::api_get_monitoring(state.monitor_writer.clone())),
+        )
+        .route(
+            ServerEndpoint::ApiLinkTags.to_str(),
+            post(handler::post_link_tag),
         )
         .route(
             ServerEndpoint::ApiLinks.to_str(),

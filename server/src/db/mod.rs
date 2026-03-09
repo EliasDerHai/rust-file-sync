@@ -40,6 +40,10 @@ impl ServerDatabase {
         LinkRepository::new(&self.pool)
     }
 
+    pub fn link_tag(&self) -> LinkTagRepository<'_> {
+        LinkTagRepository::new(&self.pool)
+    }
+
     pub fn file_event(&self) -> FileEventRepository<'_> {
         FileEventRepository::new(&self.pool)
     }

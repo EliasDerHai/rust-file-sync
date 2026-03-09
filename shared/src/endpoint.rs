@@ -19,8 +19,10 @@ pub enum ServerEndpoint {
     /// SPA frontend
     App,
 
-    /// Receive shared links from PWA
+    /// Shared links from PWA
     ApiLinks,
+    /// Tags for links
+    ApiLinkTags,
     /// JSON API: list / create clients
     ApiClients,
     /// JSON API: single client (GET, PUT, DELETE)
@@ -74,6 +76,7 @@ impl ServerEndpoint {
             ServerEndpoint::App => "/app",
             // api
             ServerEndpoint::ApiLinks => "/api/links",
+            ServerEndpoint::ApiLinkTags => "/api/links/tags",
             ServerEndpoint::ApiClients => "/api/clients",
             ServerEndpoint::ApiClient => "/api/clients/{id}",
             ServerEndpoint::ApiClientWatchGroups => "/api/clients/{id}/watch-groups",
@@ -132,6 +135,7 @@ mod tests {
                 App => assert_eq!("http://localhost/app", actual),
 
                 ApiLinks => assert_eq!("http://localhost/api/links", actual),
+                ApiLinkTags => assert_eq!("http://localhost/api/links/tags", actual),
                 ApiClients => assert_eq!("http://localhost/api/clients", actual),
                 ApiClient => assert_eq!("http://localhost/api/clients/{id}", actual),
                 ApiClientWatchGroups => {

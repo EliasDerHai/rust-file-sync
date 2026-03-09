@@ -11,24 +11,11 @@ impl<'a> LinkTagRepository<'a> {
         Self { pool }
     }
 
-    /// Store a shared link from the PWA
-    pub async fn insert_link_tag(&self, tag: &str, link_id: i32) -> Result<()> {
-        if sqlx::query_scalar!(
-            "SELECT count(1) FROM link_tag WHERE name = ? AND link_id = ?",
-            tag,
-            link_id
-        )
-        .fetch_one(self.pool)
-        .await?
-            > 0
-        {
-            return Ok(());
-        };
-
+    pub async fn insert_link_tag(&self, tag: &str, link_url: &str) -> Result<()> {
         sqlx::query!(
-            "INSERT INTO link_tag (name, link_id) VALUES (?, ?)",
+            "INSERT INTO link_tag (name, link_url) VALUES (?, ?)",
             tag,
-            link_id
+            link_url
         )
         .execute(self.pool)
         .await?;

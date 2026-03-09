@@ -125,7 +125,13 @@ pub struct MonitorData {
 // links
 
 #[derive(Deserialize, serde::Serialize)]
-pub struct ShareLinkRequest {
+pub struct LinkDto {
     pub url: String,
     pub title: Option<String>,
+}
+
+#[derive(Deserialize, serde::Serialize)]
+pub struct LinkTagPostDto {
+    pub url: String,
+    pub tag: String,
 }
