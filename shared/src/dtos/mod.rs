@@ -123,15 +123,21 @@ pub struct MonitorData {
 }
 
 // links
-
-#[derive(Deserialize, serde::Serialize)]
-pub struct LinkDto {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LinkCreateDto {
     pub url: String,
     pub title: Option<String>,
 }
 
-#[derive(Deserialize, serde::Serialize)]
-pub struct LinkTagPostDto {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LinkDto {
+    pub url: String,
+    pub title: Option<String>,
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LinkTagCreateDto {
     pub url: String,
     pub tag: String,
 }

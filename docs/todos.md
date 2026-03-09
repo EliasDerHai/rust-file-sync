@@ -10,6 +10,7 @@ Let's see if that law holds once more.
 - implement backup strategy (currently mocked TODOs)
 - add more metrics (up/download per day etc.)
 
+
 ### Bugs
 
 
@@ -17,3 +18,4 @@ Let's see if that law holds once more.
 
 ## Open
 
+- add tags for links (currently PWA needs to be updated and /web doens't have links at all yet)

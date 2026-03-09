@@ -2,12 +2,12 @@ use crate::AppState;
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use shared::dtos::{LinkDto, LinkTagPostDto};
+use shared::dtos::{LinkCreateDto, LinkDto, LinkTagCreateDto};
 use tracing::{error, info};
 
 pub async fn post_link(
     State(state): State<AppState>,
-    Json(request): Json<LinkDto>,
+    Json(request): Json<LinkCreateDto>,
 ) -> Result<String, (StatusCode, String)> {
     state
         .db
@@ -36,7 +36,7 @@ pub async fn get_links(
 
 pub async fn post_link_tag(
     State(state): State<AppState>,
-    Json(request): Json<LinkTagPostDto>,
+    Json(request): Json<LinkTagCreateDto>,
 ) -> Result<String, (StatusCode, String)> {
     state
         .db

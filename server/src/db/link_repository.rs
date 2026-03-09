@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use shared::dtos::LinkDto;
 use sqlx::SqlitePool;
 
@@ -21,16 +23,30 @@ impl<'a> LinkRepository<'a> {
     }
 
     pub async fn get_links(&self) -> Result<Vec<LinkDto>> {
-        sqlx::query!("SELECT url, name FROM link")
-            .fetch_all(self.pool)
-            .await
-            .map(|rows| {
-                rows.into_iter()
-                    .map(|row| LinkDto {
-                        url: row.url,
-                        title: row.name,
-                    })
-                    .collect()
+        let selected = sqlx::query!(
+            r#"
+                SELECT url, l.name as title, lt.name as tag_name FROM link l 
+                LEFT JOIN link_tag lt on lt.link_url = l.url
+            "#
+        )
+        .fetch_all(self.pool)
+        .await?;
+
+        Ok(selected
+            .into_iter()
+            .fold(HashMap::new(), |mut map, row| {
+                let entry = map.entry(row.url.clone()).or_insert_with(|| LinkDto {
+                    url: row.url,
+                    title: row.title,
+                    tags: Vec::new(),
+                });
+
+                if let Some(tag) = row.tag_name {
+                    entry.tags.push(tag);
+                }
+                map
             })
+            .into_values()
+            .collect())
     }
 }
