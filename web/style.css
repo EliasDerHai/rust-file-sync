@@ -364,11 +364,39 @@ select.form-input {
 }
 
 .link {
-  display: inline-block;
+  display: flex;
   width: 100%;
   padding: 1em 0.5em;
 }
 
 .odd {
-  background: #231c52;
+  background: #0f1528;
+}
+
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  background: #1e2a4a;
+  color: #4a90d9;
+  border: 1px solid #4a90d9;
+  margin-left: 6px;
+  cursor: default;
+}
+
+.tag.clickable {
+  cursor: pointer;
+}
+
+.tag.active {
+  background: #4a90d9;
+  color: #fff;
+}
+
+.tag-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 1rem;
 }
