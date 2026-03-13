@@ -20,7 +20,7 @@ a {
   text-decoration: none;
 }
 a:hover {
-  text-decoration: underline;
+  color: #eee;
 }
 
 /* === Layout === */
@@ -361,4 +361,14 @@ select.form-input {
   font-size: 1.1rem;
   font-weight: 600;
   color: #eee;
+}
+
+.link {
+  display: inline-block;
+  width: 100%;
+  padding: 1em 0.5em;
+}
+
+.odd {
+  background: #231c52;
 }

@@ -2,7 +2,7 @@ use gloo_net::http::Request;
 use shared::{
     dtos::{
         ClientDto, ClientUpdateDto, ClientWatchGroupCreateDto, ClientWatchGroupDto,
-        ClientWatchGroupUpdateDto, MonitorData, ServerWatchGroup, WatchGroupNameDto,
+        ClientWatchGroupUpdateDto, LinkDto, MonitorData, ServerWatchGroup, WatchGroupNameDto,
     },
     endpoint::ServerEndpoint,
 };
@@ -16,37 +16,6 @@ pub async fn fetch_clients() -> Result<Vec<ClientDto>, String> {
         .await
         .map_err(|e| e.to_string())
 }
-
-// pub async fn fetch_configs() -> Result<Vec<ClientWithConfig>, String> {
-//     Request::get(ServerEndpoint::ApiConfigs.to_str())
-//         .send()
-//         .await
-//         .map_err(|e| e.to_string())?
-//         .json()
-//         .await
-//         .map_err(|e| e.to_string())
-// }
-//
-// pub async fn fetch_config(id: &str) -> Result<ClientWithConfig, String> {
-//     Request::get(&ServerEndpoint::ApiConfig.to_str().replace("{id}", id))
-//         .send()
-//         .await
-//         .map_err(|e| e.to_string())?
-//         .json()
-//         .await
-//         .map_err(|e| e.to_string())
-// }
-//
-// pub async fn update_config(id: &str, dto: &ClientWatchGroupUpdateDto) -> Result<String, String> {
-//     let resp = Request::put(&ServerEndpoint::ApiConfig.to_str().replace("{id}", id))
-//         .json(dto)
-//         .map_err(|e| e.to_string())?
-//         .send()
-//         .await
-//         .map_err(|e| e.to_string())?;
-//     let text = resp.text().await.map_err(|e| e.to_string())?;
-//     if resp.ok() { Ok(text) } else { Err(text) }
-// }
 
 pub async fn fetch_watch_groups() -> Result<Vec<ServerWatchGroup>, String> {
     Request::get(ServerEndpoint::ApiWatchGroups.to_str())
@@ -84,7 +53,9 @@ pub async fn update_watch_group(id: i64, dto: &WatchGroupNameDto) -> Result<Stri
     if resp.ok() { Ok(text) } else { Err(text) }
 }
 
-pub async fn fetch_client_watch_groups(client_id: &str) -> Result<Vec<ClientWatchGroupDto>, String> {
+pub async fn fetch_client_watch_groups(
+    client_id: &str,
+) -> Result<Vec<ClientWatchGroupDto>, String> {
     Request::get(
         &ServerEndpoint::ApiClientWatchGroups
             .to_str()
@@ -176,6 +147,16 @@ pub async fn delete_client_watch_group(client_id: &str, wg_id: i64) -> Result<()
     .map_err(|e| e.to_string())?;
     let text = resp.text().await.map_err(|e| e.to_string())?;
     if resp.ok() { Ok(()) } else { Err(text) }
+}
+
+pub async fn fetch_links() -> Result<Vec<LinkDto>, String> {
+    Request::get(ServerEndpoint::ApiLinks.to_str())
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .json()
+        .await
+        .map_err(|e| e.to_string())
 }
 
 pub async fn fetch_monitor_data() -> Result<MonitorData, String> {

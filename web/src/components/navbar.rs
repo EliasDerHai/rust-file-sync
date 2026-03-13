@@ -8,6 +8,7 @@ pub fn Navbar() -> impl IntoView {
             <A href="/app/" attr:class="brand">"File Sync - Admin"</A>
             <A href="/app/clients">"Clients"</A>
             <A href="/app/watch-groups">"Watch Groups"</A>
+            <A href="/app/links">"Links"</A>
             <A href="/app/monitor">"Monitor"</A>
         </nav>
     }

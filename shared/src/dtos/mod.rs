@@ -141,3 +141,22 @@ pub struct LinkTagCreateDto {
     pub url: String,
     pub tag: String,
 }
+
+// impls
+
+impl LinkDto {
+    pub fn link_text(&self, max: usize) -> String {
+        match self.title.clone() {
+            Some(t) => t,
+            None => {
+                let s = self
+                    .url
+                    .strip_prefix("https://")
+                    .or_else(|| self.url.strip_prefix("http://"))
+                    .unwrap_or(&self.url);
+
+                s.chars().take(max).collect()
+            }
+        }
+    }
+}

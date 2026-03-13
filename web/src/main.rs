@@ -20,6 +20,7 @@ fn App() -> impl IntoView {
                     <Route path=path!("/") view=pages::ClientsPage />
                     <Route path=path!("/clients") view=pages::ClientsPage />
                     <Route path=path!("/watch-groups") view=pages::WatchGroupsPage />
+                    <Route path=path!("/links") view=pages::LinksPage />
                     <Route path=path!("/monitor") view=pages::MonitorPage />
                 </Routes>
             </main>
