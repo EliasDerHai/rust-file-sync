@@ -50,4 +50,11 @@ impl<'a> LinkRepository<'a> {
             .into_values()
             .collect())
     }
+
+    pub async fn delete_link(&self, url: &str) -> Result<()> {
+        sqlx::query!("DELETE FROM link WHERE url = ?", url)
+            .execute(self.pool)
+            .await
+            .map(|_| ())
+    }
 }

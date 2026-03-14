@@ -4,20 +4,19 @@ use crate::components::{
 };
 use itertools::Itertools;
 use leptos::prelude::*;
+use leptos::reactive::spawn_local;
 use shared::dtos::LinkDto;
 
 #[component]
 pub fn LinksPage() -> impl IntoView {
-    let signal = RwSignal::new(0u32);
+    let reload_links = RwSignal::new(0u32);
     let links = LocalResource::new(move || {
-        signal.get();
+        reload_links.get();
         api::fetch_links()
     });
     let msg = ToastSignal::new();
     let selected_tags: RwSignal<Vec<String>> = RwSignal::new(vec![]);
 
-    // Single Callback<String> — toggles a tag in/out of selected_tags.
-    // Callback is Copy, so it can be passed to every Link without cloning.
     let badge_click = Callback::new(move |t: String| {
         selected_tags.update(|v| {
             if v.contains(&t) {
@@ -76,7 +75,7 @@ pub fn LinksPage() -> impl IntoView {
                                                 .sorted_by_key(|l| l.created_at)
                                                 .enumerate()
                                                 .map(|(i, link)| view! {
-                                                    <Link i link selected_tags badge_click signal />
+                                                    <Link i link selected_tags badge_click reload_links />
                                                 })
                                                 .collect_view()
                                         }}
@@ -97,37 +96,51 @@ pub fn Link(
     link: LinkDto,
     selected_tags: RwSignal<Vec<String>>,
     badge_click: Callback<String>,
-    signal: RwSignal<u32>,
+    reload_links: RwSignal<u32>,
 ) -> impl IntoView {
+    let show_edit = RwSignal::new(false);
+
     view! {
         <div class={odd(i)}>
             <div>
                 <a href={link.url.clone()} target="_blank" style="padding-right: 1em">{link.link_text(30)}</a>
-                {link.tags.iter().map(|t| {
-                    let tag = t.clone();
-                    let t_active = t.clone();
-                    let t_click = t.clone();
+                {link.tags.into_iter().map(|tag| {
+                    let compare_tag = tag.clone();
                     view! {
                         <TagBadge
-                            tag
-                            active=Signal::derive(move || selected_tags.get().contains(&t_active))
-                            on_click=Callback::new(move |_| badge_click.run(t_click.clone()))
+                            tag=tag.clone()
+                            active=Signal::derive(move || selected_tags.get().contains(&compare_tag))
+                            on_click=Callback::new(move |_| badge_click.run(tag.clone()))
                         />
                     }
                 }).collect_view()}
             </div>
             <div style="display: flex; gap: 5px">
+                <Show when=move || show_edit.get()>
+                    <input type="text" />
+                </Show>
+
                 <button
                     class="btn btn-icon btn-primary"
                     title="Edit"
-                    on:click=move |_| println!("edit")
+                    on:click=move |_| {
+                        println!("edit");
+                        show_edit.set(!show_edit.get());
+                    }
                 >
                     <PencilIcon/>
                 </button>
                 <button
                     class="btn btn-icon btn-danger"
                     title="Delete"
-                    on:click=move |_| println!("delete")
+                    on:click=move |_| {
+                        let url = link.url.clone();
+                        spawn_local(async move {
+                            if api::delete_link(&url).await.is_ok() {
+                                reload_links.update(|n| *n += 1);
+                            }
+                        });
+                    }
                 >
                     <TrashIcon/>
                 </button>

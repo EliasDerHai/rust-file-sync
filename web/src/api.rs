@@ -2,7 +2,8 @@ use gloo_net::http::Request;
 use shared::{
     dtos::{
         ClientDto, ClientUpdateDto, ClientWatchGroupCreateDto, ClientWatchGroupDto,
-        ClientWatchGroupUpdateDto, LinkDto, MonitorData, ServerWatchGroup, WatchGroupNameDto,
+        ClientWatchGroupUpdateDto, LinkDeleteDto, LinkDto, MonitorData, ServerWatchGroup,
+        WatchGroupNameDto,
     },
     endpoint::ServerEndpoint,
 };
@@ -149,6 +150,18 @@ pub async fn delete_client_watch_group(client_id: &str, wg_id: i64) -> Result<()
     if resp.ok() { Ok(()) } else { Err(text) }
 }
 
+pub async fn fetch_monitor_data() -> Result<MonitorData, String> {
+    Request::get(ServerEndpoint::ApiMonitor.to_str())
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .json()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+// links
+
 pub async fn fetch_links() -> Result<Vec<LinkDto>, String> {
     Request::get(ServerEndpoint::ApiLinks.to_str())
         .send()
@@ -159,12 +172,15 @@ pub async fn fetch_links() -> Result<Vec<LinkDto>, String> {
         .map_err(|e| e.to_string())
 }
 
-pub async fn fetch_monitor_data() -> Result<MonitorData, String> {
-    Request::get(ServerEndpoint::ApiMonitor.to_str())
+pub async fn delete_link(url: &str) -> Result<(), String> {
+    let resp = Request::delete(&ServerEndpoint::ApiLinks.to_str())
+        .json(&LinkDeleteDto {
+            url: url.to_string(),
+        })
+        .map_err(|e| e.to_string())?
         .send()
         .await
-        .map_err(|e| e.to_string())?
-        .json()
-        .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    let text = resp.text().await.map_err(|e| e.to_string())?;
+    if resp.ok() { Ok(()) } else { Err(text) }
 }

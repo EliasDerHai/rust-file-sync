@@ -131,6 +131,11 @@ pub struct LinkCreateDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LinkDeleteDto {
+    pub url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LinkDto {
     pub url: String,
     pub created_at: NaiveDateTime,

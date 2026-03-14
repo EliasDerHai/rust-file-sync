@@ -14,7 +14,7 @@ pub use client_watch_group::{
     api_update_client_watch_group,
 };
 pub use config::get_config;
-pub use link::{get_links, post_link, post_link_tag};
+pub use link::{delete_link, get_links, post_link, post_link_tag};
 pub use pwa::serve_embedded_pwa;
 pub use server_watch_group::{
     api_create_watch_group, api_delete_watch_group, api_list_watch_groups, api_update_watch_group,

@@ -174,12 +174,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             get(|state: State<AppState>| monitor::api_get_monitoring(state.monitor_writer.clone())),
         )
         .route(
-            ServerEndpoint::ApiLinkTags.to_str(),
-            post(handler::post_link_tag),
+            ServerEndpoint::ApiLinks.to_str(),
+            get(handler::get_links)
+                .post(handler::post_link)
+                .delete(handler::delete_link),
         )
         .route(
-            ServerEndpoint::ApiLinks.to_str(),
-            get(handler::get_links).post(handler::post_link),
+            ServerEndpoint::ApiLinkTags.to_str(),
+            post(handler::post_link_tag),
         )
         // apps
         .nest_service(
