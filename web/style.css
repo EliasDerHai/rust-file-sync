@@ -365,6 +365,8 @@ select.form-input {
 
 .link {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   width: 100%;
   padding: 1em 0.5em;
 }

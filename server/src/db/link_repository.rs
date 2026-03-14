@@ -25,7 +25,7 @@ impl<'a> LinkRepository<'a> {
     pub async fn get_links(&self) -> Result<Vec<LinkDto>> {
         let selected = sqlx::query!(
             r#"
-                SELECT url, l.name as title, lt.name as tag_name FROM link l 
+                SELECT url, l.name as title, l.created_at, lt.name as tag_name FROM link l 
                 LEFT JOIN link_tag lt on lt.link_url = l.url
             "#
         )
@@ -37,6 +37,7 @@ impl<'a> LinkRepository<'a> {
             .fold(HashMap::new(), |mut map, row| {
                 let entry = map.entry(row.url.clone()).or_insert_with(|| LinkDto {
                     url: row.url,
+                    created_at: row.created_at,
                     title: row.title,
                     tags: Vec::new(),
                 });

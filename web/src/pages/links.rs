@@ -1,28 +1,32 @@
 use crate::api;
-use crate::components::{EmptyState, Loading, Message, TagBadge, ToastSignal};
+use crate::components::{
+    EmptyState, Loading, Message, PencilIcon, TagBadge, ToastSignal, TrashIcon,
+};
+use itertools::Itertools;
 use leptos::prelude::*;
+use shared::dtos::LinkDto;
 
 #[component]
 pub fn LinksPage() -> impl IntoView {
-    let (trigger, set_trigger) = signal(0u32);
+    let signal = RwSignal::new(0u32);
     let links = LocalResource::new(move || {
-        trigger.get();
+        signal.get();
         api::fetch_links()
     });
     let msg = ToastSignal::new();
     let selected_tags: RwSignal<Vec<String>> = RwSignal::new(vec![]);
 
-    let badge_click = move |t: String| {
-        Callback::new(move |_| {
-            selected_tags.update(|v| {
-                if v.contains(&t) {
-                    v.retain(|x| x != &t);
-                } else {
-                    v.push(t.clone());
-                }
-            });
-        })
-    };
+    // Single Callback<String> — toggles a tag in/out of selected_tags.
+    // Callback is Copy, so it can be passed to every Link without cloning.
+    let badge_click = Callback::new(move |t: String| {
+        selected_tags.update(|v| {
+            if v.contains(&t) {
+                v.retain(|x| x != &t);
+            } else {
+                v.push(t);
+            }
+        });
+    });
 
     view! {
         <div class="container">
@@ -50,13 +54,13 @@ pub fn LinksPage() -> impl IntoView {
                                     {(!unique_tags.is_empty()).then(|| view! {
                                         <div class="tag-filter">
                                             {unique_tags.into_iter().map(|tag| {
-                                                let t = tag.clone();
                                                 let tag_for_active = tag.clone();
+                                                let tag_for_click = tag.clone();
                                                 view! {
                                                     <TagBadge
                                                         tag=tag
                                                         active=Signal::derive(move || selected_tags.get().contains(&tag_for_active))
-                                                        on_click={badge_click(t)}
+                                                        on_click=Callback::new(move |_| badge_click.run(tag_for_click.clone()))
                                                     />
                                                 }
                                             }).collect_view()}
@@ -66,24 +70,13 @@ pub fn LinksPage() -> impl IntoView {
                                     <ul style="list-style: none; padding: 0;">
                                         {move || {
                                             let active = selected_tags.get();
-                                            links.get_value().into_iter()
+                                            links.get_value()
+                                                .into_iter()
                                                 .filter(|l| active.is_empty() || active.iter().all(|t| l.tags.contains(t)))
+                                                .sorted_by_key(|l| l.created_at)
                                                 .enumerate()
                                                 .map(|(i, link)| view! {
-                                                    <div class={odd(i)}>
-                                                        <a href={link.url.clone()} target="_blank" style="padding-right: 1em">{link.link_text(30)}</a>
-                                                        {link.tags.iter().map(|t| {
-                                                            let t = t.clone();
-                                                            let t_active = t.clone();
-                                                            view! {
-                                                                <TagBadge
-                                                                    tag=t.clone()
-                                                                    active=Signal::derive(move || selected_tags.get().contains(&t_active))
-                                                                    on_click={badge_click(t)}
-                                                                />
-                                                            }
-                                                        }).collect_view()}
-                                                    </div>
+                                                    <Link i link selected_tags badge_click signal />
                                                 })
                                                 .collect_view()
                                         }}
@@ -96,6 +89,51 @@ pub fn LinksPage() -> impl IntoView {
             </Suspense>
         </div>
     }
+}
+
+#[component]
+pub fn Link(
+    i: usize,
+    link: LinkDto,
+    selected_tags: RwSignal<Vec<String>>,
+    badge_click: Callback<String>,
+    signal: RwSignal<u32>,
+) -> impl IntoView {
+    view! {
+        <div class={odd(i)}>
+            <div>
+                <a href={link.url.clone()} target="_blank" style="padding-right: 1em">{link.link_text(30)}</a>
+                {link.tags.iter().map(|t| {
+                    let tag = t.clone();
+                    let t_active = t.clone();
+                    let t_click = t.clone();
+                    view! {
+                        <TagBadge
+                            tag
+                            active=Signal::derive(move || selected_tags.get().contains(&t_active))
+                            on_click=Callback::new(move |_| badge_click.run(t_click.clone()))
+                        />
+                    }
+                }).collect_view()}
+            </div>
+            <div style="display: flex; gap: 5px">
+                <button
+                    class="btn btn-icon btn-primary"
+                    title="Edit"
+                    on:click=move |_| println!("edit")
+                >
+                    <PencilIcon/>
+                </button>
+                <button
+                    class="btn btn-icon btn-danger"
+                    title="Delete"
+                    on:click=move |_| println!("delete")
+                >
+                    <TrashIcon/>
+                </button>
+            </div>
+        </div>
+    }.into_any()
 }
 
 fn odd(i: usize) -> &'static str {

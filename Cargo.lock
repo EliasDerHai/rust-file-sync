@@ -3897,6 +3897,7 @@ version = "0.1.17"
 dependencies = [
  "gloo-net",
  "gloo-timers",
+ "itertools",
  "js-sys",
  "leptos",
  "leptos_router",

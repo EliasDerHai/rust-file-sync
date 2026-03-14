@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
 use crate::{matchable_path::MatchablePath, utc_millis::UtcMillis};
@@ -132,6 +133,7 @@ pub struct LinkCreateDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LinkDto {
     pub url: String,
+    pub created_at: NaiveDateTime,
     pub title: Option<String>,
     pub tags: Vec<String>,
 }
