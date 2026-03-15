@@ -173,7 +173,7 @@ pub async fn fetch_links() -> Result<Vec<LinkDto>, String> {
 }
 
 pub async fn delete_link(url: &str) -> Result<(), String> {
-    let resp = Request::delete(&ServerEndpoint::ApiLinks.to_str())
+    let resp = Request::delete(ServerEndpoint::ApiLinks.to_str())
         .json(&LinkDeleteDto {
             url: url.to_string(),
         })
