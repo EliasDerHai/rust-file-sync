@@ -1,14 +1,15 @@
 use crate::api;
 use crate::components::{
-    EmptyState, Loading, Message, PencilIcon, TagBadge, ToastSignal, TrashIcon,
+    EmptyState, Loading, Message, Modal, PencilIcon, PlusIcon, TagBadge, ToastSignal, TrashIcon,
 };
 use itertools::Itertools;
 use leptos::prelude::*;
 use leptos::reactive::spawn_local;
-use shared::dtos::LinkDto;
+use shared::dtos::{LinkCreateDto, LinkDto};
 
 #[component]
 pub fn LinksPage() -> impl IntoView {
+    let show_add = RwSignal::new(false);
     let reload_links = RwSignal::new(0u32);
     let links = LocalResource::new(move || {
         reload_links.get();
@@ -16,7 +17,6 @@ pub fn LinksPage() -> impl IntoView {
     });
     let msg = ToastSignal::new();
     let selected_tags: RwSignal<Vec<String>> = RwSignal::new(vec![]);
-
     let badge_click = Callback::new(move |t: String| {
         selected_tags.update(|v| {
             if v.contains(&t) {
@@ -86,6 +86,15 @@ pub fn LinksPage() -> impl IntoView {
                     }
                 })}
             </Suspense>
+
+            <AddOrEditLinkModal show=show_add on_saved=move||reload_links.update(|v| *v += 1) />
+            <button
+                class="btn btn-icon btn-primary"
+                title="Add"
+                on:click=move |_| show_add.set(true)
+            >
+                <PlusIcon/>
+            </button>
         </div>
     }
 }
@@ -99,12 +108,11 @@ pub fn Link(
     reload_links: RwSignal<u32>,
 ) -> impl IntoView {
     let show_edit = RwSignal::new(false);
-
     view! {
         <div class={odd(i)}>
             <div>
                 <a href={link.url.clone()} target="_blank" style="padding-right: 1em">{link.link_text(30)}</a>
-                {link.tags.into_iter().map(|tag| {
+                {link.tags.clone().into_iter().map(|tag| {
                     let compare_tag = tag.clone();
                     view! {
                         <TagBadge
@@ -116,9 +124,8 @@ pub fn Link(
                 }).collect_view()}
             </div>
             <div style="display: flex; gap: 5px">
-                <Show when=move || show_edit.get()>
-                    <input type="text" />
-                </Show>
+
+                <AddOrEditLinkModal show=show_edit on_saved=move||reload_links.update(|v| *v += 1) val=link.clone() />
 
                 <button
                     class="btn btn-icon btn-primary"
@@ -147,6 +154,48 @@ pub fn Link(
             </div>
         </div>
     }.into_any()
+}
+
+#[component]
+pub fn AddOrEditLinkModal(
+    show: RwSignal<bool>,
+    on_saved: impl Fn() + 'static + Clone + Send + Sync,
+    #[prop(optional)] val: Option<LinkDto>,
+) -> impl IntoView {
+    let (url, title) = match val {
+        Some(LinkDto {
+            created_at: _,
+            url,
+            title,
+            tags: _,
+        }) => (url, title.unwrap_or_default()),
+        None => (String::new(), String::new()),
+    };
+    let url = RwSignal::new(url);
+    let title = RwSignal::new(title);
+
+    let on_save = move || {
+        let url = url.get();
+        let title = title.get();
+        let title = if title.is_empty() { None } else { Some(title) };
+
+        let dto = LinkCreateDto { url, title };
+
+        async move { api::create_link(dto).await }
+    };
+
+    view! {
+        <Modal show title="Add link" on_save on_saved>
+            <div class="form-group">
+                <label>"Url"</label>
+                <input type="text" class="form-input" bind:value=url/>
+            </div>
+            <div class="form-group">
+                <label>"Title"</label>
+                <input type="text" class="form-input" bind:value=title/>
+            </div>
+        </Modal>
+    }
 }
 
 fn odd(i: usize) -> &'static str {
