@@ -17,6 +17,7 @@ pub fn LinksPage() -> impl IntoView {
     });
     let msg = ToastSignal::new();
     let selected_tags: RwSignal<Vec<String>> = RwSignal::new(vec![]);
+    let distinct_tags: RwSignal<Vec<String>> = RwSignal::new(vec![]);
     let badge_click = Callback::new(move |t: String| {
         selected_tags.update(|v| {
             if v.contains(&t) {
@@ -37,22 +38,24 @@ pub fn LinksPage() -> impl IntoView {
                     match links.await {
                         Err(e) => view! { <div class="message message-error">"Error: " {e}</div> }.into_any(),
                         Ok(links) => {
+                            let tags: Vec<String> = {
+                                let mut seen = std::collections::HashSet::new();
+                                links.iter()
+                                    .flat_map(|l| l.tags.iter().cloned())
+                                    .filter(|t| seen.insert(t.clone()))
+                                    .collect()
+                            };
+                            distinct_tags.set(tags.clone());
+
                             if links.is_empty() {
                                 view! { <EmptyState message="No links saved yet." /> }.into_any()
                             } else {
-                                let unique_tags: Vec<String> = {
-                                    let mut seen = std::collections::HashSet::new();
-                                    links.iter()
-                                        .flat_map(|l| l.tags.iter().cloned())
-                                        .filter(|t| seen.insert(t.clone()))
-                                        .collect()
-                                };
                                 let links = StoredValue::new(links);
 
                                 view! {
-                                    {(!unique_tags.is_empty()).then(|| view! {
+                                    {(!tags.is_empty()).then(|| view! {
                                         <div class="tag-filter">
-                                            {unique_tags.into_iter().map(|tag| {
+                                            {tags.into_iter().map(|tag| {
                                                 let tag_for_active = tag.clone();
                                                 let tag_for_click = tag.clone();
                                                 view! {
@@ -75,7 +78,7 @@ pub fn LinksPage() -> impl IntoView {
                                                 .sorted_by_key(|l| l.created_at)
                                                 .enumerate()
                                                 .map(|(i, link)| view! {
-                                                    <Link i link selected_tags badge_click reload_links />
+                                                    <Link i link selected_tags badge_click reload_links distinct_tags=distinct_tags.into() />
                                                 })
                                                 .collect_view()
                                         }}
@@ -87,7 +90,7 @@ pub fn LinksPage() -> impl IntoView {
                 })}
             </Suspense>
 
-            <AddOrEditLinkModal show=show_add on_saved=move||reload_links.update(|v| *v += 1) />
+            <AddOrEditLinkModal show=show_add distinct_tags=Signal::from(distinct_tags) on_saved=move||reload_links.update(|v| *v += 1) />
             <button
                 class="btn btn-icon btn-primary"
                 title="Add"
@@ -106,6 +109,7 @@ pub fn Link(
     selected_tags: RwSignal<Vec<String>>,
     badge_click: Callback<String>,
     reload_links: RwSignal<u32>,
+    distinct_tags: Signal<Vec<String>>,
 ) -> impl IntoView {
     let show_edit = RwSignal::new(false);
     view! {
@@ -125,7 +129,7 @@ pub fn Link(
             </div>
             <div style="display: flex; gap: 5px">
 
-                <AddOrEditLinkModal show=show_edit on_saved=move||reload_links.update(|v| *v += 1) val=link.clone() />
+                <AddOrEditLinkModal show=show_edit distinct_tags on_saved=move||reload_links.update(|v| *v += 1) val=link.clone() />
 
                 <button
                     class="btn btn-icon btn-primary"
@@ -159,20 +163,32 @@ pub fn Link(
 #[component]
 pub fn AddOrEditLinkModal(
     show: RwSignal<bool>,
+    distinct_tags: Signal<Vec<String>>,
     on_saved: impl Fn() + 'static + Clone + Send + Sync,
     #[prop(optional)] val: Option<LinkDto>,
 ) -> impl IntoView {
-    let (url, title) = match val {
+    let (url, title, initial_tags) = match val {
         Some(LinkDto {
             created_at: _,
             url,
             title,
-            tags: _,
-        }) => (url, title.unwrap_or_default()),
-        None => (String::new(), String::new()),
+            tags,
+        }) => (url, title.unwrap_or_default(), tags),
+        None => (String::new(), String::new(), vec![]),
     };
     let url = RwSignal::new(url);
     let title = RwSignal::new(title);
+    let selected_tags: RwSignal<Vec<String>> = RwSignal::new(initial_tags);
+
+    let badge_click = Callback::new(move |t: String| {
+        selected_tags.update(|v| {
+            if v.contains(&t) {
+                v.retain(|x| x != &t);
+            } else {
+                v.push(t);
+            }
+        });
+    });
 
     let on_save = move || {
         let url = url.get();
@@ -194,6 +210,17 @@ pub fn AddOrEditLinkModal(
                 <label>"Title"</label>
                 <input type="text" class="form-input" bind:value=title/>
             </div>
+
+                {move || distinct_tags.get().into_iter().map(|tag| {
+                    let compare_tag = tag.clone();
+                    view! {
+                        <TagBadge
+                            tag=tag.clone()
+                            active=Signal::derive(move || selected_tags.get().contains(&compare_tag))
+                            on_click=Callback::new(move |_| badge_click.run(tag.clone()))
+                        />
+                    }
+                }).collect_view()}
         </Modal>
     }
 }
