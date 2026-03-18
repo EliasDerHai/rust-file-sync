@@ -15,6 +15,7 @@ function savePendingLinks(links) {
 // Queue a link for later sync
 function queueLink(url, title) {
   const pending = getPendingLinks();
+  if (pending.some((l) => l.url === url)) return;
   pending.push({ url, title, timestamp: Date.now() });
   savePendingLinks(pending);
 }

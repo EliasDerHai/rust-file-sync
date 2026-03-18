@@ -16,7 +16,7 @@ impl<'a> LinkRepository<'a> {
 
     /// Store a shared link from the PWA
     pub async fn insert_link(&self, url: &str, title: Option<&str>) -> Result<()> {
-        sqlx::query!("INSERT INTO link (url, name) VALUES (?, ?)", url, title)
+        sqlx::query!("INSERT OR IGNORE INTO link (url, name) VALUES (?, ?)", url, title)
             .execute(self.pool)
             .await?;
         Ok(())
