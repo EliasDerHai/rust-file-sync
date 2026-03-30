@@ -1,4 +1,5 @@
 use serde_json::to_string;
+use shared::dtos::FileDescription;
 use shared::matchable_path::MatchablePath;
 use shared::utc_millis::UtcMillis;
 use std::fmt::Debug;
@@ -58,6 +59,23 @@ pub struct FileEvent {
     pub event_type: FileEventType,
     pub client_host: Option<String>,
     pub watch_group_id: i64,
+}
+
+impl Into<FileDescription> for FileEvent {
+    fn into(self) -> FileDescription {
+        let file_name = self.relative_path.tail();
+        FileDescription {
+            file_name: file_name.clone(),
+            relative_path: self.relative_path,
+            size_in_bytes: self.size_in_bytes,
+            file_type: Path::new(&file_name)
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or_default()
+                .to_string(),
+            last_updated_utc_millis: self.utc_millis,
+        }
+    }
 }
 
 impl FileEvent {

@@ -1,8 +1,10 @@
 use crate::AppState;
+use crate::file_event::FileEvent;
+use crate::file_history::FileHistory;
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use shared::dtos::{ServerWatchGroup, WatchGroupNameDto};
+use shared::dtos::{FileDescription, ServerWatchGroup, WatchGroupNameDto};
 use tracing::{error, info};
 
 /// GET /api/watch-groups
@@ -81,4 +83,19 @@ pub async fn api_delete_watch_group(
     } else {
         Err((StatusCode::NOT_FOUND, "Watch group not found".to_string()))
     }
+}
+
+pub async fn api_get_watch_group_files(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<i64>,
+) -> Result<Json<Vec<FileDescription>>, (StatusCode, String)> {
+    let events = state
+        .history
+        .get_latest_events(id)
+        .into_iter()
+        .filter(|e| e.event_type.is_change())
+        .map(FileEvent::into)
+        .collect();
+
+    Ok(Json(events))
 }

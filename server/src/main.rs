@@ -170,6 +170,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             put(handler::api_update_watch_group).delete(handler::api_delete_watch_group),
         )
         .route(
+            ServerEndpoint::ApiWatchGroupFiles.to_str(),
+            get(handler::api_get_watch_group_files),
+        )
+        .route(
             ServerEndpoint::ApiMonitor.to_str(),
             get(|state: State<AppState>| monitor::api_get_monitoring(state.monitor_writer.clone())),
         )

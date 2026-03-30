@@ -17,7 +17,8 @@ pub use config::get_config;
 pub use link::{delete_link, get_links, post_link, post_link_tag};
 pub use pwa::serve_embedded_pwa;
 pub use server_watch_group::{
-    api_create_watch_group, api_delete_watch_group, api_list_watch_groups, api_update_watch_group,
+    api_create_watch_group, api_delete_watch_group, api_get_watch_group_files,
+    api_list_watch_groups, api_update_watch_group,
 };
 pub use sync::{delete, download, scan_disk, sync_handler, upload_handler};
 

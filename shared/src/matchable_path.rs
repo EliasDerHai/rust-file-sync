@@ -1,5 +1,5 @@
-use serde::{de::Error, Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
+use serde::{Deserializer, Serializer, de::Error};
 use std::ffi::OsStr;
 use std::path::{Component, Path, PathBuf};
 
@@ -29,6 +29,10 @@ impl MatchablePath {
 
     pub fn to_serialized_string(&self) -> String {
         self.0.join("/")
+    }
+
+    pub fn tail(&self) -> String {
+        self.0.last().cloned().unwrap_or_default()
     }
 }
 
