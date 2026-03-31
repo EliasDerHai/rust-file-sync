@@ -174,6 +174,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             get(handler::api_get_watch_group_files),
         )
         .route(
+            ServerEndpoint::ApiWatchGroupFile.to_str(),
+            get(handler::api_serve_watch_group_file),
+        )
+        .route(
             ServerEndpoint::ApiMonitor.to_str(),
             get(|state: State<AppState>| monitor::api_get_monitoring(state.monitor_writer.clone())),
         )

@@ -402,3 +402,27 @@ select.form-input {
   gap: 6px;
   margin-bottom: 1rem;
 }
+
+/* === Filetree === */
+.filetree-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem; }
+
+.breadcrumb { display: flex; align-items: center; gap: 0.25rem; font-size: 0.9rem; flex-wrap: wrap; }
+.breadcrumb-sep { color: #555; }
+.breadcrumb-item { background: none; border: none; color: #4a90d9; cursor: pointer; padding: 0.1rem 0.25rem; font-size: 0.9rem; border-radius: 3px; }
+.breadcrumb-item:hover { background: #1e2a4a; }
+.breadcrumb-item.current { color: #eee; cursor: default; pointer-events: none; }
+
+.filetree-list { list-style: none; padding: 0; }
+.filetree-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.75rem; border-radius: 6px; cursor: pointer; color: #eee; text-decoration: none; }
+.filetree-row:hover { background: #1e2a4a; }
+.filetree-row-meta { margin-left: auto; font-size: 0.75rem; color: #666; display: flex; gap: 1rem; }
+
+.filetree-tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 1rem; margin-top: 0.5rem; }
+.filetree-tile { background: #16213e; border-radius: 8px; padding: 0.75rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; cursor: pointer; border: 1px solid transparent; transition: border-color 0.15s; text-align: center; min-height: 130px; overflow: hidden; text-decoration: none; color: inherit; }
+.filetree-tile:hover { border-color: #4a90d9; }
+.filetree-tile-img { width: 100%; height: 80px; object-fit: cover; border-radius: 4px; }
+.filetree-tile-name { font-size: 0.75rem; color: #ccc; word-break: break-all; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.filetree-tile-icon { width: 48px; height: 48px; }
+.filetree-tile-icon.dir { color: #f0a500; }
+.filetree-tile-icon.text { color: #6fcf7c; }
+.filetree-tile-icon.file { color: #4a90d9; }

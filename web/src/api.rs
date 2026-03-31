@@ -2,8 +2,8 @@ use gloo_net::http::Request;
 use shared::{
     dtos::{
         ClientDto, ClientUpdateDto, ClientWatchGroupCreateDto, ClientWatchGroupDto,
-        ClientWatchGroupUpdateDto, LinkCreateDto, LinkDeleteDto, LinkDto, MonitorData,
-        ServerWatchGroup, WatchGroupNameDto,
+        ClientWatchGroupUpdateDto, FileDescription, LinkCreateDto, LinkDeleteDto, LinkDto,
+        MonitorData, ServerWatchGroup, WatchGroupNameDto,
     },
     endpoint::ServerEndpoint,
 };
@@ -148,6 +148,29 @@ pub async fn delete_client_watch_group(client_id: &str, wg_id: i64) -> Result<()
     .map_err(|e| e.to_string())?;
     let text = resp.text().await.map_err(|e| e.to_string())?;
     if resp.ok() { Ok(()) } else { Err(text) }
+}
+
+pub async fn fetch_watch_group_files(wg_id: i64) -> Result<Vec<FileDescription>, String> {
+    Request::get(
+        &ServerEndpoint::ApiWatchGroupFiles
+            .to_str()
+            .replace("{id}", &wg_id.to_string()),
+    )
+    .send()
+    .await
+    .map_err(|e| e.to_string())?
+    .json()
+    .await
+    .map_err(|e| e.to_string())
+}
+
+pub fn watch_group_file_preview_url(wg_id: i64, path: &str) -> String {
+    let encoded = js_sys::encode_uri_component(path);
+    format!(
+        "/api/watch-groups/{}/file?path={}",
+        wg_id,
+        String::from(encoded)
+    )
 }
 
 pub async fn fetch_monitor_data() -> Result<MonitorData, String> {

@@ -37,6 +37,8 @@ pub enum ServerEndpoint {
     ApiWatchGroup,
     /// JSON API: list / create files within one watch group
     ApiWatchGroupFiles,
+    /// Inline file preview for one watch group file
+    ApiWatchGroupFile,
     /// JSON API: monitoring data
     ApiMonitor,
 }
@@ -86,6 +88,7 @@ impl ServerEndpoint {
             ServerEndpoint::ApiWatchGroups => "/api/watch-groups",
             ServerEndpoint::ApiWatchGroup => "/api/watch-groups/{id}",
             ServerEndpoint::ApiWatchGroupFiles => "/api/watch-groups/{id}/files",
+            ServerEndpoint::ApiWatchGroupFile => "/api/watch-groups/{id}/file",
             ServerEndpoint::ApiMonitor => "/api/monitor",
         }
     }
@@ -96,7 +99,7 @@ mod tests {
     use super::*;
     use ServerEndpoint::*;
 
-    const ALL_ENDPOINTS: [ServerEndpoint; 20] = [
+    const ALL_ENDPOINTS: [ServerEndpoint; 21] = [
         Hello,
         Ping,
         Version,
@@ -116,6 +119,7 @@ mod tests {
         ApiWatchGroups,
         ApiWatchGroup,
         ApiWatchGroupFiles,
+        ApiWatchGroupFile,
         ApiMonitor,
     ];
 
@@ -153,6 +157,9 @@ mod tests {
                 ApiWatchGroup => assert_eq!("http://localhost/api/watch-groups/{id}", actual),
                 ApiWatchGroupFiles => {
                     assert_eq!("http://localhost/api/watch-groups/{id}/files", actual)
+                }
+                ApiWatchGroupFile => {
+                    assert_eq!("http://localhost/api/watch-groups/{id}/file", actual)
                 }
                 ApiMonitor => assert_eq!("http://localhost/api/monitor", actual),
             }

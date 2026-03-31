@@ -1,10 +1,16 @@
-use crate::AppState;
+use crate::{AppState, UPLOAD_PATH};
 use crate::file_event::FileEvent;
 use crate::file_history::FileHistory;
 use axum::Json;
-use axum::extract::State;
+use axum::body::Body;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
+use axum::http::header::CONTENT_TYPE;
+use axum::response::IntoResponse;
 use shared::dtos::{FileDescription, ServerWatchGroup, WatchGroupNameDto};
+use std::collections::HashMap;
+use std::path::{Component, PathBuf};
+use tokio_util::io::ReaderStream;
 use tracing::{error, info};
 
 /// GET /api/watch-groups
@@ -83,6 +89,59 @@ pub async fn api_delete_watch_group(
     } else {
         Err((StatusCode::NOT_FOUND, "Watch group not found".to_string()))
     }
+}
+
+/// GET /api/watch-groups/{id}/file?path=dir/subdir/file.ext — inline file preview
+pub async fn api_serve_watch_group_file(
+    axum::extract::Path(id): axum::extract::Path<i64>,
+    Query(params): Query<HashMap<String, String>>,
+) -> impl IntoResponse {
+    let path_str = match params.get("path") {
+        Some(p) if !p.is_empty() => p.clone(),
+        _ => return Err((StatusCode::BAD_REQUEST, "Missing path parameter".to_string())),
+    };
+
+    // Filter to Normal components only — strips "..", "/", "~" (traversal safety)
+    let components: Vec<String> = std::path::Path::new(&path_str)
+        .components()
+        .filter_map(|c| match c {
+            Component::Normal(os) => Some(os.to_string_lossy().to_string()),
+            _ => None,
+        })
+        .collect();
+
+    if components.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "Invalid path".to_string()));
+    }
+
+    let rel: PathBuf = components.iter().collect();
+    let full_path = UPLOAD_PATH.join(id.to_string()).join(rel);
+
+    let file = match tokio::fs::File::open(&full_path).await {
+        Ok(f) => f,
+        Err(e) => return Err((StatusCode::NOT_FOUND, format!("File not found: {}", e))),
+    };
+
+    let ext = full_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    let content_type: &'static str = match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "svg" => "image/svg+xml",
+        "txt" | "md" | "rs" | "toml" | "json" | "yaml" | "yml" | "sh" | "log" => {
+            "text/plain; charset=utf-8"
+        }
+        _ => "application/octet-stream",
+    };
+
+    let body = Body::from_stream(ReaderStream::new(file));
+    Ok(([(CONTENT_TYPE, content_type)], body))
 }
 
 pub async fn api_get_watch_group_files(

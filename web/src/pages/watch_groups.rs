@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use leptos_router::components::A;
 use shared::dtos::WatchGroupNameDto;
 
 use crate::api;
@@ -127,6 +128,7 @@ fn WatchGroupCard(
                     </div>
                     <div class="flex gap-1">
                         <Show when=move || !editing.get()>
+                            <A href=format!("/app/watch-groups/{}", group_id) attr:class="btn btn-secondary">"Files"</A>
                             <button class="btn btn-primary" on:click=on_edit>"Edit"</button>
                         </Show>
                         <Show when=move || editing.get()>

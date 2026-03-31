@@ -11,7 +11,7 @@ mod tag_badge;
 pub use card::Card;
 pub use confirm_dialog::ConfirmDialog;
 pub use empty_state::EmptyState;
-pub use icons::{PencilIcon, PlusIcon, TrashIcon};
+pub use icons::*;
 pub use loading::Loading;
 pub use message::*;
 pub use modal::Modal;
