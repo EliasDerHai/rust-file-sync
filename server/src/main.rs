@@ -7,6 +7,8 @@ use crate::write::{
 };
 use axum::extract::{DefaultBodyLimit, State};
 use axum::routing::{post, put};
+
+const PWA_UPLOAD_LIMIT_BYTES: usize = 500 * 1024 * 1024; // 500 MB
 use axum::{Router, routing::get};
 use axum_server::tls_rustls::RustlsConfig;
 use shared::endpoint::ServerEndpoint;
@@ -171,7 +173,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route(
             ServerEndpoint::ApiWatchGroupFiles.to_str(),
-            get(handler::api_get_watch_group_files),
+            get(handler::api_get_watch_group_files)
+                .post(handler::api_upload_to_watch_group)
+                .layer(DefaultBodyLimit::max(PWA_UPLOAD_LIMIT_BYTES)),
         )
         .route(
             ServerEndpoint::ApiWatchGroupFile.to_str(),

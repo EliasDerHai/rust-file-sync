@@ -41,6 +41,16 @@ impl<'a> ServerWatchGroupRepository<'a> {
         Ok(())
     }
 
+    pub async fn exists(&self, id: i64) -> Result<bool> {
+        let count = sqlx::query_scalar!(
+            "SELECT COUNT(*) FROM server_watch_group WHERE id = ?",
+            id
+        )
+        .fetch_one(self.pool)
+        .await?;
+        Ok(count > 0)
+    }
+
     /// Delete a server watch group. Returns false if not found.
     pub async fn delete(&self, id: i64) -> Result<bool> {
         let result = sqlx::query!("DELETE FROM server_watch_group WHERE id = ?", id)

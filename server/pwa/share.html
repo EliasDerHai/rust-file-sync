@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#2196F3" />
     <base href="/pwa/" />
-    <title>Sharing Link...</title>
+    <title>Sharing...</title>
     <style>
       body {
         font-family:
@@ -15,32 +15,18 @@
         margin: 0 auto;
         background: #f5f5f5;
       }
-      h1 {
-        color: #2196f3;
-        margin-bottom: 20px;
-      }
+      h1 { color: #2196f3; margin-bottom: 20px; }
       .card {
         background: white;
         border-radius: 8px;
         padding: 20px;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       }
-      .status {
-        font-size: 16px;
-        margin-bottom: 16px;
-      }
-      .status.processing {
-        color: #2196f3;
-      }
-      .status.success {
-        color: #4caf50;
-      }
-      .status.error {
-        color: #f44336;
-      }
-      .status.queued {
-        color: #ff9800;
-      }
+      .status { font-size: 16px; margin-bottom: 16px; }
+      .status.processing { color: #2196f3; }
+      .status.success    { color: #4caf50; }
+      .status.error      { color: #f44336; }
+      .status.queued     { color: #ff9800; }
       .url-display {
         background: #f9f9f9;
         padding: 12px;
@@ -58,87 +44,259 @@
         background: #f9f9f9;
         border-radius: 4px;
       }
+      .file-info {
+        background: #f9f9f9;
+        padding: 12px;
+        border-radius: 4px;
+        margin: 12px 0;
+        font-size: 14px;
+      }
+      .file-info strong { display: block; margin-bottom: 4px; word-break: break-all; }
+      .wg-selector { margin-top: 16px; }
+      .wg-selector select {
+        width: 100%;
+        padding: 10px;
+        font-size: 16px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-bottom: 12px;
+        background: white;
+      }
+      button {
+        width: 100%;
+        padding: 12px;
+        font-size: 16px;
+        background: #2196f3;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:disabled { background: #aaa; cursor: default; }
+      button.retry { background: #ff9800; margin-top: 12px; }
     </style>
   </head>
   <body>
     <h1>LinkShare</h1>
     <p id="version" style="margin-top: -16px; margin-bottom: 16px; font-size: 12px; color: #999"></p>
-    <div class="card">
-      <div id="status" class="status processing">Processing shared link...</div>
-      <div id="url-container" style="display: none">
+
+    <!-- URL share flow -->
+    <div id="phase-url" class="card" hidden>
+      <div id="url-status" class="status processing">Processing shared link...</div>
+      <div id="url-container" hidden>
         <strong>URL:</strong>
         <div class="url-display" id="url-display"></div>
       </div>
-      <div id="detail" class="detail" style="display: none"></div>
+      <div id="url-detail" class="detail" hidden></div>
+    </div>
+
+    <!-- File share flow -->
+    <div id="phase-file" class="card" hidden>
+      <div id="file-status" class="status processing">Loading watch groups...</div>
+      <div id="file-info" class="file-info" hidden></div>
+      <div id="wg-selector" class="wg-selector" hidden></div>
+      <button id="retry-btn" class="retry" hidden>Retry</button>
+    </div>
+
+    <!-- Error / fallback -->
+    <div id="phase-error" class="card" hidden>
+      <div id="error-msg" class="status error"></div>
     </div>
 
     <script type="module">
-      import { postLink, syncPendingLinks, getPendingCount, getVersion, getCachedVersion } from "./api.js";
+      import { postLink, syncPendingLinks, getVersion, getCachedVersion } from "./api.js";
+      import { getShare, deleteShare, getWatchGroups, uploadFileToWatchGroup, formatBytes } from "./file-share.js";
 
-      function extractUrl() {
-        const params = new URLSearchParams(window.location.search);
-        const urlParam = params.get("url");
-        const textParam = params.get("text");
-        const titleParam = params.get("title");
-
-        if (urlParam && urlParam.trim()) {
-          return { url: urlParam.trim(), title: titleParam };
-        }
-
-        if (textParam) {
-          const urlMatch = textParam.match(/https?:\/\/[^\s]+/);
-          if (urlMatch) return { url: urlMatch[0], title: titleParam };
-        }
-
-        if (titleParam) {
-          const urlMatch = titleParam.match(/https?:\/\/[^\s]+/);
-          if (urlMatch) return { url: urlMatch[0], title: null };
-        }
-
-        return null;
-      }
-
+      // ── version ──────────────────────────────────────────────────────────
       const versionEl = document.getElementById("version");
       const cached = getCachedVersion();
       if (cached) versionEl.textContent = "v" + cached;
-      getVersion().then((v) => {
-        if (v) versionEl.textContent = "v" + v;
-      });
+      getVersion().then((v) => { if (v) versionEl.textContent = "v" + v; });
 
-      const statusEl = document.getElementById("status");
-      const urlContainer = document.getElementById("url-container");
-      const urlDisplay = document.getElementById("url-display");
-      const detailEl = document.getElementById("detail");
+      // ── helpers ───────────────────────────────────────────────────────────
+      function show(id) { document.getElementById(id).hidden = false; }
+      function hide(id) { document.getElementById(id).hidden = true; }
+      function setText(id, text) { document.getElementById(id).textContent = text; }
+      function setStatus(id, text, cls) {
+        const el = document.getElementById(id);
+        el.textContent = text;
+        el.className = `status ${cls}`;
+      }
 
-      const extracted = extractUrl();
+      // ── URL share flow ────────────────────────────────────────────────────
+      function extractUrlFromParams(params) {
+        const urlParam  = params.get("url");
+        const textParam = params.get("text");
+        const titleParam = params.get("title");
+        if (urlParam && urlParam.trim()) return { url: urlParam.trim(), title: titleParam };
+        if (textParam) {
+          const m = textParam.match(/https?:\/\/[^\s]+/);
+          if (m) return { url: m[0], title: titleParam };
+        }
+        if (titleParam) {
+          const m = titleParam.match(/https?:\/\/[^\s]+/);
+          if (m) return { url: m[0], title: null };
+        }
+        return null;
+      }
 
-      if (!extracted) {
-        statusEl.textContent = "No URL found in shared content.";
-        statusEl.className = "status error";
-      } else {
-        urlContainer.style.display = "block";
-        urlDisplay.textContent = extracted.url;
+      async function handleUrlShare(urlStr, title) {
+        show("phase-url");
+        show("url-container");
+        setText("url-display", urlStr);
 
-        // Post the shared link and sync pending links in parallel
         const [result] = await Promise.all([
-          postLink(extracted.url, extracted.title),
+          postLink(urlStr, title),
           syncPendingLinks().then((syncResult) => {
             if (syncResult.synced > 0) {
-              detailEl.style.display = "block";
-              detailEl.textContent = `Also synced ${syncResult.synced} pending link${syncResult.synced > 1 ? "s" : ""}`;
+              setText("url-detail", `Also synced ${syncResult.synced} pending link${syncResult.synced > 1 ? "s" : ""}`);
+              show("url-detail");
             }
           }),
         ]);
 
         if (result.synced) {
-          statusEl.textContent = "Shared!";
-          statusEl.className = "status success";
+          setStatus("url-status", "Shared!", "success");
         } else {
-          statusEl.textContent = "Queued for sync";
-          statusEl.className = "status queued";
-          const pendingCount = getPendingCount();
-          detailEl.style.display = "block";
-          detailEl.textContent = `${pendingCount} link${pendingCount > 1 ? "s" : ""} waiting to sync when online`;
+          setStatus("url-status", "Queued for sync", "queued");
+          show("url-detail");
+        }
+      }
+
+      // ── File share flow ───────────────────────────────────────────────────
+      async function handleFileShare(file) {
+        show("phase-file");
+
+        // Show file info
+        const fileInfoEl = document.getElementById("file-info");
+        fileInfoEl.innerHTML = `<strong>${file.name}</strong>${formatBytes(file.size)}`;
+        show("file-info");
+
+        await loadWatchGroupSelector(file);
+      }
+
+      async function loadWatchGroupSelector(file) {
+        setStatus("file-status", "Loading watch groups...", "processing");
+        hide("wg-selector");
+        hide("retry-btn");
+
+        let groups;
+        try {
+          groups = await getWatchGroups();
+        } catch (err) {
+          const isOffline = !navigator.onLine || err instanceof TypeError;
+          setStatus(
+            "file-status",
+            isOffline
+              ? "File upload requires a connection. Check your network and retry."
+              : `Could not load watch groups: ${err.message}`,
+            "error"
+          );
+          const btn = document.getElementById("retry-btn");
+          btn.hidden = false;
+          btn.onclick = () => loadWatchGroupSelector(file);
+          return;
+        }
+
+        if (groups.length === 0) {
+          setStatus("file-status", "No watch groups configured on this server.", "error");
+          return;
+        }
+
+        setStatus("file-status", "Select a watch group to upload to:", "processing");
+
+        const selectorEl = document.getElementById("wg-selector");
+        selectorEl.innerHTML = "";
+
+        const select = document.createElement("select");
+        groups.forEach((g) => {
+          const opt = document.createElement("option");
+          opt.value = g.id;
+          opt.textContent = g.name;
+          select.appendChild(opt);
+        });
+
+        const uploadBtn = document.createElement("button");
+        uploadBtn.textContent = "Upload";
+        uploadBtn.onclick = async () => {
+          const wgId = select.value;
+          const wgName = select.options[select.selectedIndex].text;
+          uploadBtn.disabled = true;
+          uploadBtn.textContent = "Uploading...";
+          hide("retry-btn");
+          setStatus("file-status", "Uploading...", "processing");
+
+          try {
+            await uploadFileToWatchGroup(file, wgId);
+            setStatus("file-status", `✓ Saved to "${wgName}"`, "success");
+            selectorEl.hidden = true;
+          } catch (err) {
+            const isOffline = !navigator.onLine || err instanceof TypeError;
+            setStatus(
+              "file-status",
+              isOffline ? "No connection. Check network and retry." : err.message,
+              "error"
+            );
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = "Upload";
+          }
+        };
+
+        selectorEl.appendChild(select);
+        selectorEl.appendChild(uploadBtn);
+        show("wg-selector");
+      }
+
+      // ── Entry point ───────────────────────────────────────────────────────
+      const params = new URLSearchParams(window.location.search);
+      const shareId = params.get("shareId");
+      const storageError = params.get("error");
+
+      if (storageError === "storage") {
+        show("phase-error");
+        setText("error-msg", "Could not save share data. Please try sharing again.");
+
+      } else if (!shareId) {
+        // Legacy fallback: old GET-style share (?url=...) or direct navigation
+        const extracted = extractUrlFromParams(params);
+        if (extracted) {
+          await handleUrlShare(extracted.url, extracted.title);
+        } else {
+          show("phase-error");
+          setText("error-msg", "No shareable content found.");
+        }
+
+      } else {
+        let share;
+        try {
+          share = await getShare(shareId);
+        } catch (err) {
+          show("phase-error");
+          setText("error-msg", "Could not read share data. Please try again.");
+          return;
+        }
+
+        if (!share) {
+          show("phase-error");
+          setText("error-msg", "Share data not found or expired. Please try sharing again.");
+          return;
+        }
+
+        // Clean up regardless of success/failure
+        deleteShare(shareId).catch(() => {});
+
+        if (share.type === "file") {
+          await handleFileShare(share.file);
+        } else {
+          const url = share.url || extractUrlFromParams(
+            new URLSearchParams(`text=${encodeURIComponent(share.text || "")}&title=${encodeURIComponent(share.title || "")}`)
+          )?.url;
+          if (url) {
+            await handleUrlShare(url, share.title);
+          } else {
+            show("phase-error");
+            setText("error-msg", "No URL found in shared content.");
+          }
         }
       }
     </script>

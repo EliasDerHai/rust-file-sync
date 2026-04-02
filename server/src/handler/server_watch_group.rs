@@ -1,17 +1,26 @@
-use crate::{AppState, UPLOAD_PATH};
-use crate::file_event::FileEvent;
+use crate::file_event::{FileEvent, FileEventType};
 use crate::file_history::FileHistory;
+use crate::write::write_all_chunks_of_field;
+use crate::{AppState, UPLOAD_PATH, UPLOAD_TMP_PATH};
+
+/// UUID of the sentinel 'pwa' client row — must match the migration.
+const PWA_CLIENT_ID: &str = "f4a7b3c2-8d5e-4f6a-9b2c-1e3d5f7a9b0c";
+
 use axum::Json;
 use axum::body::Body;
-use axum::extract::{Query, State};
+use axum::extract::{Multipart, Query, State};
 use axum::http::StatusCode;
 use axum::http::header::CONTENT_TYPE;
 use axum::response::IntoResponse;
 use shared::dtos::{FileDescription, ServerWatchGroup, WatchGroupNameDto};
+use shared::matchable_path::MatchablePath;
+use shared::utc_millis::UtcMillis;
 use std::collections::HashMap;
-use std::path::{Component, PathBuf};
+use std::fs;
+use std::path::{Component, Path, PathBuf};
 use tokio_util::io::ReaderStream;
-use tracing::{error, info};
+use tracing::{error, info, warn};
+use uuid::Uuid;
 
 /// GET /api/watch-groups
 pub async fn api_list_watch_groups(
@@ -157,4 +166,104 @@ pub async fn api_get_watch_group_files(
         .collect();
 
     Ok(Json(events))
+}
+
+/// POST /api/watch-groups/{id}/files
+pub async fn api_upload_to_watch_group(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<i64>,
+    mut multipart: Multipart,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let exists = state
+        .db
+        .server_watch_group()
+        .exists(id)
+        .await
+        .map_err(|e| {
+            error!("Failed to check watch group existence: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?;
+
+    if !exists {
+        return Err((StatusCode::NOT_FOUND, format!("Watch group {id} not found")));
+    }
+
+    let (tmp_path, filename, size) = extract_file(&mut multipart).await?;
+
+    let target_dir = UPLOAD_PATH.join(id.to_string());
+    let target_path = target_dir.join(&filename);
+
+    if let Err(e) = fs::create_dir_all(&target_dir) {
+        let _ = fs::remove_file(&tmp_path);
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to create directory: {e}"),
+        ));
+    }
+
+    if let Err(e) = fs::rename(&tmp_path, &target_path) {
+        let _ = fs::remove_file(&tmp_path);
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to move file: {e}"),
+        ));
+    }
+
+    let event = FileEvent::new(
+        Uuid::new_v4(),
+        UtcMillis::now(),
+        MatchablePath::from(vec![filename.as_str()]),
+        size as u64,
+        FileEventType::ChangeEvent,
+        Some("pwa".to_string()),
+        id,
+    );
+
+    if let Err(e) = state.db.file_event().insert(&event, PWA_CLIENT_ID).await {
+        error!("Failed to persist file event for PWA upload: {e}");
+    }
+    state.history.add(event);
+
+    info!("PWA uploaded '{}' to watch group {id}", filename);
+    Ok(StatusCode::CREATED)
+}
+
+async fn extract_file(
+    multipart: &mut Multipart,
+) -> Result<(PathBuf, String, usize), (StatusCode, String)> {
+    while let Some(field) = multipart.next_field().await.unwrap_or(None) {
+        if field.name() != Some("file") {
+            continue;
+        }
+
+        let raw_name = field.file_name().unwrap_or("upload").to_string();
+        let filename = sanitize_filename(&raw_name)?;
+
+        let tmp_path = UPLOAD_TMP_PATH.join(format!("{}_{}", Uuid::new_v4(), filename));
+        let size = write_all_chunks_of_field(tmp_path.as_path(), field)
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to write upload: {e}"),
+                )
+            })?;
+
+        return Ok((tmp_path, filename, size));
+    }
+
+    Err((StatusCode::BAD_REQUEST, "No 'file' field in request".to_string()))
+}
+
+fn sanitize_filename(raw: &str) -> Result<String, (StatusCode, String)> {
+    let name = Path::new(raw)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(str::to_string)
+        .filter(|n| !n.is_empty() && n != "." && n != "..")
+        .ok_or_else(|| {
+            warn!("Rejected unsafe filename: {:?}", raw);
+            (StatusCode::BAD_REQUEST, format!("Invalid filename: {raw}"))
+        })?;
+    Ok(name)
 }
