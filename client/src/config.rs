@@ -2,7 +2,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use shared::{dtos::WatchConfigDto, endpoint::ServerEndpoint};
 use std::{collections::VecDeque, env, fs, path::PathBuf};
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 /// local config (config.yaml)
@@ -30,10 +30,19 @@ fn read_local_config() -> Option<(PathBuf, LocalConfig)> {
 
     paths.into_iter().find_map(|path| {
         fs::read_to_string(&path)
-            .map_err(|e| format!("Config read failed ({}): {}", path.display(), e))
+            .map_err(|e| {
+                warn!(
+                    "Config read failed ({}): {}",
+                    env::current_dir()
+                        .expect("current dir must exist")
+                        .join(&path)
+                        .display(),
+                    e
+                )
+            })
             .and_then(|s| {
                 serde_yaml::from_str::<LocalConfig>(&s)
-                    .map_err(|e| format!("Config parse failed ({}): {}", path.display(), e))
+                    .map_err(|e| warn!("Config parse failed ({}): {}", path.display(), e))
             })
             .ok()
             .map(|config| (path, config))
