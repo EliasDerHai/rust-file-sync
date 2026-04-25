@@ -57,9 +57,10 @@ pub fn ImageGalleryPage() -> impl IntoView {
             {move || Suspend::new(async move {
                 match files.await {
                     Ok(file_list) => {
+                        let all_files = RwSignal::new(file_list);
                         view! {
                             <GalleryViewer
-                                all_files=file_list
+                                all_files=all_files
                                 current_path=current_path_signal
                                 wg_id=id
                             />
@@ -83,7 +84,7 @@ pub fn ImageGalleryPage() -> impl IntoView {
 
 #[component]
 fn GalleryViewer(
-    all_files: Vec<FileDescription>,
+    all_files: RwSignal<Vec<FileDescription>>,
     current_path: RwSignal<String>,
     wg_id: i64,
 ) -> impl IntoView {
@@ -94,7 +95,7 @@ fn GalleryViewer(
     view! {
         {move || {
             let path = current_path.get();
-            let images = images_in_same_dir(&all_files, &path);
+            let images = images_in_same_dir(&all_files.get(), &path);
             let current_idx = images
                 .iter()
                 .position(|f| f.relative_path.to_serialized_string() == path);
@@ -129,6 +130,8 @@ fn GalleryViewer(
 
             let path_for_delete = path.clone();
             let file_name_for_delete = file_name.clone();
+            let next_for_delete = next_path.clone();
+            let prev_for_delete = prev_path.clone();
             let on_delete_click = move |_| {
                 let ok = web_sys::window()
                     .unwrap()
@@ -140,12 +143,30 @@ fn GalleryViewer(
                     return;
                 }
                 let p = path_for_delete.clone();
+                let next = next_for_delete.clone();
+                let prev = prev_for_delete.clone();
                 spawn_local(async move {
                     match api::delete_watch_group_file(wg_id, &p).await {
-                        Ok(()) => navigate_sv.get_value()(
-                            &format!("/app/watch-groups/{wg_id}"),
-                            Default::default(),
-                        ),
+                        Ok(()) => match (next, prev) {
+                            (Some(n), _) => batch(move || {
+                                all_files.update(|v| {
+                                    v.retain(|f| f.relative_path.to_serialized_string() != p)
+                                });
+                                current_path.set(n);
+                            }),
+                            (None, Some(pr)) => batch(move || {
+                                all_files.update(|v| {
+                                    v.retain(|f| f.relative_path.to_serialized_string() != p)
+                                });
+                                current_path.set(pr);
+                            }),
+                            (None, None) => {
+                                navigate_sv.get_value()(
+                                    &format!("/app/watch-groups/{wg_id}"),
+                                    Default::default(),
+                                );
+                            }
+                        },
                         Err(e) => msg.error(e),
                     }
                 });
