@@ -5,4 +5,5 @@ cd $(git rev-parse --show-toplevel)
 
 cargo sqlx database create
 cargo sqlx migrate run --source server/migrations
+(cd web && trunk build)
 cargo test
