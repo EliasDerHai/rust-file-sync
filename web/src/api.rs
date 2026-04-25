@@ -150,6 +150,23 @@ pub async fn delete_client_watch_group(client_id: &str, wg_id: i64) -> Result<()
     if resp.ok() { Ok(()) } else { Err(text) }
 }
 
+pub async fn delete_watch_group_file(wg_id: i64, path: &str) -> Result<(), String> {
+    let encoded = js_sys::encode_uri_component(path);
+    let url = format!(
+        "{}?path={}",
+        ServerEndpoint::ApiWatchGroupFile
+            .to_str()
+            .replace("{id}", &wg_id.to_string()),
+        String::from(encoded)
+    );
+    let resp = Request::delete(&url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    let text = resp.text().await.map_err(|e| e.to_string())?;
+    if resp.ok() { Ok(()) } else { Err(text) }
+}
+
 pub async fn fetch_watch_group_files(wg_id: i64) -> Result<Vec<FileDescription>, String> {
     Request::get(
         &ServerEndpoint::ApiWatchGroupFiles

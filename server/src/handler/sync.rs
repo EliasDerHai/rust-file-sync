@@ -267,7 +267,13 @@ pub async fn delete(
     let client_host = header_value_as_opt_string(&headers, CLIENT_HOST_HEADER_KEY);
     let client_id = header_value_as_string(&headers, CLIENT_ID_HEADER_KEY)
         .map(|s| s.to_string())
-        .ok();
+        .map_err(|_| {
+            (
+                StatusCode::BAD_REQUEST,
+                "Missing X-Client-Id header — delete refused".to_string(),
+            )
+        })?;
+
     let event = FileEvent::new(
         Uuid::new_v4(),
         millis.clone(),
@@ -290,13 +296,8 @@ pub async fn delete(
 
     match tokio::fs::remove_file(&p).await {
         Ok(()) => {
-            // write to DB
-            if let Some(ref cid) = client_id {
-                if let Err(e) = state.db.file_event().insert(&event, cid).await {
-                    error!("Failed to persist delete event to DB: {e}");
-                }
-            } else {
-                warn!("No client_id header — delete event not persisted to DB");
+            if let Err(e) = state.db.file_event().insert(&event, &client_id).await {
+                error!("Failed to persist delete event to DB: {e}");
             }
             state.history.add(event);
             info!("Deleted {} successfully", &p.to_string_lossy());

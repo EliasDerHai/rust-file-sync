@@ -1,9 +1,10 @@
 use leptos::prelude::*;
-use leptos_router::hooks::{use_params_map, use_query_map};
+use leptos::task::spawn_local;
+use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
 use shared::dtos::{is_image, FileDescription};
 
 use crate::api;
-use crate::components::Loading;
+use crate::components::{Loading, Message, ToastSignal, TrashIcon};
 
 fn images_in_same_dir(all: &[FileDescription], current_path: &str) -> Vec<FileDescription> {
     let current_segments: Vec<&str> = current_path.split('/').collect();
@@ -86,6 +87,10 @@ fn GalleryViewer(
     current_path: RwSignal<String>,
     wg_id: i64,
 ) -> impl IntoView {
+    let msg = ToastSignal::new();
+    let navigate = use_navigate();
+    let navigate_sv = StoredValue::new(navigate);
+
     view! {
         {move || {
             let path = current_path.get();
@@ -122,8 +127,42 @@ fn GalleryViewer(
                 None
             };
 
+            let path_for_delete = path.clone();
+            let file_name_for_delete = file_name.clone();
+            let on_delete_click = move |_| {
+                let ok = web_sys::window()
+                    .unwrap()
+                    .confirm_with_message(&format!(
+                        "Delete '{file_name_for_delete}'? This cannot be undone."
+                    ))
+                    .unwrap_or(false);
+                if !ok {
+                    return;
+                }
+                let p = path_for_delete.clone();
+                spawn_local(async move {
+                    match api::delete_watch_group_file(wg_id, &p).await {
+                        Ok(()) => navigate_sv.get_value()(
+                            &format!("/app/watch-groups/{wg_id}"),
+                            Default::default(),
+                        ),
+                        Err(e) => msg.error(e),
+                    }
+                });
+            };
+
             view! {
                 <div class="gallery-container">
+                    <div class="gallery-top-bar">
+                        <Message signal=msg />
+                        <button
+                            class="btn btn-icon btn-danger gallery-delete-btn"
+                            title="Delete image"
+                            on:click=on_delete_click
+                        >
+                            <TrashIcon />
+                        </button>
+                    </div>
                     <div class="gallery-nav-left">
                         {if let Some(prev) = prev_path {
                             view! {

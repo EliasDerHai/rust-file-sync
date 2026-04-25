@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use leptos::task::spawn_local;
 use leptos_router::components::A;
 use leptos_router::hooks::use_params_map;
 use shared::dtos::{is_image, FileDescription};
@@ -6,7 +7,8 @@ use std::collections::HashSet;
 
 use crate::api;
 use crate::components::{
-    EmptyState, FileIcon, FileIconLarge, FolderIcon, FolderIconLarge, Loading, TextFileIconLarge,
+    EmptyState, FileIcon, FileIconLarge, FolderIcon, FolderIconLarge, Loading, Message,
+    TextFileIconLarge, ToastSignal, TrashIcon,
 };
 
 #[derive(Clone, PartialEq)]
@@ -72,14 +74,57 @@ pub fn WatchGroupFilesPage() -> impl IntoView {
         .into_any();
     };
 
-    let files = LocalResource::new(move || api::fetch_watch_group_files(id));
+    let (refresh_trigger, set_refresh_trigger) = signal(0u32);
+    let selected: RwSignal<HashSet<String>> = RwSignal::new(HashSet::new());
+    let msg = ToastSignal::new();
     let current_path: RwSignal<Vec<String>> = RwSignal::new(vec![]);
     let view_mode: RwSignal<ViewMode> = RwSignal::new(ViewMode::List);
+
+    // Clear selection whenever the user navigates into a different directory
+    Effect::new(move |_| {
+        let _ = current_path.get();
+        selected.update(|s| s.clear());
+    });
+
+    let files = LocalResource::new(move || {
+        refresh_trigger.get();
+        api::fetch_watch_group_files(id)
+    });
+
+    let on_delete_click = move |_| {
+        let paths: Vec<String> = selected.get_untracked().into_iter().collect();
+        if paths.is_empty() {
+            return;
+        }
+        let ok = web_sys::window()
+            .unwrap()
+            .confirm_with_message(&format!(
+                "Delete {} file(s)? This cannot be undone.",
+                paths.len()
+            ))
+            .unwrap_or(false);
+        if !ok {
+            return;
+        }
+        spawn_local(async move {
+            for path in &paths {
+                if let Err(e) = api::delete_watch_group_file(id, path).await {
+                    msg.error(format!("Delete failed: {e}"));
+                    return;
+                }
+            }
+            let count = paths.len();
+            selected.update(|s| s.clear());
+            set_refresh_trigger.update(|t| *t += 1);
+            msg.success(format!("Deleted {count} file(s)."));
+        });
+    };
 
     view! {
         <div class="container">
             <A href="/app/watch-groups" attr:class="btn btn-secondary">"← Back"</A>
             <h1>"Watch Group Files"</h1>
+            <Message signal=msg />
             <Suspense fallback=Loading>
                 {move || Suspend::new(async move {
                     match files.await {
@@ -94,6 +139,17 @@ pub fn WatchGroupFilesPage() -> impl IntoView {
                                     <div class="filetree-toolbar">
                                         <Breadcrumb current_path />
                                         <div class="flex gap-1">
+                                            <Show when=move || !selected.get().is_empty()>
+                                                <button
+                                                    class="btn btn-danger"
+                                                    on:click=on_delete_click
+                                                >
+                                                    <TrashIcon />
+                                                    " Delete ("
+                                                    {move || selected.get().len()}
+                                                    ")"
+                                                </button>
+                                            </Show>
                                             <button
                                                 class="btn btn-secondary"
                                                 on:click=move |_| view_mode.set(ViewMode::List)
@@ -113,6 +169,7 @@ pub fn WatchGroupFilesPage() -> impl IntoView {
                                         current_path
                                         view_mode
                                         wg_id=id
+                                        selected
                                     />
                                 }
                                 .into_any()
@@ -169,6 +226,7 @@ fn FiletreeView(
     current_path: RwSignal<Vec<String>>,
     view_mode: RwSignal<ViewMode>,
     wg_id: i64,
+    selected: RwSignal<HashSet<String>>,
 ) -> impl IntoView {
     view! {
         {move || {
@@ -208,17 +266,42 @@ fn FiletreeView(
                                     };
                                     let file_name = file.file_name.clone();
                                     let size = format_size(file.size_in_bytes);
+                                    let p_class = path_str.clone();
+                                    let p_check = path_str.clone();
+                                    let p_toggle = path_str;
+                                    let is_selected_class = move || selected.get().contains(&p_class);
+                                    let is_selected_check = move || selected.get().contains(&p_check);
+                                    let on_toggle = move |_| {
+                                        selected.update(|s| {
+                                            if s.contains(&p_toggle) {
+                                                s.remove(&p_toggle);
+                                            } else {
+                                                s.insert(p_toggle.clone());
+                                            }
+                                        });
+                                    };
                                     view! {
                                         <li>
-                                            <a
-                                                class="filetree-row"
-                                                href=href
-                                                target="_blank"
+                                            <div
+                                                class="filetree-row-selectable"
+                                                class:filetree-row-selected=is_selected_class
                                             >
-                                                <FileIcon />
-                                                <span>{file_name}</span>
-                                                <span class="filetree-row-meta">{size}</span>
-                                            </a>
+                                                <input
+                                                    type="checkbox"
+                                                    class="filetree-checkbox"
+                                                    prop:checked=is_selected_check
+                                                    on:change=on_toggle
+                                                />
+                                                <a
+                                                    class="filetree-row"
+                                                    href=href
+                                                    target="_blank"
+                                                >
+                                                    <FileIcon />
+                                                    <span>{file_name}</span>
+                                                    <span class="filetree-row-meta">{size}</span>
+                                                </a>
+                                            </div>
                                         </li>
                                     }
                                 })
@@ -257,39 +340,75 @@ fn FiletreeView(
                                     );
                                     let file_name = file.file_name.clone();
                                     let ext = file.file_type.clone();
+                                    let p_class = path_str.clone();
+                                    let p_check = path_str.clone();
+                                    let p_toggle = path_str.clone();
+                                    let is_selected_class = move || selected.get().contains(&p_class);
+                                    let is_selected_check = move || selected.get().contains(&p_check);
+                                    let on_toggle = move |_| {
+                                        selected.update(|s| {
+                                            if s.contains(&p_toggle) {
+                                                s.remove(&p_toggle);
+                                            } else {
+                                                s.insert(p_toggle.clone());
+                                            }
+                                        });
+                                    };
                                     if is_image(&ext) {
                                         let gallery_href = api::gallery_url(wg_id, &path_str);
                                         view! {
-                                            <a
-                                                class="filetree-tile"
-                                                href=gallery_href
-                                                target="_blank"
+                                            <div
+                                                class="filetree-tile-wrapper"
+                                                class:filetree-tile-selected=is_selected_class
                                             >
-                                                <img
-                                                    src=raw_url
-                                                    class="filetree-tile-img"
-                                                    loading="lazy"
+                                                <input
+                                                    type="checkbox"
+                                                    class="filetree-tile-checkbox"
+                                                    prop:checked=is_selected_check
+                                                    on:change=on_toggle
                                                 />
-                                                <span class="filetree-tile-name">{file_name}</span>
-                                            </a>
+                                                <a
+                                                    class="filetree-tile"
+                                                    href=gallery_href
+                                                    target="_blank"
+                                                >
+                                                    <img
+                                                        src=raw_url
+                                                        class="filetree-tile-img"
+                                                        loading="lazy"
+                                                    />
+                                                    <span class="filetree-tile-name">{file_name}</span>
+                                                </a>
+                                            </div>
                                         }
                                         .into_any()
                                     } else {
                                         let text_file = is_text(&ext);
                                         view! {
-                                            <a
-                                                class="filetree-tile"
-                                                href=raw_url
-                                                target="_blank"
+                                            <div
+                                                class="filetree-tile-wrapper"
+                                                class:filetree-tile-selected=is_selected_class
                                             >
-                                                <Show
-                                                    when=move || text_file
-                                                    fallback=|| view! { <FileIconLarge /> }
+                                                <input
+                                                    type="checkbox"
+                                                    class="filetree-tile-checkbox"
+                                                    prop:checked=is_selected_check
+                                                    on:change=on_toggle
+                                                />
+                                                <a
+                                                    class="filetree-tile"
+                                                    href=raw_url
+                                                    target="_blank"
                                                 >
-                                                    <TextFileIconLarge />
-                                                </Show>
-                                                <span class="filetree-tile-name">{file_name}</span>
-                                            </a>
+                                                    <Show
+                                                        when=move || text_file
+                                                        fallback=|| view! { <FileIconLarge /> }
+                                                    >
+                                                        <TextFileIconLarge />
+                                                    </Show>
+                                                    <span class="filetree-tile-name">{file_name}</span>
+                                                </a>
+                                            </div>
                                         }
                                         .into_any()
                                     }

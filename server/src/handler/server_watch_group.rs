@@ -5,6 +5,8 @@ use crate::{AppState, UPLOAD_PATH, UPLOAD_TMP_PATH};
 
 /// UUID of the sentinel 'pwa' client row — must match the migration.
 const PWA_CLIENT_ID: &str = "f4a7b3c2-8d5e-4f6a-9b2c-1e3d5f7a9b0c";
+/// UUID of the sentinel 'web' client row — must match the migration.
+const WEB_CLIENT_ID: &str = "c3d4e5f6-7a8b-4c9d-8e2f-1a3b5c7d9e0f";
 
 use axum::Json;
 use axum::body::Body;
@@ -255,6 +257,49 @@ async fn extract_file(
         StatusCode::BAD_REQUEST,
         "No 'file' field in request".to_string(),
     ))
+}
+
+/// DELETE /api/watch-groups/{id}/file?path=dir/subdir/file.ext
+pub async fn api_delete_watch_group_file(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<i64>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    let path_str = match params.get("path") {
+        Some(p) if !p.is_empty() => p.clone(),
+        _ => return Err((StatusCode::BAD_REQUEST, "Missing path parameter".to_string())),
+    };
+
+    let matchable_path = MatchablePath::from(Path::new(&path_str));
+    let full_path = UPLOAD_PATH
+        .join(id.to_string())
+        .join(matchable_path.get().iter().collect::<PathBuf>());
+
+    if !full_path.exists() {
+        return Err((StatusCode::NOT_FOUND, "File not found".to_string()));
+    }
+
+    tokio::fs::remove_file(&full_path)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let event = FileEvent::new(
+        Uuid::new_v4(),
+        UtcMillis::now(),
+        matchable_path,
+        0,
+        FileEventType::DeleteEvent,
+        Some("web".to_string()),
+        id,
+    );
+
+    if let Err(e) = state.db.file_event().insert(&event, WEB_CLIENT_ID).await {
+        error!("Failed to persist web delete event to DB: {e}");
+    }
+    state.history.add(event);
+
+    info!("Web UI deleted file '{}' from watch group {id}", path_str);
+    Ok(StatusCode::NO_CONTENT)
 }
 
 fn sanitize_filename(raw: &str) -> Result<String, (StatusCode, String)> {

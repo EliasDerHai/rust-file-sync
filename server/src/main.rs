@@ -179,7 +179,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route(
             ServerEndpoint::ApiWatchGroupFile.to_str(),
-            get(handler::api_serve_watch_group_file),
+            get(handler::api_serve_watch_group_file)
+                .delete(handler::api_delete_watch_group_file),
         )
         .route(
             ServerEndpoint::ApiMonitor.to_str(),

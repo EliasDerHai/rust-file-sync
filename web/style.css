@@ -436,3 +436,18 @@ select.form-input {
 .gallery-content { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; max-width: calc(100vw - 140px); max-height: calc(100vh - 2rem); }
 .gallery-img { max-width: 100%; max-height: calc(100vh - 4rem); object-fit: contain; border-radius: 4px; }
 .gallery-filename { color: #999; font-size: 0.85rem; }
+
+/* filetree multi-select */
+.filetree-row-selectable { display: flex; align-items: center; border-radius: 6px; }
+.filetree-row-selectable .filetree-row { flex: 1; }
+.filetree-checkbox { flex-shrink: 0; margin: 0 0.5rem; accent-color: #4a90d9; cursor: pointer; width: 16px; height: 16px; }
+.filetree-row-selected { background: rgba(74, 144, 217, 0.1); }
+.filetree-tile-wrapper { position: relative; }
+.filetree-tile-checkbox { position: absolute; top: 6px; left: 6px; z-index: 2; accent-color: #4a90d9; cursor: pointer; width: 16px; height: 16px; }
+.filetree-tile-selected > .filetree-tile { border-color: #4a90d9; background: rgba(74, 144, 217, 0.1); }
+
+/* gallery delete */
+.gallery-container { position: relative; }
+.gallery-top-bar { position: absolute; top: 1rem; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 0.5rem; z-index: 10; }
+.gallery-delete-btn { opacity: 0.6; transition: opacity 0.15s; }
+.gallery-delete-btn:hover { opacity: 1; }
