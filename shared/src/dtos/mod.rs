@@ -121,6 +121,8 @@ pub struct MonitorData {
     pub app_mem: Vec<DataPoint>,
     pub sys_cpu: Vec<DataPoint>,
     pub app_cpu: Vec<DataPoint>,
+    pub disk_used: Vec<DataPoint>,
+    pub disk_free: Vec<DataPoint>,
 }
 
 // links

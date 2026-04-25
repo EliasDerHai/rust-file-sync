@@ -105,7 +105,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         5 * 1024 * 1024, // 5MB
         4,
         Some(
-            "Timestamp;Total used mem in %;App used mem in %;Total used cpu in %;App used cpu in %"
+            "Timestamp;Total used mem in %;App used mem in %;Total used cpu in %;App used cpu in %;Disk used in %;Disk free in GiB"
                 .to_string(),
         ),
     )
