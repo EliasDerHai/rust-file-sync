@@ -178,6 +178,7 @@ pub fn AddOrEditLinkModal(
     };
     let url = RwSignal::new(url);
     let title = RwSignal::new(title);
+    let tags = RwSignal::new("".to_string());
     let selected_tags: RwSignal<Vec<String>> = RwSignal::new(initial_tags);
 
     let badge_click = Callback::new(move |t: String| {
@@ -200,6 +201,25 @@ pub fn AddOrEditLinkModal(
         async move { api::create_link(dto).await }
     };
 
+    let commit_tags = move || {
+        let raw = tags.get();
+        let new_tags: Vec<String> = raw
+            .split_whitespace()
+            .map(|s| s.to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        if !new_tags.is_empty() {
+            selected_tags.update(|v| {
+                for t in new_tags {
+                    if !v.contains(&t) {
+                        v.push(t);
+                    }
+                }
+            });
+            tags.set(String::new());
+        }
+    };
+
     view! {
         <Modal show title="Add link" on_save on_saved>
             <div class="form-group">
@@ -211,7 +231,7 @@ pub fn AddOrEditLinkModal(
                 <input type="text" class="form-input" bind:value=title/>
             </div>
 
-                {move || distinct_tags.get().into_iter().map(|tag| {
+            {move || distinct_tags.get().into_iter().map(|tag| {
                     let compare_tag = tag.clone();
                     view! {
                         <TagBadge
@@ -220,7 +240,38 @@ pub fn AddOrEditLinkModal(
                             on_click=Callback::new(move |_| badge_click.run(tag.clone()))
                         />
                     }
-                }).collect_view()}
+           }).collect_view()}
+
+            <div class="form-group">
+                <label>"Tags"</label>
+                <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px;">
+                    {move || selected_tags.get().into_iter().map(|tag| {
+                        view! {
+                            <span style="display: inline-flex; align-items: center; gap: 4px; background: var(--badge-bg, #e0e0e0); padding: 2px 6px; border-radius: 4px; font-size: 0.85em;">
+                                {tag.clone()}
+                                <button
+                                    type="button"
+                                    style="background: none; border: none; cursor: pointer; padding: 0; line-height: 1;"
+                                    on:click=move |_| selected_tags.update(|v| v.retain(|x| x != &tag))
+                                >"×"</button>
+                            </span>
+                        }
+                    }).collect_view()}
+                </div>
+                <input
+                    type="text"
+                    class="form-input"
+                    bind:value=tags
+                    placeholder="tag1 tag2 tag3"
+                    on:keydown=move |e| {
+                        if e.key() == "Enter" {
+                            e.prevent_default();
+                            commit_tags();
+                        }
+                    }
+                    on:blur=move |_| commit_tags()
+                />
+            </div>
         </Modal>
     }
 }
