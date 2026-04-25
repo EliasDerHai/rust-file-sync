@@ -426,3 +426,13 @@ select.form-input {
 .filetree-tile-icon.dir { color: #f0a500; }
 .filetree-tile-icon.text { color: #6fcf7c; }
 .filetree-tile-icon.file { color: #4a90d9; }
+
+/* image gallery */
+.gallery-container { display: flex; align-items: center; justify-content: center; height: 100vh; background: #0a0a0a; }
+.gallery-nav-left, .gallery-nav-right { display: flex; align-items: center; padding: 0 0.5rem; }
+.gallery-nav-btn { background: none; border: 1px solid #333; color: #ccc; font-size: 2rem; width: 48px; height: 48px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s, border-color 0.15s; }
+.gallery-nav-btn:hover:not(:disabled) { background: #1a1a2e; border-color: #4a90d9; }
+.gallery-nav-btn:disabled { opacity: 0.25; cursor: default; }
+.gallery-content { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; max-width: calc(100vw - 140px); max-height: calc(100vh - 2rem); }
+.gallery-img { max-width: 100%; max-height: calc(100vh - 4rem); object-fit: contain; border-radius: 4px; }
+.gallery-filename { color: #999; font-size: 0.85rem; }

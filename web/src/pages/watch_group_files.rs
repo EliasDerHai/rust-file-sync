@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
 use leptos_router::hooks::use_params_map;
-use shared::dtos::FileDescription;
+use shared::dtos::{is_image, FileDescription};
 use std::collections::HashSet;
 
 use crate::api;
@@ -37,10 +37,6 @@ fn files_at_depth(all: &[FileDescription], dir: &[String]) -> (Vec<String>, Vec<
         .collect();
     dirs.sort();
     (dirs, files)
-}
-
-fn is_image(ext: &str) -> bool {
-    matches!(ext, "jpg" | "jpeg" | "png" | "gif" | "webp" | "svg")
 }
 
 fn is_text(ext: &str) -> bool {
@@ -204,17 +200,19 @@ fn FiletreeView(
                             {files_here
                                 .into_iter()
                                 .map(|file| {
-                                    let preview_url = api::watch_group_file_preview_url(
-                                        wg_id,
-                                        &file.relative_path.to_serialized_string(),
-                                    );
+                                    let path_str = file.relative_path.to_serialized_string();
+                                    let href = if is_image(&file.file_type) {
+                                        api::gallery_url(wg_id, &path_str)
+                                    } else {
+                                        api::watch_group_file_preview_url(wg_id, &path_str)
+                                    };
                                     let file_name = file.file_name.clone();
                                     let size = format_size(file.size_in_bytes);
                                     view! {
                                         <li>
                                             <a
                                                 class="filetree-row"
-                                                href=preview_url
+                                                href=href
                                                 target="_blank"
                                             >
                                                 <FileIcon />
@@ -252,22 +250,23 @@ fn FiletreeView(
                             {files_here
                                 .into_iter()
                                 .map(|file| {
-                                    let preview_url = api::watch_group_file_preview_url(
+                                    let path_str = file.relative_path.to_serialized_string();
+                                    let raw_url = api::watch_group_file_preview_url(
                                         wg_id,
-                                        &file.relative_path.to_serialized_string(),
+                                        &path_str,
                                     );
                                     let file_name = file.file_name.clone();
                                     let ext = file.file_type.clone();
                                     if is_image(&ext) {
-                                        let preview_url2 = preview_url.clone();
+                                        let gallery_href = api::gallery_url(wg_id, &path_str);
                                         view! {
                                             <a
                                                 class="filetree-tile"
-                                                href=preview_url
+                                                href=gallery_href
                                                 target="_blank"
                                             >
                                                 <img
-                                                    src=preview_url2
+                                                    src=raw_url
                                                     class="filetree-tile-img"
                                                     loading="lazy"
                                                 />
@@ -280,7 +279,7 @@ fn FiletreeView(
                                         view! {
                                             <a
                                                 class="filetree-tile"
-                                                href=preview_url
+                                                href=raw_url
                                                 target="_blank"
                                             >
                                                 <Show

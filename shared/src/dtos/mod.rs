@@ -149,6 +149,12 @@ pub struct LinkTagCreateDto {
     pub tag: String,
 }
 
+// file type helpers
+
+pub fn is_image(ext: &str) -> bool {
+    matches!(ext, "jpg" | "jpeg" | "png" | "gif" | "webp" | "svg")
+}
+
 // impls
 
 impl LinkDto {

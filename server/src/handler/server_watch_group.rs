@@ -17,7 +17,7 @@ use shared::matchable_path::MatchablePath;
 use shared::utc_millis::UtcMillis;
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use tokio_util::io::ReaderStream;
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -107,23 +107,22 @@ pub async fn api_serve_watch_group_file(
 ) -> impl IntoResponse {
     let path_str = match params.get("path") {
         Some(p) if !p.is_empty() => p.clone(),
-        _ => return Err((StatusCode::BAD_REQUEST, "Missing path parameter".to_string())),
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Missing path parameter".to_string(),
+            ));
+        }
     };
 
-    // Filter to Normal components only — strips "..", "/", "~" (traversal safety)
-    let components: Vec<String> = std::path::Path::new(&path_str)
-        .components()
-        .filter_map(|c| match c {
-            Component::Normal(os) => Some(os.to_string_lossy().to_string()),
-            _ => None,
-        })
-        .collect();
+    let matchable = MatchablePath::from(Path::new(&path_str));
+    let segments = matchable.get();
 
-    if components.is_empty() {
+    if segments.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "Invalid path".to_string()));
     }
 
-    let rel: PathBuf = components.iter().collect();
+    let rel: PathBuf = segments.iter().collect();
     let full_path = UPLOAD_PATH.join(id.to_string()).join(rel);
 
     let file = match tokio::fs::File::open(&full_path).await {
@@ -252,7 +251,10 @@ async fn extract_file(
         return Ok((tmp_path, filename, size));
     }
 
-    Err((StatusCode::BAD_REQUEST, "No 'file' field in request".to_string()))
+    Err((
+        StatusCode::BAD_REQUEST,
+        "No 'file' field in request".to_string(),
+    ))
 }
 
 fn sanitize_filename(raw: &str) -> Result<String, (StatusCode, String)> {

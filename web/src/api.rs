@@ -173,6 +173,15 @@ pub fn watch_group_file_preview_url(wg_id: i64, path: &str) -> String {
     )
 }
 
+pub fn gallery_url(wg_id: i64, path: &str) -> String {
+    let encoded = js_sys::encode_uri_component(path);
+    format!(
+        "/app/watch-groups/{}/gallery?path={}",
+        wg_id,
+        String::from(encoded)
+    )
+}
+
 pub async fn fetch_monitor_data() -> Result<MonitorData, String> {
     Request::get(ServerEndpoint::ApiMonitor.to_str())
         .send()
