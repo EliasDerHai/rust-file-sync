@@ -36,6 +36,9 @@ else
 fi
 
 
+echo "Building web assets..."
+(cd ../web && trunk build --release)
+
 echo "Building project..."
 $CROSS_CMD
 

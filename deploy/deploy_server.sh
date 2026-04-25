@@ -29,6 +29,9 @@ else
   echo "Skipping version bump."
 fi
 
+echo "Building web assets..."
+(cd ../web && trunk build --release)
+
 echo "Building project for ${TARGET}..."
 cargo build -p ${PROJECT} --release --target=${TARGET}
 
