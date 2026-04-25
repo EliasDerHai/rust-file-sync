@@ -5,7 +5,7 @@ use crate::write::{
     RotatingFileWriter, create_all_paths_if_not_exist, create_file_if_not_exists,
     schedule_data_backups,
 };
-use axum::extract::{DefaultBodyLimit, State};
+use axum::extract::{DefaultBodyLimit, Query, State};
 use axum::routing::{post, put};
 
 const PWA_UPLOAD_LIMIT_BYTES: usize = 500 * 1024 * 1024; // 500 MB
@@ -183,7 +183,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route(
             ServerEndpoint::ApiMonitor.to_str(),
-            get(|state: State<AppState>| monitor::api_get_monitoring(state.monitor_writer.clone())),
+            get(|state: State<AppState>, Query(q): Query<monitor::MonitorQuery>| {
+                let writer = state.monitor_writer.clone();
+                let points = q.points.unwrap_or(monitor::DEFAULT_MAX_POINTS);
+                monitor::api_get_monitoring(writer, points)
+            }),
         )
         .route(
             ServerEndpoint::ApiLinks.to_str(),

@@ -5,6 +5,22 @@ use sysinfo::{Disks, System};
 use tracing::{error, trace};
 
 const BACKOFF_MS: u64 = 10_000;
+pub const DEFAULT_MAX_POINTS: usize = 300;
+
+#[derive(serde::Deserialize, Default)]
+pub struct MonitorQuery {
+    pub points: Option<usize>,
+}
+
+struct CsvRow {
+    timestamp: String,
+    sys_mem: f32,
+    app_mem: f32,
+    sys_cpu: f32,
+    app_cpu: f32,
+    disk_used: f32,
+    disk_free: f32,
+}
 
 pub async fn monitor_sys(writer: Arc<Mutex<RotatingFileWriter>>) {
     let mut system = System::new_all();
@@ -72,8 +88,11 @@ pub async fn monitor_sys(writer: Arc<Mutex<RotatingFileWriter>>) {
     }
 }
 
-/// GET /api/monitor - JSON monitoring data
-pub async fn api_get_monitoring(writer: Arc<Mutex<RotatingFileWriter>>) -> impl IntoResponse {
+/// GET /api/monitor?points=N - JSON monitoring data, downsampled to N points (default 300)
+pub async fn api_get_monitoring(
+    writer: Arc<Mutex<RotatingFileWriter>>,
+    max_points: usize,
+) -> impl IntoResponse {
     let csv_content = match writer.lock().unwrap().read_current_file() {
         Ok(content) => content,
         Err(err) => {
@@ -84,39 +103,75 @@ pub async fn api_get_monitoring(writer: Arc<Mutex<RotatingFileWriter>>) -> impl 
                 .into_response();
         }
     };
-    let data_json = csv_to_json(&csv_content);
+    let data_json = csv_to_json(&csv_content, max_points);
     ([("content-type", "application/json")], data_json).into_response()
 }
 
-fn csv_to_json(csv: &str) -> String {
-    let mut sys_mem = Vec::new();
-    let mut app_mem = Vec::new();
-    let mut sys_cpu = Vec::new();
-    let mut app_cpu = Vec::new();
-    let mut disk_used = Vec::new();
-    let mut disk_free = Vec::new();
+fn parse_csv_rows(csv: &str) -> Vec<CsvRow> {
+    csv.lines()
+        .enumerate()
+        .filter(|(i, _)| *i != 0)
+        .filter_map(|(_, line)| {
+            let parts: Vec<&str> = line.split(';').collect();
+            if parts.len() < 5 {
+                return None;
+            }
+            Some(CsvRow {
+                timestamp: parts[0].to_string(),
+                sys_mem: parts[1].parse().unwrap_or(0.0),
+                app_mem: parts[2].parse().unwrap_or(0.0),
+                sys_cpu: parts[3].parse().unwrap_or(0.0),
+                app_cpu: parts[4].parse().unwrap_or(0.0),
+                disk_used: parts.get(5).and_then(|v| v.parse().ok()).unwrap_or(0.0),
+                disk_free: parts.get(6).and_then(|v| v.parse().ok()).unwrap_or(0.0),
+            })
+        })
+        .collect()
+}
 
-    for (i, line) in csv.lines().enumerate() {
-        if i == 0 {
-            continue; // skip header
-        }
-        let parts: Vec<&str> = line.split(';').collect();
-        if parts.len() >= 5 {
-            let timestamp = parts[0];
-            let sys_mem_val = parts[1].parse::<f32>().unwrap_or(0.0);
-            let app_mem_val = parts[2].parse::<f32>().unwrap_or(0.0);
-            let sys_cpu_val = parts[3].parse::<f32>().unwrap_or(0.0);
-            let app_cpu_val = parts[4].parse::<f32>().unwrap_or(0.0);
-            let disk_used_val = parts.get(5).and_then(|v| v.parse::<f32>().ok()).unwrap_or(0.0);
-            let disk_free_val = parts.get(6).and_then(|v| v.parse::<f32>().ok()).unwrap_or(0.0);
+fn downsample(rows: Vec<CsvRow>, max_points: usize) -> Vec<CsvRow> {
+    let n = rows.len();
+    if n <= max_points {
+        return rows;
+    }
+    let bucket_size = n as f64 / max_points as f64;
+    (0..max_points)
+        .map(|i| {
+            let start = (i as f64 * bucket_size) as usize;
+            let end = ((i + 1) as f64 * bucket_size) as usize;
+            let end = end.min(n);
+            let bucket = &rows[start..end];
+            let count = bucket.len() as f32;
+            CsvRow {
+                timestamp: bucket[0].timestamp.clone(),
+                sys_mem: bucket.iter().map(|r| r.sys_mem).sum::<f32>() / count,
+                app_mem: bucket.iter().map(|r| r.app_mem).sum::<f32>() / count,
+                sys_cpu: bucket.iter().map(|r| r.sys_cpu).sum::<f32>() / count,
+                app_cpu: bucket.iter().map(|r| r.app_cpu).sum::<f32>() / count,
+                disk_used: bucket.iter().map(|r| r.disk_used).sum::<f32>() / count,
+                disk_free: bucket.iter().map(|r| r.disk_free).sum::<f32>() / count,
+            }
+        })
+        .collect()
+}
 
-            sys_mem.push(format!(r#"{{"x":"{}","y":{}}}"#, timestamp, sys_mem_val));
-            app_mem.push(format!(r#"{{"x":"{}","y":{}}}"#, timestamp, app_mem_val));
-            sys_cpu.push(format!(r#"{{"x":"{}","y":{}}}"#, timestamp, sys_cpu_val));
-            app_cpu.push(format!(r#"{{"x":"{}","y":{}}}"#, timestamp, app_cpu_val));
-            disk_used.push(format!(r#"{{"x":"{}","y":{}}}"#, timestamp, disk_used_val));
-            disk_free.push(format!(r#"{{"x":"{}","y":{:.2}}}"#, timestamp, disk_free_val));
-        }
+fn csv_to_json(csv: &str, max_points: usize) -> String {
+    let rows = downsample(parse_csv_rows(csv), max_points);
+
+    let mut sys_mem = Vec::with_capacity(rows.len());
+    let mut app_mem = Vec::with_capacity(rows.len());
+    let mut sys_cpu = Vec::with_capacity(rows.len());
+    let mut app_cpu = Vec::with_capacity(rows.len());
+    let mut disk_used = Vec::with_capacity(rows.len());
+    let mut disk_free = Vec::with_capacity(rows.len());
+
+    for row in &rows {
+        sys_mem.push(format!(r#"{{"x":"{}","y":{}}}"#, row.timestamp, row.sys_mem));
+        app_mem.push(format!(r#"{{"x":"{}","y":{}}}"#, row.timestamp, row.app_mem));
+        sys_cpu.push(format!(r#"{{"x":"{}","y":{}}}"#, row.timestamp, row.sys_cpu));
+        app_cpu.push(format!(r#"{{"x":"{}","y":{}}}"#, row.timestamp, row.app_cpu));
+        disk_used.push(format!(r#"{{"x":"{}","y":{}}}"#, row.timestamp, row.disk_used));
+        disk_free.push(format!(r#"{{"x":"{}","y":{:.2}}}"#, row.timestamp, row.disk_free));
     }
 
     format!(
