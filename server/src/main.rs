@@ -1,4 +1,3 @@
-use crate::csv_migration::migrate_csv_history_to_db;
 use crate::db::ServerDatabase;
 use crate::file_history::InMemoryFileHistory;
 use crate::write::{
@@ -25,7 +24,6 @@ use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
 mod client_file_event;
-mod csv_migration;
 mod db;
 mod file_event;
 mod file_history;
@@ -38,8 +36,6 @@ mod write;
 pub(crate) static UPLOAD_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/upload"));
 /// directory to hold zipped backup files
 static BACKUP_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/backup"));
-/// path to legacy CSV history file (used only for one-time migration)
-static HISTORY_CSV_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/history.csv"));
 static MONITORING_DIR: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/monitor"));
 /// dir to which multipart-files can be saved to, before being moved to the actual 'mirrored path'
 /// temporary and might be cleaned upon encountering errors or on scheduled intervals
@@ -82,9 +78,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         MIGRATOR.run(&pool).await?;
         ServerDatabase::new(pool)
     };
-
-    // Migrate CSV history to DB (one-time)
-    migrate_csv_history_to_db(&db).await;
 
     // Load history from DB into in-memory store
     let history = match db.file_event().get_all_events().await {

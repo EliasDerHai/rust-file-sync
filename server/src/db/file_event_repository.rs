@@ -16,10 +16,6 @@ impl<'a> FileEventRepository<'a> {
         Self { pool }
     }
 
-    pub fn pool(&self) -> &SqlitePool {
-        self.pool
-    }
-
     pub async fn insert(&self, event: &FileEvent, client_id: &str) -> Result<()> {
         let id = event.id.to_string();
         let utc_millis = event.utc_millis.as_u64() as i64;
@@ -47,6 +43,7 @@ impl<'a> FileEventRepository<'a> {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub async fn bulk_insert(&self, events: Vec<(FileEvent, String)>) -> Result<u64> {
         let mut count = 0u64;
         for (event, client_id) in &events {
