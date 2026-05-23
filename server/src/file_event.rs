@@ -1,4 +1,3 @@
-use serde_json::to_string;
 use shared::dtos::FileDescription;
 use shared::matchable_path::MatchablePath;
 use shared::utc_millis::UtcMillis;
@@ -79,21 +78,6 @@ impl From<FileEvent> for FileDescription {
 }
 
 impl FileEvent {
-    /// produces csv line with ; as separator
-    pub fn serialize_to_csv_line(&self) -> String {
-        let parts = [
-            self.id.to_string(),
-            to_string(&self.utc_millis).unwrap(),
-            self.relative_path.get().join("/"),
-            self.size_in_bytes.to_string(),
-            self.event_type.serialize_to_string(),
-            self.client_host.clone().unwrap_or_default(),
-            self.watch_group_id.to_string(),
-        ];
-
-        parts.join(";")
-    }
-
     pub fn new(
         id: Uuid,
         utc_millis: UtcMillis,
@@ -185,46 +169,8 @@ impl TryFrom<&str> for FileEvent {
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
-
     use super::FileEventType::{ChangeEvent, DeleteEvent};
     use super::*;
-
-    #[test]
-    fn should_serialize_event_to_csv_line() {
-        let uuid = Uuid::new_v4();
-        let millis = Utc::now().timestamp_millis() as u64;
-        let event = FileEvent::new(
-            uuid,
-            UtcMillis::from(millis),
-            MatchablePath::from(vec!["foo", "bar", "file.txt"]),
-            1024 * 1024 * 1024,
-            ChangeEvent,
-            None,
-            1,
-        );
-
-        let expected = format!("{uuid};{millis};foo/bar/file.txt;1073741824;change;;1");
-        assert_eq!(expected, event.serialize_to_csv_line());
-    }
-    #[test]
-    fn should_serialize_deserialize_round_trip() {
-        let original_event = FileEvent {
-            id: Uuid::new_v4(),
-            utc_millis: UtcMillis::from(1234567890),
-            relative_path: MatchablePath::from(vec!["folder", "subfolder", "file.txt"]),
-            size_in_bytes: 1024,
-            event_type: ChangeEvent,
-            client_host: Some("arch".to_string()),
-            watch_group_id: 3,
-        };
-
-        let csv_line = original_event.serialize_to_csv_line();
-        let parsed_event =
-            FileEvent::try_from(csv_line.as_str()).expect("Failed to parse valid CSV line");
-
-        assert_eq!(original_event, parsed_event, "Round-trip mismatch!");
-    }
 
     #[test]
     fn should_parse_err_invalid_uuid() {

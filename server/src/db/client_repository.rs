@@ -114,6 +114,7 @@ impl<'a> ClientRepository<'a> {
 }
 
 #[cfg(test)]
+#[allow(unused_imports, dead_code)]
 mod tests {
     use super::*;
     use crate::db::ServerDatabase;
