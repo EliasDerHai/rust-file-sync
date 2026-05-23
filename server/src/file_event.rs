@@ -61,19 +61,19 @@ pub struct FileEvent {
     pub watch_group_id: i64,
 }
 
-impl Into<FileDescription> for FileEvent {
-    fn into(self) -> FileDescription {
-        let file_name = self.relative_path.tail();
+impl From<FileEvent> for FileDescription {
+    fn from(val: FileEvent) -> Self {
+        let file_name = val.relative_path.tail();
         FileDescription {
             file_name: file_name.clone(),
-            relative_path: self.relative_path,
-            size_in_bytes: self.size_in_bytes,
+            relative_path: val.relative_path,
+            size_in_bytes: val.size_in_bytes,
             file_type: Path::new(&file_name)
                 .extension()
                 .and_then(|e| e.to_str())
                 .unwrap_or_default()
                 .to_string(),
-            last_updated_utc_millis: self.utc_millis,
+            last_updated_utc_millis: val.utc_millis,
         }
     }
 }
