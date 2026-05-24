@@ -14,7 +14,7 @@ pub struct ClientFileEvent {
     pub temp_file_path: Option<PathBuf>,
     /// the size of the uploaded file
     pub content_size: usize,
-    pub content_hash: Option<u32>,
+    pub content_hash: u32,
     pub client_id: Uuid,
     pub client_host: Option<String>,
     pub watch_group_id: i64,
@@ -25,7 +25,7 @@ pub struct ClientFileEventDto {
     pub relative_path: Option<Vec<String>>,
     pub temp_file_path: Option<PathBuf>,
     pub content_size: Option<usize>,
-    pub content_hash: Option<u32>,
+    pub content_hash: u32,
     pub client_id: Uuid,
     pub client_host: Option<String>,
     pub watch_group_id: i64,

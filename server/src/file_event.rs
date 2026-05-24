@@ -55,7 +55,7 @@ pub struct FileEvent {
     /// relative path of the file on client side from the tracked root dir
     pub relative_path: MatchablePath,
     pub size_in_bytes: u64,
-    pub content_hash: Option<u32>,
+    pub content_hash: u32,
     pub event_type: FileEventType,
     pub client_id: Uuid,
     pub client_host: Option<String>,
@@ -87,7 +87,7 @@ impl FileEvent {
         utc_millis: UtcMillis,
         relative_path: MatchablePath,
         size_in_bytes: u64,
-        content_hash: Option<u32>,
+        content_hash: u32,
         event_type: FileEventType,
         client_id: Uuid,
         client_host: Option<String>,

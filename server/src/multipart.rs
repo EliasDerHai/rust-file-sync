@@ -20,7 +20,7 @@ pub async fn parse_multipart_request(
     let mut relative_path: Option<Vec<String>> = None;
     let mut temp_file_path: Option<PathBuf> = None;
     let mut content_size: Option<usize> = None;
-    let mut content_hash: Option<u32> = None;
+    let mut content_hash: u32 = 0;
 
     while let Some(field) = multipart.next_field().await.unwrap() {
         match field.name() {
@@ -71,7 +71,7 @@ pub async fn parse_multipart_request(
                     })?;
                 temp_file_path = Some(temp_path);
                 content_size = Some(s);
-                content_hash = Some(h);
+                content_hash = h;
             }
             Some(other) => error!("Unknown field name '{other}' in upload handler"),
         }

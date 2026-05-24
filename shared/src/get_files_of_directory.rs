@@ -135,19 +135,21 @@ fn get_last_updated(metadata: &Metadata) -> Option<UtcMillis> {
     None
 }
 
-fn compute_crc32(path: &Path) -> Option<u32> {
-    let file = fs::File::open(path).ok()?;
+fn compute_crc32(path: &Path) -> u32 {
+    let Ok(file) = fs::File::open(path) else {
+        return 0;
+    };
     let mut reader = std::io::BufReader::new(file);
     let mut hasher = crc32fast::Hasher::new();
     let mut buf = [0u8; 8192];
     loop {
-        let n = reader.read(&mut buf).ok()?;
-        if n == 0 {
-            break;
+        match reader.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => hasher.update(&buf[..n]),
+            Err(_) => return 0,
         }
-        hasher.update(&buf[..n]);
     }
-    Some(hasher.finalize())
+    hasher.finalize()
 }
 
 #[cfg(test)]

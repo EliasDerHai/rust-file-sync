@@ -206,10 +206,7 @@ pub async fn sync_handler(
 
                 let client_behind = client_equivalent.last_updated_utc_millis < event.utc_millis;
                 let client_was_last_editor = event.client_id == client_id;
-                let content_unchanged = match (event.content_hash, client_equivalent.content_hash) {
-                    (Some(server_hash), Some(client_hash)) => server_hash == client_hash,
-                    _ => client_equivalent.size_in_bytes == event.size_in_bytes,
-                };
+                let content_unchanged = event.content_hash == client_equivalent.content_hash;
 
                 match event.event_type {
                     FileEventType::ChangeEvent => {
@@ -316,7 +313,7 @@ pub async fn delete(
         millis.clone(),
         matchable_path,
         0,
-        None,
+        0,
         FileEventType::DeleteEvent,
         client_id,
         client_host,
