@@ -185,7 +185,8 @@ pub async fn sync_handler(
             )
         })?;
 
-    for event in target.clone() {
+    for event in &target {
+        let event_path = event.relative_path.clone();
         match client_sync_state.iter().find(|client_file_description| {
             client_file_description.relative_path == event.relative_path
         }) {
@@ -193,7 +194,7 @@ pub async fn sync_handler(
             None => {
                 match event.event_type {
                     FileEventType::ChangeEvent => {
-                        instructions.push(SyncInstruction::Download(event.relative_path))
+                        instructions.push(SyncInstruction::Download(event_path))
                     }
                     FileEventType::DeleteEvent => (), // nothing to delete
                 }
@@ -221,11 +222,11 @@ pub async fn sync_handler(
                                     continue;
                                 }
                                 // client outdated needs to download new version
-                                instructions.push(SyncInstruction::Download(event.relative_path))
+                                instructions.push(SyncInstruction::Download(event_path))
                             }
                             false => {
                                 // client ahead needs to upload new version
-                                instructions.push(SyncInstruction::Upload(event.relative_path))
+                                instructions.push(SyncInstruction::Upload(event_path))
                             }
                         }
                     }
@@ -233,11 +234,11 @@ pub async fn sync_handler(
                         match client_behind {
                             true => {
                                 // client outdated needs to delete his version
-                                instructions.push(SyncInstruction::Delete(event.relative_path))
+                                instructions.push(SyncInstruction::Delete(event_path))
                             }
                             false => {
                                 // server has a delete event but client has a new change - it's a new file and has to be uploaded!
-                                instructions.push(SyncInstruction::Upload(event.relative_path))
+                                instructions.push(SyncInstruction::Upload(event_path))
                             }
                         }
                     }
