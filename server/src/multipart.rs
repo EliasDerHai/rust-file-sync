@@ -20,6 +20,7 @@ pub async fn parse_multipart_request(
     let mut relative_path: Option<Vec<String>> = None;
     let mut temp_file_path: Option<PathBuf> = None;
     let mut content_size: Option<usize> = None;
+    let mut content_hash: Option<u32> = None;
 
     while let Some(field) = multipart.next_field().await.unwrap() {
         match field.name() {
@@ -50,7 +51,7 @@ pub async fn parse_multipart_request(
                 let temp_path = upload_root_tmp_path.join(Path::new(
                     format!("./{}_{}", random_uuid, original_file_name).as_str(),
                 ));
-                let s = write_all_chunks_of_field(temp_path.as_path(), field)
+                let (s, h) = write_all_chunks_of_field(temp_path.as_path(), field)
                     .await
                     // NOTE - generic: Err("Error parsing `multipart/form-data` request") will be
                     // returned if the axum body limit is exceeded - make sure to adjust the limit
@@ -70,6 +71,7 @@ pub async fn parse_multipart_request(
                     })?;
                 temp_file_path = Some(temp_path);
                 content_size = Some(s);
+                content_hash = Some(h);
             }
             Some(other) => error!("Unknown field name '{other}' in upload handler"),
         }
@@ -80,6 +82,7 @@ pub async fn parse_multipart_request(
         relative_path,
         temp_file_path,
         content_size,
+        content_hash,
         client_id,
         client_host,
         watch_group_id,

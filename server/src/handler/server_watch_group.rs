@@ -194,7 +194,7 @@ pub async fn api_upload_to_watch_group(
         return Err((StatusCode::NOT_FOUND, format!("Watch group {id} not found")));
     }
 
-    let (tmp_path, filename, size) = extract_file(&mut multipart).await?;
+    let (tmp_path, filename, size, hash) = extract_file(&mut multipart).await?;
 
     let target_dir = UPLOAD_PATH.join(id.to_string());
     let target_path = target_dir.join(&filename);
@@ -220,6 +220,7 @@ pub async fn api_upload_to_watch_group(
         UtcMillis::now(),
         MatchablePath::from(vec![filename.as_str()]),
         size as u64,
+        Some(hash),
         FileEventType::ChangeEvent,
         *PWA_CLIENT_UUID,
         Some("pwa".to_string()),
@@ -237,7 +238,7 @@ pub async fn api_upload_to_watch_group(
 
 async fn extract_file(
     multipart: &mut Multipart,
-) -> Result<(PathBuf, String, usize), (StatusCode, String)> {
+) -> Result<(PathBuf, String, usize, u32), (StatusCode, String)> {
     while let Some(field) = multipart.next_field().await.unwrap_or(None) {
         if field.name() != Some("file") {
             continue;
@@ -247,7 +248,7 @@ async fn extract_file(
         let filename = sanitize_filename(&raw_name)?;
 
         let tmp_path = UPLOAD_TMP_PATH.join(format!("{}_{}", Uuid::new_v4(), filename));
-        let size = write_all_chunks_of_field(tmp_path.as_path(), field)
+        let (size, hash) = write_all_chunks_of_field(tmp_path.as_path(), field)
             .await
             .map_err(|e| {
                 (
@@ -256,7 +257,7 @@ async fn extract_file(
                 )
             })?;
 
-        return Ok((tmp_path, filename, size));
+        return Ok((tmp_path, filename, size, hash));
     }
 
     Err((
@@ -299,6 +300,7 @@ pub async fn api_delete_watch_group_file(
         UtcMillis::now(),
         matchable_path,
         0,
+        None,
         FileEventType::DeleteEvent,
         *WEB_CLIENT_UUID,
         Some("web".to_string()),

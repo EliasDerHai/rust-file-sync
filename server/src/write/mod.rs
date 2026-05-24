@@ -3,6 +3,7 @@ mod rotating;
 pub use rotating::RotatingFileWriter;
 
 use axum::extract::multipart::{Field, MultipartError};
+use crc32fast::Hasher as Crc32Hasher;
 use chrono::{Local, NaiveTime};
 use std::fs::{self, create_dir_all};
 use std::io;
@@ -54,7 +55,7 @@ fn map_to_io_error(e: MultipartError) -> io::Error {
 pub async fn write_all_chunks_of_field(
     path: &Path,
     mut field: Field<'_>,
-) -> Result<usize, io::Error> {
+) -> Result<(usize, u32), io::Error> {
     info!(
         "Trying to progressively write to {} - (content_type = {:?})",
         path.display(),
@@ -63,6 +64,7 @@ pub async fn write_all_chunks_of_field(
     let mut file = File::create(path).await?;
     let mut chunk_counter = 0;
     let mut total_size_counter = 0;
+    let mut hasher = Crc32Hasher::new();
     loop {
         match field.chunk().await {
             Err(e) => {
@@ -83,12 +85,13 @@ pub async fn write_all_chunks_of_field(
                     let chunk_size = bytes.len();
                     total_size_counter += chunk_size;
                     debug!("{}: chunk-size = {}", chunk_counter, chunk_size);
+                    hasher.update(&bytes);
                     file.write_all(&bytes).await?;
                 }
             },
         }
     }
-    Ok(total_size_counter)
+    Ok((total_size_counter, hasher.finalize()))
 }
 
 // NOTE: introduce switch flag to try both and measure mem-consumption and speed? would be interesting

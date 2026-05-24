@@ -607,6 +607,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "217698eaf96b4a3f0bc4f3662aaa55bdf913cd54d7204591faa790070c6d0853"
 
 [[package]]
+name = "crc32fast"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9481c1c90cbf2ac953f07c8d4a58aa3945c425b7185c9154d67a65e4230da511"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
 name = "crossbeam-deque"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2785,6 +2794,7 @@ dependencies = [
  "axum",
  "axum-server",
  "chrono",
+ "crc32fast",
  "rust-embed",
  "serde",
  "serde_json",
@@ -2893,6 +2903,7 @@ name = "shared"
 version = "0.1.20"
 dependencies = [
  "chrono",
+ "crc32fast",
  "serde",
  "serde_json",
  "uuid",

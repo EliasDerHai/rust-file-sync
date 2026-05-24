@@ -16,6 +16,7 @@ pub struct FileDescription {
     pub size_in_bytes: u64,
     pub file_type: String,
     pub last_updated_utc_millis: UtcMillis,
+    pub content_hash: Option<u32>,
 }
 
 // sys config (client ↔ server)

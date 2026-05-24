@@ -191,8 +191,11 @@ pub async fn sync_handler(
         }) {
             // client doesn't have the file at all
             None => {
-                if event.event_type != FileEventType::DeleteEvent {
-                    instructions.push(SyncInstruction::Download(event.relative_path))
+                match event.event_type {
+                    FileEventType::ChangeEvent => {
+                        instructions.push(SyncInstruction::Download(event.relative_path))
+                    }
+                    FileEventType::DeleteEvent => (), // nothing to delete
                 }
             }
             Some(client_equivalent) => {
@@ -201,30 +204,46 @@ pub async fn sync_handler(
                     event.utc_millis, client_equivalent.last_updated_utc_millis
                 );
 
-                if client_equivalent.size_in_bytes == event.size_in_bytes
-                    && event.event_type.is_change()
-                {
-                    // same size - just ignore even if timestamps differ (might have been write-operation without change)
-                    continue;
-                } else if client_equivalent.last_updated_utc_millis < event.utc_millis {
-                    if event.client_id == client_id {
-                        // client was the event's sender - no need to act since client is up to date
-                        continue;
-                    }
+                let client_behind = client_equivalent.last_updated_utc_millis < event.utc_millis;
+                let client_was_last_editor = event.client_id == client_id;
+                let content_unchanged = match (event.content_hash, client_equivalent.content_hash) {
+                    (Some(server_hash), Some(client_hash)) => server_hash == client_hash,
+                    _ => client_equivalent.size_in_bytes == event.size_in_bytes,
+                };
 
-                    // differs in size and client is outdated
-                    match event.event_type {
-                        FileEventType::ChangeEvent => {
-                            // client outdated needs to download new version
-                            instructions.push(SyncInstruction::Download(event.relative_path))
+                match event.event_type {
+                    FileEventType::ChangeEvent => {
+                        if content_unchanged {
+                            continue;
                         }
-                        FileEventType::DeleteEvent => {
-                            // client outdated needs to delete his version
-                            instructions.push(SyncInstruction::Delete(event.relative_path))
+
+                        match client_behind {
+                            true => {
+                                if client_was_last_editor {
+                                    // client was the event's sender - no need to act since client is always up-to-date with himself
+                                    continue;
+                                }
+                                // client outdated needs to download new version
+                                instructions.push(SyncInstruction::Download(event.relative_path))
+                            }
+                            false => {
+                                // client ahead needs to upload new version
+                                instructions.push(SyncInstruction::Upload(event.relative_path))
+                            }
                         }
                     }
-                } else {
-                    instructions.push(SyncInstruction::Upload(event.relative_path))
+                    FileEventType::DeleteEvent => {
+                        match client_behind {
+                            true => {
+                                // client outdated needs to delete his version
+                                instructions.push(SyncInstruction::Delete(event.relative_path))
+                            }
+                            false => {
+                                // server has a delete event but client has a new change - it's a new file and has to be uploaded!
+                                instructions.push(SyncInstruction::Upload(event.relative_path))
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -297,6 +316,7 @@ pub async fn delete(
         millis.clone(),
         matchable_path,
         0,
+        None,
         FileEventType::DeleteEvent,
         client_id,
         client_host,
