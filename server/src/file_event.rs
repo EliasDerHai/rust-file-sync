@@ -56,6 +56,7 @@ pub struct FileEvent {
     pub relative_path: MatchablePath,
     pub size_in_bytes: u64,
     pub event_type: FileEventType,
+    pub client_id: Uuid,
     pub client_host: Option<String>,
     pub watch_group_id: i64,
 }
@@ -84,6 +85,7 @@ impl FileEvent {
         relative_path: MatchablePath,
         size_in_bytes: u64,
         event_type: FileEventType,
+        client_id: Uuid,
         client_host: Option<String>,
         watch_group_id: i64,
     ) -> Self {
@@ -93,6 +95,7 @@ impl FileEvent {
             relative_path,
             size_in_bytes,
             event_type,
+            client_id,
             client_host,
             watch_group_id,
         }

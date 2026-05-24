@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use shared::matchable_path::MatchablePath;
 use shared::utc_millis::UtcMillis;
 use sqlx::SqlitePool;
@@ -16,12 +17,13 @@ impl<'a> FileEventRepository<'a> {
         Self { pool }
     }
 
-    pub async fn insert(&self, event: &FileEvent, client_id: &str) -> Result<()> {
+    pub async fn insert(&self, event: &FileEvent) -> Result<()> {
         let id = event.id.to_string();
         let utc_millis = event.utc_millis.as_u64() as i64;
         let relative_path = event.relative_path.to_serialized_string();
         let size_in_bytes = event.size_in_bytes as i64;
         let event_type = event.event_type.serialize_to_string();
+        let client_id = event.client_id.to_string();
         let watch_group_id = event.watch_group_id;
 
         sqlx::query!(
@@ -41,38 +43,6 @@ impl<'a> FileEventRepository<'a> {
         .await?;
 
         Ok(())
-    }
-
-    #[allow(dead_code)]
-    pub async fn bulk_insert(&self, events: Vec<(FileEvent, String)>) -> Result<u64> {
-        let mut count = 0u64;
-        for (event, client_id) in &events {
-            let id = event.id.to_string();
-            let utc_millis = event.utc_millis.as_u64() as i64;
-            let relative_path = event.relative_path.to_serialized_string();
-            let size_in_bytes = event.size_in_bytes as i64;
-            let event_type = event.event_type.serialize_to_string();
-            let watch_group_id = event.watch_group_id;
-
-            sqlx::query!(
-                r#"
-                INSERT INTO file_event (id, utc_millis, relative_path, size_in_bytes, event_type, client_id, watch_group_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                "#,
-                id,
-                utc_millis,
-                relative_path,
-                size_in_bytes,
-                event_type,
-                client_id,
-                watch_group_id,
-            )
-            .execute(self.pool)
-            .await?;
-
-            count += 1;
-        }
-        Ok(count)
     }
 
     pub async fn get_all_events(&self) -> Result<Vec<FileEvent>> {
@@ -95,17 +65,17 @@ impl<'a> FileEventRepository<'a> {
 
         Ok(rows
             .into_iter()
-            .map(|row| {
-                FileEvent::new(
-                    Uuid::parse_str(&row.id).unwrap_or_else(|_| Uuid::new_v4()),
+            .flat_map(|row| -> anyhow::Result<FileEvent> {
+                Ok(FileEvent::new(
+                    Uuid::parse_str(&row.id)?,
                     UtcMillis::from(row.utc_millis as u64),
                     MatchablePath::from(row.relative_path.as_str()),
                     row.size_in_bytes as u64,
-                    FileEventType::try_from(row.event_type.as_str())
-                        .unwrap_or(FileEventType::ChangeEvent),
+                    FileEventType::try_from(row.event_type.as_str()).map_err(|e| anyhow!("{e}"))?,
+                    Uuid::parse_str(&row.client_id)?,
                     Some(row.client_id),
                     row.watch_group_id,
-                )
+                ))
             })
             .collect())
     }

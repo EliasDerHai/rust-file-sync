@@ -12,6 +12,8 @@ use uuid::Uuid;
 pub async fn parse_multipart_request(
     upload_root_tmp_path: &Path,
     multipart: &mut Multipart,
+    client_id: Uuid,
+    client_host: Option<String>,
     watch_group_id: i64,
 ) -> Result<ClientFileEventDto, (StatusCode, String)> {
     let mut utc_millis: Option<UtcMillis> = None;
@@ -78,6 +80,8 @@ pub async fn parse_multipart_request(
         relative_path,
         temp_file_path,
         content_size,
+        client_id,
+        client_host,
         watch_group_id,
     })
 }

@@ -141,6 +141,7 @@ mod tests {
             MatchablePath::from(vec!["dir", "file.txt"]),
             1024,
             ChangeEvent,
+            Uuid::new_v4(),
             None,
             WG,
         );
@@ -150,6 +151,7 @@ mod tests {
             MatchablePath::from(vec!["dir", "file.txt"]),
             1024,
             ChangeEvent,
+            Uuid::new_v4(),
             None,
             WG,
         );
@@ -179,6 +181,7 @@ mod tests {
                     matchable_path.clone(),
                     1024 * 1024 * 1024,
                     ChangeEvent,
+                    Uuid::new_v4(),
                     None,
                     WG,
                 )
@@ -216,6 +219,7 @@ mod tests {
                     matchable_path.clone(),
                     1024 * 1024 * 1024,
                     ChangeEvent,
+                    Uuid::new_v4(),
                     None,
                     WG,
                 )
@@ -244,6 +248,7 @@ mod tests {
             path.clone(),
             1024,
             ChangeEvent,
+            Uuid::new_v4(),
             None,
             1,
         );
@@ -253,6 +258,7 @@ mod tests {
             path.clone(),
             2048,
             ChangeEvent,
+            Uuid::new_v4(),
             None,
             2,
         );

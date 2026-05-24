@@ -16,6 +16,7 @@ use std::ffi::OsStr;
 use std::fs;
 use std::fs::create_dir_all;
 use std::path::{Component, Path, PathBuf};
+use std::str::FromStr;
 use tokio_util::io::ReaderStream;
 use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
@@ -44,32 +45,40 @@ pub async fn upload_handler(
     multipart: Multipart,
 ) -> Result<String, (StatusCode, String)> {
     let upload_root_path = upload_path_for_wg(wg_id);
-    let dto =
-        multipart::parse_multipart_request(&UPLOAD_TMP_PATH, &mut { multipart }, wg_id).await?;
-
     let client_host = header_value_as_opt_string(&headers, CLIENT_HOST_HEADER_KEY);
     let client_id = header_value_as_string(&headers, CLIENT_ID_HEADER_KEY)
-        .map(|s| s.to_string())
-        .ok();
+        .map(Uuid::from_str)?
+        .map_err(|_| {
+            (
+                StatusCode::BAD_REQUEST,
+                "Invalid X-Client-Id header — upload refused".to_string(),
+            )
+        })?;
+    let dto = multipart::parse_multipart_request(
+        &UPLOAD_TMP_PATH,
+        &mut { multipart },
+        client_id,
+        client_host,
+        wg_id,
+    )
+    .await?;
 
-    process_upload(&upload_root_path, state, dto, client_host, client_id)
-        .await
-        .map_err(|(tmp_file_path, status, error_msg)| {
+    process_upload(&upload_root_path, state, dto).await.map_err(
+        |(tmp_file_path, status, error_msg)| {
             if let Some(tmp_file) = tmp_file_path
                 && let Err(e) = fs::remove_file(tmp_file)
             {
                 tracing::warn!("couldn't clean up tmp file - {e}");
             }
             (status, error_msg)
-        })
+        },
+    )
 }
 
 async fn process_upload(
     upload_root_path: &Path,
     state: AppState,
     dto: ClientFileEventDto,
-    client_host: Option<String>,
-    client_id: Option<String>,
 ) -> Result<String, (Option<PathBuf>, StatusCode, String)> {
     let tmp_file_path_cpy = dto.temp_file_path.clone();
     let wg_id = dto.watch_group_id;
@@ -138,18 +147,13 @@ async fn process_upload(
             match io_result {
                 Ok(_) => {
                     let message = format!("Updated {} successfully", path_str);
-                    let mut fe = FileEvent::from(event);
-                    fe.client_host = client_host;
+                    let event = FileEvent::from(event);
                     // write to DB
-                    if let Some(ref cid) = client_id {
-                        if let Err(e) = state.db.file_event().insert(&fe, cid).await {
-                            error!("Failed to persist file event to DB: {e}");
-                        }
-                    } else {
-                        warn!("No client_id header — file event not persisted to DB");
+                    if let Err(e) = state.db.file_event().insert(&event).await {
+                        error!("Failed to persist file event to DB: {e}");
                     }
                     // add to in-mem state
-                    state.history.clone().add(fe);
+                    state.history.clone().add(event);
                     info!("{message}");
                     Ok(message)
                 }
@@ -166,11 +170,20 @@ async fn process_upload(
 pub async fn sync_handler(
     State(state): State<AppState>,
     axum::extract::Path(wg_id): axum::extract::Path<i64>,
+    headers: HeaderMap,
     Json(client_sync_state): Json<Vec<FileDescription>>,
 ) -> Result<Json<Vec<SyncInstruction>>, (StatusCode, String)> {
     trace!("Client state received {:#?}", client_sync_state);
     let mut instructions = Vec::new();
     let target = state.history.clone().get_latest_events(wg_id);
+    let client_id = header_value_as_string(&headers, CLIENT_ID_HEADER_KEY)
+        .map(Uuid::from_str)?
+        .map_err(|_| {
+            (
+                StatusCode::BAD_REQUEST,
+                "Invalid X-Client-Id header — sync refused".to_string(),
+            )
+        })?;
 
     for event in target.clone() {
         match client_sync_state.iter().find(|client_file_description| {
@@ -194,6 +207,11 @@ pub async fn sync_handler(
                     // same size - just ignore even if timestamps differ (might have been write-operation without change)
                     continue;
                 } else if client_equivalent.last_updated_utc_millis < event.utc_millis {
+                    if event.client_id == client_id {
+                        // client was the event's sender - no need to act since client is up to date
+                        continue;
+                    }
+
                     // differs in size and client is outdated
                     match event.event_type {
                         FileEventType::ChangeEvent => {
@@ -266,7 +284,7 @@ pub async fn delete(
     let millis = UtcMillis::now();
     let client_host = header_value_as_opt_string(&headers, CLIENT_HOST_HEADER_KEY);
     let client_id = header_value_as_string(&headers, CLIENT_ID_HEADER_KEY)
-        .map(|s| s.to_string())
+        .map(Uuid::from_str)?
         .map_err(|_| {
             (
                 StatusCode::BAD_REQUEST,
@@ -280,6 +298,7 @@ pub async fn delete(
         matchable_path,
         0,
         FileEventType::DeleteEvent,
+        client_id,
         client_host,
         wg_id,
     );
@@ -296,7 +315,7 @@ pub async fn delete(
 
     match tokio::fs::remove_file(&p).await {
         Ok(()) => {
-            if let Err(e) = state.db.file_event().insert(&event, &client_id).await {
+            if let Err(e) = state.db.file_event().insert(&event).await {
                 error!("Failed to persist delete event to DB: {e}");
             }
             state.history.add(event);

@@ -5,8 +5,12 @@ use crate::{AppState, UPLOAD_PATH, UPLOAD_TMP_PATH};
 
 /// UUID of the sentinel 'pwa' client row — must match the migration.
 const PWA_CLIENT_ID: &str = "f4a7b3c2-8d5e-4f6a-9b2c-1e3d5f7a9b0c";
+pub(crate) static PWA_CLIENT_UUID: LazyLock<Uuid> =
+    LazyLock::new(|| Uuid::parse_str(PWA_CLIENT_ID).expect("not a uuid"));
 /// UUID of the sentinel 'web' client row — must match the migration.
 const WEB_CLIENT_ID: &str = "c3d4e5f6-7a8b-4c9d-8e2f-1a3b5c7d9e0f";
+pub(crate) static WEB_CLIENT_UUID: LazyLock<Uuid> =
+    LazyLock::new(|| Uuid::parse_str(WEB_CLIENT_ID).expect("not a uuid"));
 
 use axum::Json;
 use axum::body::Body;
@@ -20,6 +24,7 @@ use shared::utc_millis::UtcMillis;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 use tokio_util::io::ReaderStream;
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -216,11 +221,12 @@ pub async fn api_upload_to_watch_group(
         MatchablePath::from(vec![filename.as_str()]),
         size as u64,
         FileEventType::ChangeEvent,
+        *PWA_CLIENT_UUID,
         Some("pwa".to_string()),
         id,
     );
 
-    if let Err(e) = state.db.file_event().insert(&event, PWA_CLIENT_ID).await {
+    if let Err(e) = state.db.file_event().insert(&event).await {
         error!("Failed to persist file event for PWA upload: {e}");
     }
     state.history.add(event);
@@ -267,7 +273,12 @@ pub async fn api_delete_watch_group_file(
 ) -> Result<StatusCode, (StatusCode, String)> {
     let path_str = match params.get("path") {
         Some(p) if !p.is_empty() => p.clone(),
-        _ => return Err((StatusCode::BAD_REQUEST, "Missing path parameter".to_string())),
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Missing path parameter".to_string(),
+            ));
+        }
     };
 
     let matchable_path = MatchablePath::from(Path::new(&path_str));
@@ -289,11 +300,12 @@ pub async fn api_delete_watch_group_file(
         matchable_path,
         0,
         FileEventType::DeleteEvent,
+        *WEB_CLIENT_UUID,
         Some("web".to_string()),
         id,
     );
 
-    if let Err(e) = state.db.file_event().insert(&event, WEB_CLIENT_ID).await {
+    if let Err(e) = state.db.file_event().insert(&event).await {
         error!("Failed to persist web delete event to DB: {e}");
     }
     state.history.add(event);

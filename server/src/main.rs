@@ -172,16 +172,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route(
             ServerEndpoint::ApiWatchGroupFile.to_str(),
-            get(handler::api_serve_watch_group_file)
-                .delete(handler::api_delete_watch_group_file),
+            get(handler::api_serve_watch_group_file).delete(handler::api_delete_watch_group_file),
         )
         .route(
             ServerEndpoint::ApiMonitor.to_str(),
-            get(|state: State<AppState>, Query(q): Query<monitor::MonitorQuery>| {
-                let writer = state.monitor_writer.clone();
-                let points = q.points.unwrap_or(monitor::DEFAULT_MAX_POINTS);
-                monitor::api_get_monitoring(writer, points)
-            }),
+            get(
+                |state: State<AppState>, Query(q): Query<monitor::MonitorQuery>| {
+                    let writer = state.monitor_writer.clone();
+                    let points = q.points.unwrap_or(monitor::DEFAULT_MAX_POINTS);
+                    monitor::api_get_monitoring(writer, points)
+                },
+            ),
         )
         .route(
             ServerEndpoint::ApiLinks.to_str(),
