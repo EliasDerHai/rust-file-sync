@@ -1,3 +1,4 @@
+pub mod content_hash;
 pub mod dtos;
 pub mod endpoint;
 pub mod get_files_of_directory;

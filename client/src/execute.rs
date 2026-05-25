@@ -1,11 +1,14 @@
 use futures_util::future::join_all;
 use reqwest::Client;
 use reqwest::multipart::Form;
+use shared::content_hash::ContentHash;
 use shared::dtos::FileDescription;
 use shared::endpoint::ServerEndpoint;
 use shared::get_files_of_directory::get_all_file_descriptions;
 use shared::get_files_of_directory::get_file_description;
+use shared::matchable_path::MatchablePath;
 use shared::sync_instruction::SyncInstruction;
+use std::collections::HashMap;
 use std::path::Path;
 use tokio::fs;
 use tokio::fs::{create_dir_all, remove_file};
@@ -19,6 +22,7 @@ pub async fn loop_scan(
     watch_group: &WatchGroup,
     client: &Client,
     last_scan: Option<Vec<FileDescription>>,
+    synced: &mut HashMap<MatchablePath, ContentHash>,
 ) -> Vec<FileDescription> {
     match get_all_file_descriptions(
         watch_group.path_to_monitor.as_path(),
@@ -40,6 +44,9 @@ pub async fn loop_scan(
                 deleted_files =
                     send_potential_delete_events(server_url, wg_id, last, client, &descriptions)
                         .await;
+                for deleted in &deleted_files {
+                    synced.remove(&deleted.relative_path);
+                }
             }
 
             match send_to_server_and_receive_instructions(client, &descriptions, server_url, wg_id)
@@ -55,7 +62,7 @@ pub async fn loop_scan(
                         );
                     }
                     for instruction in instructions {
-                        if let SyncInstruction::Download(path) = &instruction
+                        if let SyncInstruction::Download(path, _) = &instruction
                             && deleted_files
                                 .iter()
                                 .any(|deleted| deleted.relative_path == *path)
@@ -71,6 +78,7 @@ pub async fn loop_scan(
                             watch_group.path_to_monitor.as_path(),
                             server_url,
                             wg_id,
+                            synced,
                         )
                         .await
                         {
@@ -167,23 +175,26 @@ async fn execute(
     root: &Path,
     base: &str,
     wg_id: i64,
+    synced: &mut HashMap<MatchablePath, ContentHash>,
 ) -> Result<String, String> {
     match instruction {
         SyncInstruction::Upload(p) => {
             let file_path = p.resolve(root);
             let description = get_file_description(file_path.as_path(), root)?;
             let relative_path_to_send = description.relative_path.get().join("/");
+            let base_hash = synced.get(&p).copied().unwrap_or(ContentHash::unknown());
             let form: Form = Form::new()
                 .text(
                     "utc_millis",
                     serde_json::to_string(&description.last_updated_utc_millis).unwrap(),
                 )
                 .text("relative_path", relative_path_to_send)
+                .text("base_hash", base_hash.as_u32().to_string())
                 .file("file", file_path)
                 .await
                 .map_err(|e| e.to_string())?;
 
-            client
+            let response = client
                 .post(ServerEndpoint::Upload.to_uri_with_wg(base, wg_id))
                 .multipart(form)
                 .send()
@@ -191,11 +202,13 @@ async fn execute(
                 .map_err(|e| format!("Upload failed - {e}"))?
                 .text()
                 .await
-                .map_err(|e| format!("BOM sniffing failed - {e}"))
-                .map(|response| format!("Upload successful - server replied with '{response}'",))
+                .map_err(|e| format!("BOM sniffing failed - {e}"))?;
+
+            synced.insert(p, description.content_hash);
+            Ok(format!("Upload successful - server replied with '{response}'"))
         }
 
-        SyncInstruction::Download(p) => {
+        SyncInstruction::Download(p, hash) => {
             let file_path = p.resolve(root);
 
             let response = client
@@ -223,17 +236,16 @@ async fn execute(
                     )
                 });
 
-            fs::write(&file_path, bytes)
+            fs::write(&file_path, &bytes)
                 .await
                 .map_err(|e| format!("Could not save downloaded file ({:?}): {}", &file_path, e))?;
 
-            Ok(format!(
-                "Downloaded {} successfully",
-                file_path
-                    .file_name()
-                    .map(|osstr| osstr.to_string_lossy().to_string())
-                    .unwrap_or_else(|| "?".to_string())
-            ))
+            let file_name = file_path
+                .file_name()
+                .map(|osstr| osstr.to_string_lossy().to_string())
+                .unwrap_or_else(|| "?".to_string());
+            synced.insert(p, hash);
+            Ok(format!("Downloaded {file_name} successfully"))
         }
 
         SyncInstruction::Delete(p) => {
@@ -243,13 +255,12 @@ async fn execute(
                 .await
                 .map_err(|e| format!("Deleting file failed - {e}"))
                 .map(|_| {
-                    format!(
-                        "Deleted file '{}'",
-                        &file_path
-                            .file_name()
-                            .map(|osstr| osstr.to_string_lossy().to_string())
-                            .unwrap_or("?".to_string())
-                    )
+                    let file_name = file_path
+                        .file_name()
+                        .map(|osstr| osstr.to_string_lossy().to_string())
+                        .unwrap_or("?".to_string());
+                    synced.remove(&p);
+                    format!("Deleted file '{file_name}'")
                 })
         }
     }

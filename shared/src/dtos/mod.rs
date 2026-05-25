@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
+use crate::content_hash::ContentHash;
 use crate::{matchable_path::MatchablePath, utc_millis::UtcMillis};
 
 // sync
@@ -16,7 +17,7 @@ pub struct FileDescription {
     pub size_in_bytes: u64,
     pub file_type: String,
     pub last_updated_utc_millis: UtcMillis,
-    pub content_hash: u32,
+    pub content_hash: ContentHash,
 }
 
 // sys config (client ↔ server)

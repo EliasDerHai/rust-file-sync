@@ -6,11 +6,13 @@ use axum::Json;
 use axum::extract::{Multipart, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
+use shared::content_hash::ContentHash;
 use shared::dtos::FileDescription;
 use shared::endpoint::{CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY};
 use shared::get_files_of_directory::get_all_file_descriptions;
 use shared::matchable_path::MatchablePath;
 use shared::sync_instruction::SyncInstruction;
+use chrono::Local;
 use shared::utc_millis::UtcMillis;
 use std::ffi::OsStr;
 use std::fs;
@@ -75,6 +77,79 @@ pub async fn upload_handler(
     )
 }
 
+/// Resolves a conflict by renaming the existing server-side file before the incoming upload
+/// overwrites it. The renamed file keeps the same directory and extension:
+///
+/// `notes.md` → `notes.conflict-2026-05-25_14-30-macbook_air.md`
+async fn handle_conflict(latest: &FileEvent, upload_root_path: &Path, state: &AppState) {
+    let existing_path = latest.relative_path.resolve(upload_root_path);
+
+    if !existing_path.exists() {
+        return;
+    }
+
+    let timestamp = UtcMillis::now();
+    let date = Local::now().format("%Y-%m-%d_%H-%M");
+    let host_tag = latest
+        .client_host
+        .as_deref()
+        .unwrap_or("unknown")
+        .replace([' ', '/'], "_");
+
+    let original_name = existing_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("unknown");
+
+    let conflict_name = match original_name.rfind('.') {
+        Some(pos) => format!(
+            "{}.conflict-{}-{}{}",
+            &original_name[..pos],
+            date,
+            host_tag,
+            &original_name[pos..]
+        ),
+        None => format!(
+            "{}.conflict-{}-{}",
+            original_name,
+            date,
+            host_tag
+        ),
+    };
+
+    let conflict_path = existing_path.with_file_name(&conflict_name);
+    if let Err(e) = fs::rename(&existing_path, &conflict_path) {
+        error!("Conflict rename failed for {:?}: {e}", existing_path);
+        return;
+    }
+    info!(
+        "Conflict detected — renamed {:?} → {:?}",
+        existing_path, conflict_path
+    );
+
+    let mut conflict_parts = latest.relative_path.get().clone();
+    if let Some(last) = conflict_parts.last_mut() {
+        *last = conflict_name;
+    }
+    let conflict_relative_path = MatchablePath::from(conflict_parts);
+
+    let conflict_event = FileEvent::new(
+        Uuid::new_v4(),
+        timestamp,
+        conflict_relative_path,
+        latest.size_in_bytes,
+        latest.content_hash,
+        FileEventType::ChangeEvent,
+        latest.client_id,
+        latest.client_host.clone(),
+        latest.watch_group_id,
+    );
+    if let Err(e) = state.db.file_event().insert(&conflict_event).await {
+        error!("Failed to persist conflict event to DB: {e}");
+    }
+    state.history.clone().add(conflict_event);
+}
+
 async fn process_upload(
     upload_root_path: &Path,
     state: AppState,
@@ -119,6 +194,13 @@ async fn process_upload(
                         format!("Could not create dir - {}", e),
                     )
                 })?;
+
+                if let Some(latest) = state.history.get_latest_event(wg_id, &event.relative_path)
+                    && latest.content_hash != event.base_hash
+                {
+                    handle_conflict(&latest, upload_root_path, &state).await;
+                }
+
                 let result = fs::rename(temp_path.as_path(), target_path.as_path());
                 let was_success = result.is_ok();
                 let temp_path = temp_path.as_path();
@@ -194,7 +276,7 @@ pub async fn sync_handler(
             None => {
                 match event.event_type {
                     FileEventType::ChangeEvent => {
-                        instructions.push(SyncInstruction::Download(event_path))
+                        instructions.push(SyncInstruction::Download(event_path, event.content_hash))
                     }
                     FileEventType::DeleteEvent => (), // nothing to delete
                 }
@@ -222,7 +304,8 @@ pub async fn sync_handler(
                                     continue;
                                 }
                                 // client outdated needs to download new version
-                                instructions.push(SyncInstruction::Download(event_path))
+                                instructions
+                                    .push(SyncInstruction::Download(event_path, event.content_hash))
                             }
                             false => {
                                 // client ahead needs to upload new version
@@ -314,7 +397,7 @@ pub async fn delete(
         millis.clone(),
         matchable_path,
         0,
-        0,
+        ContentHash::unknown(),
         FileEventType::DeleteEvent,
         client_id,
         client_host,

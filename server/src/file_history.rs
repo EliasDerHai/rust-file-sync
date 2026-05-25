@@ -126,6 +126,7 @@ mod tests {
     use super::super::file_event::FileEvent;
     use super::super::file_event::FileEventType::ChangeEvent;
     use super::*;
+    use shared::content_hash::ContentHash;
     use shared::utc_millis::UtcMillis;
     use uuid::Uuid;
 
@@ -140,7 +141,7 @@ mod tests {
             UtcMillis::from(100),
             MatchablePath::from(vec!["dir", "file.txt"]),
             1024,
-            0,
+            ContentHash::unknown(),
             ChangeEvent,
             Uuid::new_v4(),
             None,
@@ -151,7 +152,7 @@ mod tests {
             UtcMillis::from(200),
             MatchablePath::from(vec!["dir", "file.txt"]),
             1024,
-            0,
+            ContentHash::unknown(),
             ChangeEvent,
             Uuid::new_v4(),
             None,
@@ -182,7 +183,7 @@ mod tests {
                     UtcMillis::from(i),
                     matchable_path.clone(),
                     1024 * 1024 * 1024,
-                    0,
+                    ContentHash::unknown(),
                     ChangeEvent,
                     Uuid::new_v4(),
                     None,
@@ -221,7 +222,7 @@ mod tests {
                     UtcMillis::from(i),
                     matchable_path.clone(),
                     1024 * 1024 * 1024,
-                    0,
+                    ContentHash::unknown(),
                     ChangeEvent,
                     Uuid::new_v4(),
                     None,
@@ -251,7 +252,7 @@ mod tests {
             UtcMillis::from(100),
             path.clone(),
             1024,
-            0,
+            ContentHash::unknown(),
             ChangeEvent,
             Uuid::new_v4(),
             None,
@@ -262,7 +263,7 @@ mod tests {
             UtcMillis::from(200),
             path.clone(),
             2048,
-            0,
+            ContentHash::unknown(),
             ChangeEvent,
             Uuid::new_v4(),
             None,

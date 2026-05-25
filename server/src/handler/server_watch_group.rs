@@ -18,6 +18,7 @@ use axum::extract::{Multipart, Query, State};
 use axum::http::StatusCode;
 use axum::http::header::CONTENT_TYPE;
 use axum::response::IntoResponse;
+use shared::content_hash::ContentHash;
 use shared::dtos::{FileDescription, ServerWatchGroup, WatchGroupNameDto};
 use shared::matchable_path::MatchablePath;
 use shared::utc_millis::UtcMillis;
@@ -238,7 +239,7 @@ pub async fn api_upload_to_watch_group(
 
 async fn extract_file(
     multipart: &mut Multipart,
-) -> Result<(PathBuf, String, usize, u32), (StatusCode, String)> {
+) -> Result<(PathBuf, String, usize, ContentHash), (StatusCode, String)> {
     while let Some(field) = multipart.next_field().await.unwrap_or(None) {
         if field.name() != Some("file") {
             continue;
@@ -300,7 +301,7 @@ pub async fn api_delete_watch_group_file(
         UtcMillis::now(),
         matchable_path,
         0,
-        0,
+        ContentHash::unknown(),
         FileEventType::DeleteEvent,
         *WEB_CLIENT_UUID,
         Some("web".to_string()),

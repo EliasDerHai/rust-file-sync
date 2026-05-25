@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use shared::content_hash::ContentHash;
 use shared::matchable_path::MatchablePath;
 use shared::utc_millis::UtcMillis;
 use sqlx::SqlitePool;
@@ -22,7 +23,7 @@ impl<'a> FileEventRepository<'a> {
         let utc_millis = event.utc_millis.as_u64() as i64;
         let relative_path = event.relative_path.to_serialized_string();
         let size_in_bytes = event.size_in_bytes as i64;
-        let content_hash = event.content_hash as i64;
+        let content_hash = i64::from(event.content_hash);
         let event_type = event.event_type.serialize_to_string();
         let client_id = event.client_id.to_string();
         let watch_group_id = event.watch_group_id;
@@ -74,7 +75,7 @@ impl<'a> FileEventRepository<'a> {
                     UtcMillis::from(row.utc_millis as u64),
                     MatchablePath::from(row.relative_path.as_str()),
                     row.size_in_bytes as u64,
-                    row.content_hash as u32,
+                    ContentHash::from(row.content_hash),
                     FileEventType::try_from(row.event_type.as_str()).map_err(|e| anyhow!("{e}"))?,
                     Uuid::parse_str(&row.client_id)?,
                     Some(row.client_id),

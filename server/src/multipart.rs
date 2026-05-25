@@ -2,6 +2,7 @@ use crate::client_file_event::ClientFileEventDto;
 use crate::write::write_all_chunks_of_field;
 use axum::extract::Multipart;
 use axum::http::StatusCode;
+use shared::content_hash::ContentHash;
 use shared::utc_millis::UtcMillis;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -20,7 +21,8 @@ pub async fn parse_multipart_request(
     let mut relative_path: Option<Vec<String>> = None;
     let mut temp_file_path: Option<PathBuf> = None;
     let mut content_size: Option<usize> = None;
-    let mut content_hash: u32 = 0;
+    let mut content_hash = ContentHash::unknown();
+    let mut base_hash = ContentHash::unknown();
 
     while let Some(field) = multipart.next_field().await.unwrap() {
         match field.name() {
@@ -73,6 +75,16 @@ pub async fn parse_multipart_request(
                 content_size = Some(s);
                 content_hash = h;
             }
+            Some("base_hash") => {
+                base_hash = ContentHash::from(
+                    field
+                        .text()
+                        .await
+                        .ok()
+                        .and_then(|t| t.parse::<u32>().ok())
+                        .unwrap_or(0),
+                );
+            }
             Some(other) => error!("Unknown field name '{other}' in upload handler"),
         }
     }
@@ -83,6 +95,7 @@ pub async fn parse_multipart_request(
         temp_file_path,
         content_size,
         content_hash,
+        base_hash,
         client_id,
         client_host,
         watch_group_id,

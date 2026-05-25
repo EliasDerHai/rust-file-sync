@@ -1,3 +1,4 @@
+use shared::content_hash::ContentHash;
 use shared::matchable_path::MatchablePath;
 use shared::utc_millis::UtcMillis;
 use std::path::PathBuf;
@@ -14,7 +15,9 @@ pub struct ClientFileEvent {
     pub temp_file_path: Option<PathBuf>,
     /// the size of the uploaded file
     pub content_size: usize,
-    pub content_hash: u32,
+    pub content_hash: ContentHash,
+    /// hash that the change was based on (for conflict detection)
+    pub base_hash: ContentHash,
     pub client_id: Uuid,
     pub client_host: Option<String>,
     pub watch_group_id: i64,
@@ -25,7 +28,8 @@ pub struct ClientFileEventDto {
     pub relative_path: Option<Vec<String>>,
     pub temp_file_path: Option<PathBuf>,
     pub content_size: Option<usize>,
-    pub content_hash: u32,
+    pub content_hash: ContentHash,
+    pub base_hash: ContentHash,
     pub client_id: Uuid,
     pub client_host: Option<String>,
     pub watch_group_id: i64,
@@ -59,6 +63,7 @@ impl TryFrom<ClientFileEventDto> for ClientFileEvent {
             temp_file_path: dto.temp_file_path,
             content_size: dto.content_size.unwrap_or(0),
             content_hash: dto.content_hash,
+            base_hash: dto.base_hash,
             client_id: dto.client_id,
             client_host: dto.client_host,
             watch_group_id: dto.watch_group_id,

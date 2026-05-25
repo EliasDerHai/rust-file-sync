@@ -1,10 +1,6 @@
-// SETUP -----------------------------------------------------------------------
-
-use std::{collections::HashMap, path::PathBuf, process::Command, thread::sleep, time::Duration};
-
 use crate::{
     ClientState, WatchGroup,
-    config::{self, fetch_watch_config},
+    init::{config::fetch_watch_config, state::PersistedClientState},
 };
 use reqwest::{
     Client,
@@ -14,10 +10,14 @@ use shared::{
     dtos::WatchGroupConfigDto,
     endpoint::{CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY, ServerEndpoint},
 };
+use std::{collections::HashMap, path::PathBuf, process::Command, thread::sleep, time::Duration};
 use tracing::{info, warn};
 use uuid::Uuid;
 
-pub async fn setup() -> (ClientState, Client) {
+pub(crate) mod config;
+pub(crate) mod state;
+
+pub async fn load() -> (ClientState, Client, PersistedClientState) {
     let config = match config::read_config() {
         Ok(config) => config,
         Err(error) => panic!("Config could not be processed: {:?}", error),
@@ -47,6 +47,8 @@ pub async fn setup() -> (ClientState, Client) {
 
     info!("Poll_interval={}ms", watch_config.min_poll_interval_in_ms);
 
+    let persisted_client_state = state::load();
+
     (
         ClientState {
             server_url: config.server_url,
@@ -54,6 +56,7 @@ pub async fn setup() -> (ClientState, Client) {
             watch_groups: to_watch_group(watch_config.watch_groups),
         },
         client,
+        persisted_client_state,
     )
 }
 

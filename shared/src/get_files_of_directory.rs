@@ -1,9 +1,9 @@
+use crate::content_hash::ContentHash;
 use crate::dtos::FileDescription;
 use crate::matchable_path::MatchablePath;
 use crate::utc_millis::UtcMillis;
 use std::fs;
 use std::fs::Metadata;
-use std::io::Read;
 use std::path::Path;
 
 pub fn get_file_description(
@@ -31,7 +31,7 @@ pub fn get_file_description(
                     size_in_bytes: m.len(),
                     file_type,
                     last_updated_utc_millis,
-                    content_hash: compute_crc32(target),
+                    content_hash: ContentHash::from(target),
                 };
                 Ok(description)
             } else {
@@ -111,7 +111,7 @@ fn inner_get_files_of_dir_rec(
                 size_in_bytes: metadata.len(),
                 file_type,
                 last_updated_utc_millis,
-                content_hash: compute_crc32(&entry_path),
+                content_hash: ContentHash::from(&entry_path),
             };
             descriptions.push(description);
         } else if entry_path.is_dir() {
@@ -133,23 +133,6 @@ fn get_last_updated(metadata: &Metadata) -> Option<UtcMillis> {
         return Some(UtcMillis::from(modified));
     }
     None
-}
-
-fn compute_crc32(path: &Path) -> u32 {
-    let Ok(file) = fs::File::open(path) else {
-        return 0;
-    };
-    let mut reader = std::io::BufReader::new(file);
-    let mut hasher = crc32fast::Hasher::new();
-    let mut buf = [0u8; 8192];
-    loop {
-        match reader.read(&mut buf) {
-            Ok(0) => break,
-            Ok(n) => hasher.update(&buf[..n]),
-            Err(_) => return 0,
-        }
-    }
-    hasher.finalize()
 }
 
 #[cfg(test)]
