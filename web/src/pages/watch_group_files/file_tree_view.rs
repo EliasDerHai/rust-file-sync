@@ -59,7 +59,9 @@ pub fn FiletreeView(
 ) -> impl IntoView {
     move || {
         let dir = current_path.get();
-        let (dirs, files_here) = files_at_depth(&all_files, &dir);
+        let (dirs, mut files_here) = files_at_depth(&all_files, &dir);
+        files_here.sort_by_key(|desc| desc.file_name.clone());
+
         match view_mode.get() {
             ViewMode::List => {
                 file_tree_list_view(dirs, files_here, current_path, wg_id, selected).into_any()

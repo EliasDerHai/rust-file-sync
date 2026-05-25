@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
-use shared::dtos::{is_image, FileDescription};
+use shared::dtos::{FileDescription, is_image};
 
 use crate::api;
 use crate::components::{Loading, Message, ToastSignal, TrashIcon};
@@ -28,7 +28,7 @@ fn images_in_same_dir(all: &[FileDescription], current_path: &str) -> Vec<FileDe
         .cloned()
         .collect();
 
-    images.sort_by(|a, b| a.file_name.cmp(&b.file_name));
+    images.sort_by_key(|desc| desc.file_name.clone());
     images
 }
 
