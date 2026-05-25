@@ -3,6 +3,7 @@ data/
 *.idea
 *.yaml
 *.yml
+!.github/**/*.yml
 *.DS_Store
 .claude
 CLAUDE.md

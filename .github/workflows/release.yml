@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  RUSTC_WRAPPER: ""  # sccache is configured in .cargo/config.toml but not available in CI
+
+jobs:
+  build-client-linux:
+    name: Client · Linux x86_64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: sudo apt-get install -y musl-tools
+
+      - run: cargo build -p client --release --target x86_64-unknown-linux-musl
+
+      - run: cp target/x86_64-unknown-linux-musl/release/client client-linux-x86_64
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: client-linux-x86_64
+
+  build-client-mac:
+    name: Client · macOS arm64
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo build -p client --release
+
+      - run: cp target/release/client client-macos-arm64
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: client-macos-arm64
+
+  build-server:
+    name: Server · Linux aarch64 (Pi)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-musl,wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: jetli/trunk-action@v0.5.0
+        with:
+          version: 'latest'
+
+      - name: Build web assets
+        run: cd web && trunk build --release
+
+      - name: Install cargo-zigbuild
+        run: |
+          pip3 install ziglang
+          cargo install cargo-zigbuild
+
+      - name: Build server
+        run: cargo zigbuild -p server --release --target aarch64-unknown-linux-musl
+
+      - run: cp target/aarch64-unknown-linux-musl/release/server server-linux-aarch64
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: server-linux-aarch64
