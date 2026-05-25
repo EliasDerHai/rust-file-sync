@@ -6,3 +6,9 @@ linker = "aarch64-linux-musl-gcc"
 
 [env]
 CC_aarch64_unknown_linux_musl = "aarch64-linux-musl-gcc"
+
+[profile.dev]
+debug = 1
+
+[build]
+rustc-wrapper = "sccache"
