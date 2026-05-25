@@ -8,7 +8,7 @@ use crate::{matchable_path::MatchablePath, utc_millis::UtcMillis};
 
 // sync
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Eq, Serialize, Clone)]
 pub struct FileDescription {
     // eg. "test.txt"
     pub file_name: String,

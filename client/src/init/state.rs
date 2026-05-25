@@ -1,15 +1,19 @@
 use serde::{Deserialize, Serialize};
 use shared::content_hash::ContentHash;
+use shared::dtos::FileDescription;
 use shared::matchable_path::MatchablePath;
 use std::collections::HashMap;
 use std::fs;
 use tracing::warn;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct PersistedClientState {
     /// Maps wg_id -> (relative path -> last synced ContentHash).
     /// used for three-way merge conflict detection using a common ancestor/base
     pub synced_hashes: HashMap<i64, HashMap<MatchablePath, ContentHash>>,
+    /// Maps wg_id -> file list from the last completed scan.
+    /// Persisted so delete events are correctly detected after a restart.
+    pub last_scans: HashMap<i64, Vec<FileDescription>>,
 }
 
 const STATE_FILE: &str = "./state.json";
