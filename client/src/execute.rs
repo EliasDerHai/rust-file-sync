@@ -52,7 +52,7 @@ pub async fn loop_scan(
             match send_to_server_and_receive_instructions(client, &descriptions, server_url, wg_id)
                 .await
             {
-                Err(err) => error!("Error - failed to get instructions from server: {:?}", err),
+                Err(err) => error!("Error - failed to get instructions from server: {err}"),
                 Ok(instructions) => {
                     if !instructions.is_empty() {
                         info!(
@@ -136,14 +136,24 @@ async fn send_to_server_and_receive_instructions(
     scanned: &Vec<FileDescription>,
     base: &str,
     wg_id: i64,
-) -> Result<Vec<SyncInstruction>, reqwest::Error> {
-    client
+) -> Result<Vec<SyncInstruction>, String> {
+    let response = client
         .post(ServerEndpoint::Sync.to_uri_with_wg(base, wg_id))
         .json(scanned)
         .send()
-        .await?
+        .await
+        .map_err(|e| format!("request failed - {e}"))?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        return Err(format!("server responded {status} - {body}"));
+    }
+
+    response
         .json()
         .await
+        .map_err(|e| format!("failed to decode instructions - {e}"))
 }
 
 /// on os level files are just there or not so we got to keep track of the last state
@@ -205,7 +215,9 @@ async fn execute(
                 .map_err(|e| format!("BOM sniffing failed - {e}"))?;
 
             synced.insert(p, description.content_hash);
-            Ok(format!("Upload successful - server replied with '{response}'"))
+            Ok(format!(
+                "Upload successful - server replied with '{response}'"
+            ))
         }
 
         SyncInstruction::Download(p, hash) => {
