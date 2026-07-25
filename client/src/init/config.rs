@@ -2,7 +2,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use shared::{dtos::WatchConfigDto, endpoint::ServerEndpoint};
 use std::{collections::VecDeque, env, fs, path::PathBuf};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 /// local config (config.yaml)
@@ -95,7 +95,7 @@ pub async fn fetch_watch_config(client: &Client, server_url: &str) -> WatchConfi
     match client.get(&config_endpoint).send().await {
         Ok(response) if response.status().is_success() => match response.json().await {
             Ok(config) => {
-                info!("Fetched registered config from server");
+                debug!("Fetched registered config from server");
                 config
             }
             Err(e) => {
