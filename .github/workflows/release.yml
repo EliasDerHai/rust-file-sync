@@ -11,6 +11,7 @@ permissions:
 
 env:
   RUSTC_WRAPPER: ""  # sccache is configured in .cargo/config.toml but not available in CI
+  SQLX_OFFLINE: "true"  # verify sqlx::query! against the committed .sqlx cache, not a live DB
 
 jobs:
   build-client-linux:

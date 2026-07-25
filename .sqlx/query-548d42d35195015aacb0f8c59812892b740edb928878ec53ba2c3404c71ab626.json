@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO client (id, host_name, min_poll_interval_in_ms)\n            VALUES (?, ?, ?)\n            ON CONFLICT(id) DO UPDATE SET\n                host_name = excluded.host_name,\n                min_poll_interval_in_ms = excluded.min_poll_interval_in_ms\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "548d42d35195015aacb0f8c59812892b740edb928878ec53ba2c3404c71ab626"
+}

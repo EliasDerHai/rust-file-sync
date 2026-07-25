@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO client_watch_group (client_id, server_watch_group_id, path_to_monitor, exclude_dot_dirs)\n            VALUES (?, ?, ?, ?)\n            RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8ef4b2e57b0fb5990e11ed418fff341e9c2fdbde17df3c90f856a0c68709f89a"
+}
