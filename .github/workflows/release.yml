@@ -18,7 +18,7 @@ jobs:
     name: Client · Linux x86_64
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -32,7 +32,7 @@ jobs:
 
       - run: cp target/x86_64-unknown-linux-musl/release/client client-linux-x86_64
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: client-linux-x86_64
 
@@ -40,7 +40,7 @@ jobs:
     name: Client · macOS arm64
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -50,7 +50,7 @@ jobs:
 
       - run: cp target/release/client client-macos-arm64
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: client-macos-arm64
 
@@ -58,7 +58,7 @@ jobs:
     name: Server · Linux aarch64 (Pi)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -66,9 +66,9 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - uses: jetli/trunk-action@v0.5.0
+      - uses: taiki-e/install-action@v2
         with:
-          version: 'latest'
+          tool: trunk
 
       - name: Build web assets
         run: cd web && trunk build --release
@@ -83,6 +83,6 @@ jobs:
 
       - run: cp target/aarch64-unknown-linux-musl/release/server server-linux-aarch64
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: server-linux-aarch64
