@@ -18,6 +18,18 @@ pub async fn fetch_clients() -> Result<Vec<ClientDto>, String> {
         .map_err(|e| e.to_string())
 }
 
+/// The server's own version (plain text), used to flag outdated clients.
+pub async fn fetch_server_version() -> Result<String, String> {
+    Request::get(ServerEndpoint::Version.to_str())
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .text()
+        .await
+        .map_err(|e| e.to_string())
+        .map(|v| v.trim().to_string())
+}
+
 pub async fn fetch_watch_groups() -> Result<Vec<ServerWatchGroup>, String> {
     Request::get(ServerEndpoint::ApiWatchGroups.to_str())
         .send()

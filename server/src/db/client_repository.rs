@@ -13,27 +13,46 @@ impl<'a> ClientRepository<'a> {
     }
 
     /// Register or update a client
-    pub async fn upsert_client(&self, client_id: &str, host_name: &str) -> Result<()> {
+    pub async fn upsert_client(
+        &self,
+        client_id: &str,
+        host_name: &str,
+        version: &str,
+    ) -> Result<()> {
         let mut tx = self.pool.begin().await?;
         let min_poll_interval_in_ms = 5000;
 
         // Upsert client
         sqlx::query!(
             r#"
-            INSERT INTO client (id, host_name, min_poll_interval_in_ms)
-            VALUES (?, ?, ?)
+            INSERT INTO client (id, host_name, min_poll_interval_in_ms, version)
+            VALUES (?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 host_name = excluded.host_name,
-                min_poll_interval_in_ms = excluded.min_poll_interval_in_ms
+                min_poll_interval_in_ms = excluded.min_poll_interval_in_ms,
+                version = excluded.version
             "#,
             client_id,
             host_name,
-            min_poll_interval_in_ms
+            min_poll_interval_in_ms,
+            version
         )
         .execute(&mut *tx)
         .await?;
 
         tx.commit().await?;
+        Ok(())
+    }
+
+    /// Update only the reported version for an existing client.
+    pub async fn update_version(&self, client_id: &str, version: &str) -> Result<()> {
+        sqlx::query!(
+            "UPDATE client SET version = ? WHERE id = ?",
+            version,
+            client_id
+        )
+        .execute(self.pool)
+        .await?;
         Ok(())
     }
 
@@ -44,7 +63,8 @@ impl<'a> ClientRepository<'a> {
             SELECT
                 c.id,
                 c.host_name,
-                c.min_poll_interval_in_ms
+                c.min_poll_interval_in_ms,
+                c.version
             FROM client c
             ORDER BY c.host_name
             "#
@@ -59,6 +79,7 @@ impl<'a> ClientRepository<'a> {
                 host_name: r.host_name,
                 min_poll_interval_in_ms: u16::try_from(r.min_poll_interval_in_ms)
                     .expect("should fit"),
+                version: r.version,
             })
             .collect())
     }
@@ -91,7 +112,8 @@ impl<'a> ClientRepository<'a> {
             SELECT
                 c.id,
                 c.host_name,
-                c.min_poll_interval_in_ms
+                c.min_poll_interval_in_ms,
+                c.version
             FROM client c
             WHERE c.id = ?
             "#,
@@ -106,11 +128,11 @@ impl<'a> ClientRepository<'a> {
                 host_name: r.host_name,
                 min_poll_interval_in_ms: u16::try_from(r.min_poll_interval_in_ms)
                     .expect("should fit"),
+                version: r.version,
             })),
             None => Ok(None),
         }
     }
-
 }
 
 #[cfg(test)]

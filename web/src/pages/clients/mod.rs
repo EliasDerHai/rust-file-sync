@@ -18,6 +18,7 @@ pub fn ClientsPage() -> impl IntoView {
         api::fetch_clients()
     });
     let server_watch_groups = LocalResource::new(api::fetch_watch_groups);
+    let server_version = LocalResource::new(api::fetch_server_version);
 
     view! {
         <div class="container">
@@ -26,6 +27,7 @@ pub fn ClientsPage() -> impl IntoView {
                 {move || Suspend::new(async move {
                     let clients_res = clients.await;
                     let watch_groups_res = server_watch_groups.await;
+                    let server_version = server_version.await.unwrap_or_default();
                     match (clients_res, watch_groups_res) {
                         (Err(e), _) => view! {
                             <div class="message message-error">"Error loading clients: " {e}</div>
@@ -45,6 +47,7 @@ pub fn ClientsPage() -> impl IntoView {
                                                 <ClientCard
                                                     client=client
                                                     server_watch_groups=watch_group_list
+                                                    server_version=server_version.clone()
                                                     on_changed=move || set_trigger.update(|t| *t += 1)
                                                 />
                                             }

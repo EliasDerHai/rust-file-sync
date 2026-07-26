@@ -1,6 +1,6 @@
 use crate::{
     ClientState, WatchGroup,
-    init::{config::fetch_watch_config, state::PersistedClientState},
+    init::{config::fetch_watch_config, state::PersistedClientState, update::check_and_self_update},
 };
 use reqwest::{
     Client,
@@ -8,7 +8,9 @@ use reqwest::{
 };
 use shared::{
     dtos::WatchGroupConfigDto,
-    endpoint::{CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY, ServerEndpoint},
+    endpoint::{
+        CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY, CLIENT_VERSION_HEADER_KEY, ServerEndpoint,
+    },
 };
 use std::{collections::HashMap, path::PathBuf, process::Command, thread::sleep, time::Duration};
 use tracing::{info, warn};
@@ -16,6 +18,7 @@ use uuid::Uuid;
 
 pub(crate) mod config;
 pub(crate) mod state;
+pub(crate) mod update;
 
 pub async fn load() -> (ClientState, Client, PersistedClientState) {
     let config = match config::read_config() {
@@ -24,6 +27,7 @@ pub async fn load() -> (ClientState, Client, PersistedClientState) {
     };
 
     check_server_reachable(&config.server_url).await;
+    check_and_self_update(&config.server_url).await;
 
     let hostname = Command::new("hostname")
         .output()
@@ -89,6 +93,10 @@ fn build_http_client(hostname: &Option<String>, client_id: &Uuid) -> Client {
     headers.insert(
         CLIENT_ID_HEADER_KEY,
         HeaderValue::from_str(&client_id.to_string()).expect("Invalid client_id for header"),
+    );
+    headers.insert(
+        CLIENT_VERSION_HEADER_KEY,
+        HeaderValue::from_static(env!("CARGO_PKG_VERSION")),
     );
     Client::builder()
         .default_headers(headers)

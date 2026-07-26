@@ -1,5 +1,6 @@
 pub const CLIENT_HOST_HEADER_KEY: &str = "X-Client-Hostname";
 pub const CLIENT_ID_HEADER_KEY: &str = "X-Client-Id";
+pub const CLIENT_VERSION_HEADER_KEY: &str = "X-Client-Version";
 
 pub enum ServerEndpoint {
     Hello,

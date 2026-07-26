@@ -59,6 +59,7 @@ pub struct ClientDto {
     pub id: String,
     pub host_name: String,
     pub min_poll_interval_in_ms: u16,
+    pub version: String,
 }
 
 /// PUT /api/clients/{id}

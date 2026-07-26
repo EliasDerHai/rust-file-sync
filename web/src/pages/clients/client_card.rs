@@ -15,11 +15,17 @@ use super::watch_group_assignment::WatchGroupAssignment;
 pub fn ClientCard(
     client: ClientDto,
     server_watch_groups: Vec<ServerWatchGroup>,
+    /// The server's own version; empty when it could not be fetched.
+    server_version: String,
     on_changed: impl Fn() + 'static + Clone + Send + Sync,
 ) -> impl IntoView {
     let client_id = StoredValue::new(client.id);
     let host_name = client.host_name;
     let current_poll_ms = client.min_poll_interval_in_ms;
+    let client_version = client.version;
+    // Flag when the client reports a version different from the server's. Only
+    // compare when we actually know the server version.
+    let is_outdated = !server_version.is_empty() && client_version != server_version;
     let server_watch_groups = StoredValue::new(server_watch_groups);
     let on_changed_sv = StoredValue::new(on_changed);
 
@@ -74,6 +80,18 @@ pub fn ClientCard(
                     <span class="detail-value text-xs">{move || client_id.get_value()}</span>
                     <span class="detail-label">"Poll interval"</span>
                     <span class="detail-value">{current_poll_ms}"ms"</span>
+                    <span class="detail-label">"Version"</span>
+                    <span class="detail-value">
+                        {client_version}
+                        {is_outdated.then(|| view! {
+                            <span
+                                title="Client version differs from the server"
+                                style="margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: #e94560; color: white; font-size: 0.75em; font-family: system-ui, sans-serif;"
+                            >
+                                "outdated"
+                            </span>
+                        })}
+                    </span>
                 </div>
 
                 <Message signal=msg />

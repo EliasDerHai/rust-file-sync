@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT\n                c.id,\n                c.host_name,\n                c.min_poll_interval_in_ms\n            FROM client c\n            ORDER BY c.host_name\n            ",
+  "query": "\n            SELECT\n                c.id,\n                c.host_name,\n                c.min_poll_interval_in_ms,\n                c.version\n            FROM client c\n            ORDER BY c.host_name\n            ",
   "describe": {
     "columns": [
       {
@@ -17,6 +17,11 @@
         "name": "min_poll_interval_in_ms",
         "ordinal": 2,
         "type_info": "Integer"
+      },
+      {
+        "name": "version",
+        "ordinal": 3,
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -25,8 +30,9 @@
     "nullable": [
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "f8efbef6f5d51d19adf022b4b11b319ab806931bf8c6e27f7808612d10b1ae9f"
+  "hash": "7045f3ab255bcc81cb9be043551f56ccde6d9a67446bacf290dc55e4cba66c9c"
 }
