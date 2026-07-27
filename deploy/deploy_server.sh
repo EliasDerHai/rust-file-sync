@@ -61,6 +61,7 @@ case "$METHOD" in
         --output "$BINARY_PATH" \
         --clobber
     chmod +x "$BINARY_PATH"
+    TARGET_VERSION=$(gh release view --repo "$REPO" --json tagName -q .tagName 2>/dev/null | sed 's/^v//')
     ;;
 
 2)
@@ -78,6 +79,7 @@ case "$METHOD" in
     (cd ../web && trunk build --release)
     echo "Building ${PROJECT} for ${TARGET}..."
     cargo build -p "${PROJECT}" --release --target="${TARGET}"
+    TARGET_VERSION=$(grep '^version' ../Cargo.toml | head -1 | cut -d'"' -f2)
     ;;
 
 3)
@@ -96,6 +98,7 @@ case "$METHOD" in
     else
         cross build -p "${PROJECT}" --release --target="${TARGET}"
     fi
+    TARGET_VERSION=$(grep '^version' ../Cargo.toml | head -1 | cut -d'"' -f2)
     ;;
 
 *)
@@ -108,6 +111,16 @@ esac
 if [ ! -f "$BINARY_PATH" ]; then
     echo "Error: Binary not found at ${BINARY_PATH}"
     exit 1
+fi
+
+CURRENT_VERSION=$(curl -sk "https://${REMOTE_HOST}:3000/version" || true)
+[[ -z "$CURRENT_VERSION" ]] && CURRENT_VERSION="unknown (unreachable)"
+echo ""
+echo "  running:   ${CURRENT_VERSION}"
+echo "  deploying: ${TARGET_VERSION:-unknown}"
+echo ""
+if ! yes_or_no "Proceed with deployment"; then
+    exit 0
 fi
 
 echo "Stopping remote service..."
