@@ -421,13 +421,22 @@ select.form-input {
 .filetree-tile { background: #16213e; border-radius: 8px; padding: 0.75rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; cursor: pointer; border: 1px solid transparent; transition: border-color 0.15s; text-align: center; min-height: 130px; overflow: hidden; text-decoration: none; color: inherit; }
 .filetree-tile:hover { border-color: #4a90d9; }
 .filetree-tile-img { width: 100%; height: 80px; object-fit: cover; border-radius: 4px; }
+.filetree-tile-media-card { min-height: 170px; cursor: default; justify-content: center; }
+.filetree-tile-media { width: 100%; height: 100px; object-fit: contain; border-radius: 4px; background: #000; }
+/* an explicit height is required — `auto` collapses the audio widget to zero */
+.filetree-tile-media.filetree-tile-audio { height: 54px; background: none; }
+/* browsers refuse to draw the audio widget in a single ~120px grid cell */
+.filetree-tile-wrapper-audio { grid-column: span 2; }
+.filetree-tile-wrapper-audio .filetree-tile { min-height: 130px; justify-content: center; }
+.filetree-tile-media-card .filetree-tile-name { color: #ccc; text-decoration: none; }
+.filetree-tile-media-card .filetree-tile-name:hover { color: #4a90d9; text-decoration: underline; }
 .filetree-tile-name { font-size: 0.75rem; color: #ccc; word-break: break-all; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .filetree-tile-icon { width: 48px; height: 48px; }
 .filetree-tile-icon.dir { color: #f0a500; }
 .filetree-tile-icon.text { color: #6fcf7c; }
 .filetree-tile-icon.file { color: #4a90d9; }
 
-/* image gallery */
+/* media gallery */
 .gallery-container { display: flex; align-items: center; justify-content: center; height: 100vh; background: #0a0a0a; }
 .gallery-nav-left, .gallery-nav-right { display: flex; align-items: center; padding: 0 0.5rem; }
 .gallery-nav-btn { background: none; border: 1px solid #333; color: #ccc; font-size: 2rem; width: 48px; height: 48px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s, border-color 0.15s; }
@@ -435,6 +444,8 @@ select.form-input {
 .gallery-nav-btn:disabled { opacity: 0.25; cursor: default; }
 .gallery-content { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; max-width: calc(100vw - 140px); max-height: calc(100vh - 2rem); }
 .gallery-img { max-width: 100%; max-height: calc(100vh - 4rem); object-fit: contain; border-radius: 4px; }
+.gallery-video { max-width: 100%; max-height: calc(100vh - 4rem); border-radius: 4px; background: #000; }
+.gallery-audio { width: min(600px, 90vw); }
 .gallery-filename { color: #999; font-size: 0.85rem; }
 
 /* filetree multi-select */

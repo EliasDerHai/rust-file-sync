@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use shared::dtos::{FileDescription, is_image};
+use shared::dtos::{FileDescription, MediaKind, is_media, media_kind};
 use std::collections::HashSet;
 
 use crate::api;
@@ -28,13 +28,6 @@ fn files_at_depth(all: &[FileDescription], dir: &[String]) -> (Vec<String>, Vec<
         .collect();
     dirs.sort();
     (dirs, files)
-}
-
-fn is_text(ext: &str) -> bool {
-    matches!(
-        ext,
-        "txt" | "md" | "rs" | "toml" | "json" | "yaml" | "yml" | "sh" | "log"
-    )
 }
 
 fn format_size(bytes: u64) -> String {
@@ -105,7 +98,7 @@ fn file_tree_list_view(
                 .into_iter()
                 .map(|file| {
                     let path_str = file.relative_path.to_serialized_string();
-                    let href = if is_image(&file.file_type) {
+                    let href = if is_media(&file.file_type) {
                         api::gallery_url(wg_id, &path_str)
                     } else {
                         api::watch_group_file_preview_url(wg_id, &path_str)
@@ -206,63 +199,136 @@ fn file_tree_tile_view(
                             }
                         });
                     };
-                    if is_image(&ext) {
-                        let gallery_href = api::gallery_url(wg_id, &path_str);
-                        view! {
-                            <div
-                                class="filetree-tile-wrapper"
-                                class:filetree-tile-selected=is_selected_class
-                            >
-                                <input
-                                    type="checkbox"
-                                    class="filetree-tile-checkbox"
-                                    prop:checked=is_selected_check
-                                    on:change=on_toggle
-                                />
-                                <a
-                                    class="filetree-tile"
-                                    href=gallery_href
-                                    target="_blank"
+                    match media_kind(&ext) {
+                        MediaKind::Image => {
+                            let gallery_href = api::gallery_url(wg_id, &path_str);
+                            view! {
+                                <div
+                                    class="filetree-tile-wrapper"
+                                    class:filetree-tile-selected=is_selected_class
                                 >
-                                    <img
-                                        src=raw_url
-                                        class="filetree-tile-img"
-                                        loading="lazy"
+                                    <input
+                                        type="checkbox"
+                                        class="filetree-tile-checkbox"
+                                        prop:checked=is_selected_check
+                                        on:change=on_toggle
                                     />
-                                    <span class="filetree-tile-name">{file_name}</span>
-                                </a>
-                            </div>
-                        }
-                        .into_any()
-                    } else {
-                        let text_file = is_text(&ext);
-                        view! {
-                            <div
-                                class="filetree-tile-wrapper"
-                                class:filetree-tile-selected=is_selected_class
-                            >
-                                <input
-                                    type="checkbox"
-                                    class="filetree-tile-checkbox"
-                                    prop:checked=is_selected_check
-                                    on:change=on_toggle
-                                />
-                                <a
-                                    class="filetree-tile"
-                                    href=raw_url
-                                    target="_blank"
-                                >
-                                    <Show
-                                        when=move || text_file
-                                        fallback=|| view! { <FileIconLarge /> }
+                                    <a
+                                        class="filetree-tile"
+                                        href=gallery_href
+                                        target="_blank"
                                     >
-                                        <TextFileIconLarge />
-                                    </Show>
-                                    <span class="filetree-tile-name">{file_name}</span>
-                                </a>
-                            </div>
+                                        <img
+                                            src=raw_url
+                                            class="filetree-tile-img"
+                                            loading="lazy"
+                                        />
+                                        <span class="filetree-tile-name">{file_name}</span>
+                                    </a>
+                                </div>
+                            }
+                            .into_any()
                         }
-                        .into_any()
+                        // playable in place, so the tile itself must not be a link —
+                        // clicking the controls would navigate away. only the name links.
+                        MediaKind::Video => {
+                            let gallery_href = api::gallery_url(wg_id, &path_str);
+                            // the media fragment makes the browser render a real first
+                            // frame instead of a black box (needs range requests)
+                            let poster_url = format!("{raw_url}#t=0.1");
+                            view! {
+                                <div
+                                    class="filetree-tile-wrapper"
+                                    class:filetree-tile-selected=is_selected_class
+                                >
+                                    <input
+                                        type="checkbox"
+                                        class="filetree-tile-checkbox"
+                                        prop:checked=is_selected_check
+                                        on:change=on_toggle
+                                    />
+                                    <div class="filetree-tile filetree-tile-media-card">
+                                        <video
+                                            class="filetree-tile-media"
+                                            src=poster_url
+                                            controls
+                                            preload="metadata"
+                                            playsinline
+                                        />
+                                        <a
+                                            class="filetree-tile-name"
+                                            href=gallery_href
+                                            target="_blank"
+                                        >
+                                            {file_name}
+                                        </a>
+                                    </div>
+                                </div>
+                            }
+                            .into_any()
+                        }
+                        MediaKind::Audio => {
+                            let gallery_href = api::gallery_url(wg_id, &path_str);
+                            view! {
+                                <div
+                                    class="filetree-tile-wrapper filetree-tile-wrapper-audio"
+                                    class:filetree-tile-selected=is_selected_class
+                                >
+                                    <input
+                                        type="checkbox"
+                                        class="filetree-tile-checkbox"
+                                        prop:checked=is_selected_check
+                                        on:change=on_toggle
+                                    />
+                                    <div class="filetree-tile filetree-tile-media-card">
+                                        <audio
+                                            class="filetree-tile-media filetree-tile-audio"
+                                            src=raw_url
+                                            controls
+                                            preload="metadata"
+                                        />
+                                        <a
+                                            class="filetree-tile-name"
+                                            href=gallery_href
+                                            target="_blank"
+                                        >
+                                            {file_name}
+                                        </a>
+                                    </div>
+                                </div>
+                            }
+                            .into_any()
+                        }
+                        kind => {
+                            let text_file = kind == MediaKind::Text;
+                            view! {
+                                <div
+                                    class="filetree-tile-wrapper"
+                                    class:filetree-tile-selected=is_selected_class
+                                >
+                                    <input
+                                        type="checkbox"
+                                        class="filetree-tile-checkbox"
+                                        prop:checked=is_selected_check
+                                        on:change=on_toggle
+                                    />
+                                    <a
+                                        class="filetree-tile"
+                                        href=raw_url
+                                        target="_blank"
+                                    >
+                                        <Show
+                                            when=move || text_file
+                                            fallback=|| view! { <FileIconLarge /> }
+                                        >
+                                            <TextFileIconLarge />
+                                        </Show>
+                                        <span class="filetree-tile-name">{file_name}</span>
+                                    </a>
+                                </div>
+                            }
+                            .into_any()
+                        }
                     }
                 })
                 .collect_view()}

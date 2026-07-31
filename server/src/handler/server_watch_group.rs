@@ -14,19 +14,20 @@ pub(crate) static WEB_CLIENT_UUID: LazyLock<Uuid> =
 
 use axum::Json;
 use axum::body::Body;
-use axum::extract::{Multipart, Query, State};
+use axum::extract::{Multipart, Query, Request, State};
+use axum::http::HeaderValue;
 use axum::http::StatusCode;
 use axum::http::header::CONTENT_TYPE;
 use axum::response::IntoResponse;
 use shared::content_hash::ContentHash;
-use shared::dtos::{FileDescription, ServerWatchGroup, WatchGroupNameDto};
+use shared::dtos::{FileDescription, ServerWatchGroup, WatchGroupNameDto, content_type_for};
 use shared::matchable_path::MatchablePath;
 use shared::utc_millis::UtcMillis;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
-use tokio_util::io::ReaderStream;
+use tower_http::services::ServeFile;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
@@ -109,9 +110,13 @@ pub async fn api_delete_watch_group(
 }
 
 /// GET /api/watch-groups/{id}/file?path=dir/subdir/file.ext — inline file preview
+///
+/// Served through `ServeFile` so range requests work: `<video>`/`<audio>` in the
+/// SPA need 206 responses to show a duration and to seek.
 pub async fn api_serve_watch_group_file(
     axum::extract::Path(id): axum::extract::Path<i64>,
     Query(params): Query<HashMap<String, String>>,
+    request: Request,
 ) -> impl IntoResponse {
     let path_str = match params.get("path") {
         Some(p) if !p.is_empty() => p.clone(),
@@ -133,31 +138,25 @@ pub async fn api_serve_watch_group_file(
     let rel: PathBuf = segments.iter().collect();
     let full_path = UPLOAD_PATH.join(id.to_string()).join(rel);
 
-    let file = match tokio::fs::File::open(&full_path).await {
-        Ok(f) => f,
-        Err(e) => return Err((StatusCode::NOT_FOUND, format!("File not found: {}", e))),
-    };
-
     let ext = full_path
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or("")
         .to_lowercase();
 
-    let content_type: &'static str = match ext.as_str() {
-        "jpg" | "jpeg" => "image/jpeg",
-        "png" => "image/png",
-        "gif" => "image/gif",
-        "webp" => "image/webp",
-        "svg" => "image/svg+xml",
-        "txt" | "md" | "rs" | "toml" | "json" | "yaml" | "yml" | "sh" | "log" => {
-            "text/plain; charset=utf-8"
-        }
-        _ => "application/octet-stream",
-    };
+    let mut response = ServeFile::new(&full_path)
+        .try_call(request)
+        .await
+        .map_err(|e| (StatusCode::NOT_FOUND, format!("File not found: {}", e)))?;
 
-    let body = Body::from_stream(ReaderStream::new(file));
-    Ok(([(CONTENT_TYPE, content_type)], body))
+    // our own table wins over mime guessing where we have an entry
+    if let Some(content_type) = content_type_for(&ext) {
+        response
+            .headers_mut()
+            .insert(CONTENT_TYPE, HeaderValue::from_static(content_type));
+    }
+
+    Ok(response.map(Body::new))
 }
 
 pub async fn api_get_watch_group_files(

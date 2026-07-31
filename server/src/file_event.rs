@@ -74,7 +74,7 @@ impl From<FileEvent> for FileDescription {
                 .extension()
                 .and_then(|e| e.to_str())
                 .unwrap_or_default()
-                .to_string(),
+                .to_ascii_lowercase(),
             last_updated_utc_millis: val.utc_millis,
             content_hash: val.content_hash,
         }

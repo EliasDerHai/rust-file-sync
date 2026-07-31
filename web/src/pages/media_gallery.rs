@@ -1,19 +1,22 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
-use shared::dtos::{FileDescription, is_image};
+use shared::dtos::{FileDescription, MediaKind, is_media, media_kind};
 
 use crate::api;
 use crate::components::{Loading, Message, ToastSignal, TrashIcon};
 
-fn images_in_same_dir(all: &[FileDescription], current_path: &str) -> Vec<FileDescription> {
+/// clips shorter than this loop, so short videos behave like the gifs they replace
+const LOOP_THRESHOLD_SECONDS: f64 = 8.0;
+
+fn media_in_same_dir(all: &[FileDescription], current_path: &str) -> Vec<FileDescription> {
     let current_segments: Vec<&str> = current_path.split('/').collect();
     let dir_segments = &current_segments[..current_segments.len().saturating_sub(1)];
 
-    let mut images: Vec<FileDescription> = all
+    let mut media: Vec<FileDescription> = all
         .iter()
         .filter(|f| {
-            if !is_image(&f.file_type) {
+            if !is_media(&f.file_type) {
                 return false;
             }
             let segs = f.relative_path.get();
@@ -28,12 +31,12 @@ fn images_in_same_dir(all: &[FileDescription], current_path: &str) -> Vec<FileDe
         .cloned()
         .collect();
 
-    images.sort_by_key(|desc| desc.file_name.clone());
-    images
+    media.sort_by_key(|desc| desc.file_name.clone());
+    media
 }
 
 #[component]
-pub fn ImageGalleryPage() -> impl IntoView {
+pub fn MediaGalleryPage() -> impl IntoView {
     let params = use_params_map();
     let query = use_query_map();
 
@@ -95,35 +98,36 @@ fn GalleryViewer(
     view! {
         {move || {
             let path = current_path.get();
-            let images = images_in_same_dir(&all_files.get(), &path);
-            let current_idx = images
+            let media = media_in_same_dir(&all_files.get(), &path);
+            let current_idx = media
                 .iter()
                 .position(|f| f.relative_path.to_serialized_string() == path);
 
             let Some(idx) = current_idx else {
                 return view! {
                     <div class="gallery-container">
-                        <div class="message message-error">"Image not found"</div>
+                        <div class="message message-error">"File not found"</div>
                     </div>
                 }
                 .into_any();
             };
 
             let is_first = idx == 0;
-            let is_last = idx == images.len() - 1;
-            let img_src = api::watch_group_file_preview_url(
+            let is_last = idx == media.len() - 1;
+            let src = api::watch_group_file_preview_url(
                 wg_id,
-                &images[idx].relative_path.to_serialized_string(),
+                &media[idx].relative_path.to_serialized_string(),
             );
-            let file_name = images[idx].file_name.clone();
+            let file_name = media[idx].file_name.clone();
+            let kind = media_kind(&media[idx].file_type);
 
             let prev_path = if !is_first {
-                Some(images[idx - 1].relative_path.to_serialized_string())
+                Some(media[idx - 1].relative_path.to_serialized_string())
             } else {
                 None
             };
             let next_path = if !is_last {
-                Some(images[idx + 1].relative_path.to_serialized_string())
+                Some(media[idx + 1].relative_path.to_serialized_string())
             } else {
                 None
             };
@@ -178,7 +182,7 @@ fn GalleryViewer(
                         <Message signal=msg />
                         <button
                             class="btn btn-icon btn-danger gallery-delete-btn"
-                            title="Delete image"
+                            title="Delete file"
                             on:click=on_delete_click
                         >
                             <TrashIcon />
@@ -205,7 +209,35 @@ fn GalleryViewer(
                         }}
                     </div>
                     <div class="gallery-content">
-                        <img class="gallery-img" src=img_src />
+                        {match kind {
+                            MediaKind::Video => {
+                                view! {
+                                    <video
+                                        class="gallery-video"
+                                        src=src
+                                        controls
+                                        autoplay
+                                        muted
+                                        playsinline
+                                        on:loadedmetadata=|ev| {
+                                            let el = event_target::<web_sys::HtmlVideoElement>(&ev);
+                                            let duration = el.duration();
+                                            if duration.is_finite()
+                                                && duration < LOOP_THRESHOLD_SECONDS
+                                            {
+                                                el.set_loop(true);
+                                            }
+                                        }
+                                    />
+                                }
+                                    .into_any()
+                            }
+                            MediaKind::Audio => {
+                                view! { <audio class="gallery-audio" src=src controls autoplay /> }
+                                    .into_any()
+                            }
+                            _ => view! { <img class="gallery-img" src=src /> }.into_any(),
+                        }}
                         <div class="gallery-filename">{file_name}</div>
                     </div>
                     <div class="gallery-nav-right">

@@ -21,7 +21,7 @@ pub fn get_file_description(
                     .to_string();
                 let file_type = name
                     .rfind('.')
-                    .map(|p| name[p..].to_string())
+                    .map(|p| name[p..].to_ascii_lowercase())
                     .unwrap_or("".to_string());
                 let last_updated_utc_millis =
                     get_last_updated(&m).ok_or("Could not determine last updated".to_string())?;
@@ -102,7 +102,7 @@ fn inner_get_files_of_dir_rec(
                 .extension()
                 .and_then(|os| os.to_str())
                 .unwrap_or("")
-                .to_string();
+                .to_ascii_lowercase();
             let last_updated_utc_millis = get_last_updated(&metadata)
                 .ok_or("Could not determine last updated".to_string())?;
             let description = FileDescription {
