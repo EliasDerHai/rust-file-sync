@@ -1,7 +1,8 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
-use shared::dtos::{FileDescription, MediaKind, is_media, media_kind};
+use shared::dtos::FileDescription;
+use shared::media::MediaKind;
 
 use crate::api;
 use crate::components::{Loading, Message, ToastSignal, TrashIcon};
@@ -16,7 +17,7 @@ fn media_in_same_dir(all: &[FileDescription], current_path: &str) -> Vec<FileDes
     let mut media: Vec<FileDescription> = all
         .iter()
         .filter(|f| {
-            if !is_media(&f.file_type) {
+            if !MediaKind::from(&f.file_type).is_media() {
                 return false;
             }
             let segs = f.relative_path.get();
@@ -119,7 +120,7 @@ fn GalleryViewer(
                 &media[idx].relative_path.to_serialized_string(),
             );
             let file_name = media[idx].file_name.clone();
-            let kind = media_kind(&media[idx].file_type);
+            let kind = MediaKind::from(&media[idx].file_type);
 
             let prev_path = if !is_first {
                 Some(media[idx - 1].relative_path.to_serialized_string())

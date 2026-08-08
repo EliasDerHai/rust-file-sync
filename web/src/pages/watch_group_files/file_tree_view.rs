@@ -1,5 +1,6 @@
 use leptos::prelude::*;
-use shared::dtos::{FileDescription, MediaKind, is_media, media_kind};
+use shared::dtos::FileDescription;
+use shared::media::MediaKind;
 use std::collections::HashSet;
 
 use crate::api;
@@ -98,7 +99,7 @@ fn file_tree_list_view(
                 .into_iter()
                 .map(|file| {
                     let path_str = file.relative_path.to_serialized_string();
-                    let href = if is_media(&file.file_type) {
+                    let href = if MediaKind::from(&file.file_type).is_media() {
                         api::gallery_url(wg_id, &path_str)
                     } else {
                         api::watch_group_file_preview_url(wg_id, &path_str)
@@ -199,7 +200,7 @@ fn file_tree_tile_view(
                             }
                         });
                     };
-                    match media_kind(&ext) {
+                    match MediaKind::from(&ext) {
                         MediaKind::Image => {
                             let gallery_href = api::gallery_url(wg_id, &path_str);
                             view! {

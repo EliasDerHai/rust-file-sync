@@ -4,7 +4,7 @@ use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use shared::dtos::WatchConfigDto;
 use shared::endpoint::{CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY, CLIENT_VERSION_HEADER_KEY};
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 use super::{header_value_as_opt_string, header_value_as_string};
 
