@@ -9,5 +9,5 @@ pub use clients::ClientsPage;
 pub use links::LinksPage;
 pub use media_gallery::MediaGalleryPage;
 pub use monitor::MonitorPage;
-pub use watch_group_files::WatchGroupFilesPage;
+pub use watch_group_files::{SortMode, WatchGroupFilesPage};
 pub use watch_groups::WatchGroupsPage;

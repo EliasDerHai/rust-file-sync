@@ -1,9 +1,8 @@
-use std::collections::HashSet;
-
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_router::components::A;
 use leptos_router::hooks::use_params_map;
+use std::collections::HashSet;
 
 use crate::api;
 use crate::components::{EmptyState, Loading, Message, ToastSignal, TrashIcon};
@@ -11,16 +10,35 @@ use crate::components::{EmptyState, Loading, Message, ToastSignal, TrashIcon};
 mod file_tree_view;
 use file_tree_view::FiletreeView;
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {
     List,
     Tile,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortMode {
     Latest,
     Alphabetical,
+}
+
+impl std::fmt::Display for SortMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            SortMode::Alphabetical => "alphabetical",
+            SortMode::Latest => "latest",
+        })
+    }
+}
+
+impl From<&str> for SortMode {
+    fn from(value: &str) -> Self {
+        match value.to_lowercase().as_str() {
+            "alphabetical" => SortMode::Alphabetical,
+            "latest" => SortMode::Latest,
+            _ => SortMode::Latest,
+        }
+    }
 }
 
 #[component]
@@ -116,12 +134,9 @@ pub fn WatchGroupFilesPage() -> impl IntoView {
                                             </Show>
                                             <select
                                                 class="btn btn-secondary"
-                                                on:change=move |v|
-                                                    match event_target_value(&v).as_str() {
-                                                        "alphabetical" => sort_mode.set(SortMode::Alphabetical),
-                                                        "latest" => sort_mode.set(SortMode::Latest),
-                                                        _ => {}
-                                                    }
+                                                on:change=move |v| {
+                                                    sort_mode.set(event_target_value(&v).as_str().into())
+                                                }
                                             >
                                                 <option value="latest">"Latest"</option>
                                                 <option value="alphabetical">"Alphabetical"</option>

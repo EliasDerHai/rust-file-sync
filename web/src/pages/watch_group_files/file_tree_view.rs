@@ -65,10 +65,12 @@ pub fn FiletreeView(
 
         match view_mode.get() {
             ViewMode::List => {
-                file_tree_list_view(dirs, files_here, current_path, wg_id, selected).into_any()
+                file_tree_list_view(dirs, files_here, current_path, wg_id, selected, sort_mode)
+                    .into_any()
             }
             ViewMode::Tile => {
-                file_tree_tile_view(dirs, files_here, current_path, wg_id, selected).into_any()
+                file_tree_tile_view(dirs, files_here, current_path, wg_id, selected, sort_mode)
+                    .into_any()
             }
         }
     }
@@ -80,6 +82,7 @@ fn file_tree_list_view(
     current_path: RwSignal<Vec<String>>,
     wg_id: i64,
     selected: RwSignal<HashSet<String>>,
+    sort_mode: RwSignal<SortMode>,
 ) -> impl IntoView {
     view! {
         <ul class="filetree-list">
@@ -107,7 +110,7 @@ fn file_tree_list_view(
                 .map(|file| {
                     let path_str = file.relative_path.to_serialized_string();
                     let href = if MediaKind::from(&file.file_type).is_media() {
-                        api::gallery_url(wg_id, &path_str)
+                        api::gallery_url(wg_id, &path_str, sort_mode.get_untracked())
                     } else {
                         api::watch_group_file_preview_url(wg_id, &path_str)
                     };
@@ -163,6 +166,7 @@ fn file_tree_tile_view(
     current_path: RwSignal<Vec<String>>,
     wg_id: i64,
     selected: RwSignal<HashSet<String>>,
+    sort_mode: RwSignal<SortMode>,
 ) -> impl IntoView {
     view! {
         <div class="filetree-tile-grid">
@@ -209,7 +213,7 @@ fn file_tree_tile_view(
                     };
                     match MediaKind::from(&ext) {
                         MediaKind::Image => {
-                            let gallery_href = api::gallery_url(wg_id, &path_str);
+                            let gallery_href = api::gallery_url(wg_id, &path_str, sort_mode.get_untracked());
                             view! {
                                 <div
                                     class="filetree-tile-wrapper"
@@ -240,7 +244,7 @@ fn file_tree_tile_view(
                         // playable in place, so the tile itself must not be a link —
                         // clicking the controls would navigate away. only the name links.
                         MediaKind::Video => {
-                            let gallery_href = api::gallery_url(wg_id, &path_str);
+                            let gallery_href = api::gallery_url(wg_id, &path_str, sort_mode.get_untracked());
                             // the media fragment makes the browser render a real first
                             // frame instead of a black box (needs range requests)
                             let poster_url = format!("{raw_url}#t=0.1");
@@ -276,7 +280,7 @@ fn file_tree_tile_view(
                             .into_any()
                         }
                         MediaKind::Audio => {
-                            let gallery_href = api::gallery_url(wg_id, &path_str);
+                            let gallery_href = api::gallery_url(wg_id, &path_str, sort_mode.get_untracked());
                             view! {
                                 <div
                                     class="filetree-tile-wrapper filetree-tile-wrapper-audio"

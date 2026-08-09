@@ -1,3 +1,5 @@
+use std::cmp::Reverse;
+
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
@@ -6,11 +8,16 @@ use shared::media::MediaKind;
 
 use crate::api;
 use crate::components::{Loading, Message, ToastSignal, TrashIcon};
+use crate::pages::SortMode;
 
 /// clips shorter than this loop, so short videos behave like the gifs they replace
 const LOOP_THRESHOLD_SECONDS: f64 = 8.0;
 
-fn media_in_same_dir(all: &[FileDescription], current_path: &str) -> Vec<FileDescription> {
+fn media_in_same_dir(
+    all: &[FileDescription],
+    current_path: &str,
+    sort_mode: &SortMode,
+) -> Vec<FileDescription> {
     let current_segments: Vec<&str> = current_path.split('/').collect();
     let dir_segments = &current_segments[..current_segments.len().saturating_sub(1)];
 
@@ -32,7 +39,11 @@ fn media_in_same_dir(all: &[FileDescription], current_path: &str) -> Vec<FileDes
         .cloned()
         .collect();
 
-    media.sort_by_key(|desc| desc.file_name.clone());
+    match sort_mode {
+        SortMode::Alphabetical => media.sort_by_key(|desc| desc.file_name.clone()),
+        SortMode::Latest => media.sort_by_key(|desc| Reverse(desc.last_updated_utc_millis)),
+    }
+
     media
 }
 
@@ -43,6 +54,11 @@ pub fn MediaGalleryPage() -> impl IntoView {
 
     let wg_id: Option<i64> = params.with_untracked(|p| p.get("id").and_then(|s| s.parse().ok()));
     let path: Option<String> = query.with_untracked(|q| q.get("path").filter(|s| !s.is_empty()));
+    let sort_mode: SortMode = query
+        .with_untracked(|q| q.get("sort").filter(|s| !s.is_empty()))
+        .unwrap_or_default()
+        .as_str()
+        .into();
 
     let (Some(id), Some(current_path)) = (wg_id, path) else {
         return view! {
@@ -67,6 +83,7 @@ pub fn MediaGalleryPage() -> impl IntoView {
                                 all_files=all_files
                                 current_path=current_path_signal
                                 wg_id=id
+                                sort_mode=sort_mode
                             />
                         }
                         .into_any()
@@ -91,6 +108,7 @@ fn GalleryViewer(
     all_files: RwSignal<Vec<FileDescription>>,
     current_path: RwSignal<String>,
     wg_id: i64,
+    sort_mode: SortMode,
 ) -> impl IntoView {
     let msg = ToastSignal::new();
     let navigate = use_navigate();
@@ -99,7 +117,7 @@ fn GalleryViewer(
     view! {
         {move || {
             let path = current_path.get();
-            let media = media_in_same_dir(&all_files.get(), &path);
+            let media = media_in_same_dir(&all_files.get(), &path, &sort_mode);
             let current_idx = media
                 .iter()
                 .position(|f| f.relative_path.to_serialized_string() == path);

@@ -8,6 +8,8 @@ use shared::{
     endpoint::ServerEndpoint,
 };
 
+use crate::pages::SortMode;
+
 pub async fn fetch_clients() -> Result<Vec<ClientDto>, String> {
     Request::get(ServerEndpoint::ApiClients.to_str())
         .send()
@@ -202,12 +204,13 @@ pub fn watch_group_file_preview_url(wg_id: i64, path: &str) -> String {
     )
 }
 
-pub fn gallery_url(wg_id: i64, path: &str) -> String {
+pub fn gallery_url(wg_id: i64, path: &str, sort_mode: SortMode) -> String {
     let encoded = js_sys::encode_uri_component(path);
     format!(
-        "/app/watch-groups/{}/gallery?path={}",
+        "/app/watch-groups/{}/gallery?path={}&sort={}",
         wg_id,
-        String::from(encoded)
+        String::from(encoded),
+        sort_mode
     )
 }
 
