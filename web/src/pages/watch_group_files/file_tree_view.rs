@@ -1,11 +1,12 @@
 use leptos::prelude::*;
 use shared::dtos::FileDescription;
 use shared::media::MediaKind;
+use std::cmp::Reverse;
 use std::collections::HashSet;
 
 use crate::api;
 use crate::components::{FileIcon, FileIconLarge, FolderIcon, FolderIconLarge, TextFileIconLarge};
-use crate::pages::watch_group_files::ViewMode;
+use crate::pages::watch_group_files::{SortMode, ViewMode};
 
 fn files_at_depth(all: &[FileDescription], dir: &[String]) -> (Vec<String>, Vec<FileDescription>) {
     let depth = dir.len();
@@ -48,13 +49,19 @@ pub fn FiletreeView(
     all_files: Vec<FileDescription>,
     current_path: RwSignal<Vec<String>>,
     view_mode: RwSignal<ViewMode>,
+    sort_mode: RwSignal<SortMode>,
     wg_id: i64,
     selected: RwSignal<HashSet<String>>,
 ) -> impl IntoView {
     move || {
         let dir = current_path.get();
         let (dirs, mut files_here) = files_at_depth(&all_files, &dir);
-        files_here.sort_by_key(|desc| desc.file_name.clone());
+        match sort_mode.get() {
+            SortMode::Alphabetical => files_here.sort_by_key(|desc| desc.file_name.clone()),
+            SortMode::Latest => {
+                files_here.sort_by_key(|desc| Reverse(desc.last_updated_utc_millis))
+            }
+        }
 
         match view_mode.get() {
             ViewMode::List => {

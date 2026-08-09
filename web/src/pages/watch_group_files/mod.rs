@@ -17,6 +17,12 @@ pub enum ViewMode {
     Tile,
 }
 
+#[derive(Clone, PartialEq)]
+pub enum SortMode {
+    Latest,
+    Alphabetical,
+}
+
 #[component]
 pub fn WatchGroupFilesPage() -> impl IntoView {
     let params = use_params_map();
@@ -36,6 +42,7 @@ pub fn WatchGroupFilesPage() -> impl IntoView {
     let msg = ToastSignal::new();
     let current_path: RwSignal<Vec<String>> = RwSignal::new(vec![]);
     let view_mode: RwSignal<ViewMode> = RwSignal::new(ViewMode::List);
+    let sort_mode: RwSignal<SortMode> = RwSignal::new(SortMode::Latest);
 
     // Clear selection whenever the user navigates into a different directory
     Effect::new(move |_| {
@@ -107,6 +114,18 @@ pub fn WatchGroupFilesPage() -> impl IntoView {
                                                     ")"
                                                 </button>
                                             </Show>
+                                            <select
+                                                class="btn btn-secondary"
+                                                on:change=move |v|
+                                                    match event_target_value(&v).as_str() {
+                                                        "alphabetical" => sort_mode.set(SortMode::Alphabetical),
+                                                        "latest" => sort_mode.set(SortMode::Latest),
+                                                        _ => {}
+                                                    }
+                                            >
+                                                <option value="latest">"Latest"</option>
+                                                <option value="alphabetical">"Alphabetical"</option>
+                                            </select>
                                             <button
                                                 class="btn btn-secondary"
                                                 on:click=move |_| view_mode.set(ViewMode::List)
@@ -125,6 +144,7 @@ pub fn WatchGroupFilesPage() -> impl IntoView {
                                         all_files=file_list
                                         current_path
                                         view_mode
+                                        sort_mode
                                         wg_id=id
                                         selected
                                     />

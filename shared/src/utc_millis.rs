@@ -4,14 +4,14 @@ use std::fmt::{Display, Formatter};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// simple Value object that serializes to utc milliseconds and can be printed as readable datetime string
-#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord)]
 pub struct UtcMillis {
     millis: u64,
 }
 
 impl Display for UtcMillis {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let d = DateTime::from(self.clone());
+        let d = DateTime::from(*self);
         write!(f, "{}", d)
     }
 }
