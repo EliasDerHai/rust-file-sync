@@ -6,13 +6,12 @@ use axum::Json;
 use axum::extract::{Multipart, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
-use shared::content_hash::ContentHash;
-use shared::dtos::FileDescription;
-use shared::endpoint::{CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY};
-use shared::get_files_of_directory::get_all_file_descriptions;
-use shared::matchable_path::MatchablePath;
-use shared::sync_instruction::SyncInstruction;
 use chrono::Local;
+use shared::content_hash::ContentHash;
+use shared::dtos::{FileDescription, SyncInstruction};
+use shared::endpoint::{CLIENT_HOST_HEADER_KEY, CLIENT_ID_HEADER_KEY};
+use shared::get_files_of_dir::get_all_file_descriptions;
+use shared::matchable_path::MatchablePath;
 use shared::utc_millis::UtcMillis;
 use std::ffi::OsStr;
 use std::fs;
@@ -109,12 +108,7 @@ async fn handle_conflict(latest: &FileEvent, upload_root_path: &Path, state: &Ap
             host_tag,
             &original_name[pos..]
         ),
-        None => format!(
-            "{}.conflict-{}-{}",
-            original_name,
-            date,
-            host_tag
-        ),
+        None => format!("{}.conflict-{}-{}", original_name, date, host_tag),
     };
 
     let conflict_path = existing_path.with_file_name(&conflict_name);

@@ -173,3 +173,9 @@ impl LinkDto {
     }
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+pub enum SyncInstruction {
+    Upload(MatchablePath),
+    Download(MatchablePath, ContentHash),
+    Delete(MatchablePath),
+}

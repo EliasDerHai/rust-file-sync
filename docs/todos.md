@@ -1,15 +1,12 @@
-Usually the moment I make this kind of list is the moment I never continue any actual work on a hobby project XD.
-Let's see if that law holds once more.
-
-<hr />
-
 ## Backlog
 
 ### Features
 
 - implement backup strategy (currently mocked TODOs)
 - add more metrics (up/download per day etc.)
-
+- add SSE to update web on the fly 
+- brainstorm access-limitation for specific watchgroups
+- add sort by latest option for /web
 
 ### Bugs
 
@@ -18,4 +15,3 @@ Let's see if that law holds once more.
 
 ## Open
 
-- add tags for links (currently PWA needs to be updated and /web doens't have links at all yet)
