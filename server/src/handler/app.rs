@@ -18,11 +18,7 @@ pub async fn serve_embedded_app(uri: axum::http::Uri) -> axum::response::Respons
             .into_response(),
         // SPA fallback: serve index.html for unknown paths
         None => match AppAssets::get("index.html") {
-            Some(file) => (
-                [(header::CONTENT_TYPE, "text/html")],
-                file.data,
-            )
-                .into_response(),
+            Some(file) => ([(header::CONTENT_TYPE, "text/html")], file.data).into_response(),
             None => StatusCode::NOT_FOUND.into_response(),
         },
     }

@@ -9,10 +9,15 @@ use tracing::{error, info};
 pub async fn api_list_clients(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<ClientDto>>, (StatusCode, String)> {
-    let clients = state.db.client().get_all_clients().await.map_err(|e| {
-        error!("Failed to get clients: {}", e);
-        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
-    })?;
+    let clients = state
+        .db
+        .client()
+        .get_all_clients(state.version)
+        .await
+        .map_err(|e| {
+            error!("Failed to get clients: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?;
     Ok(Json(clients))
 }
 

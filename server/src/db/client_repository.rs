@@ -1,3 +1,5 @@
+use crate::handler::PWA_CLIENT_UUID;
+use crate::handler::WEB_CLIENT_UUID;
 use shared::dtos::ClientDto;
 use sqlx::SqlitePool;
 
@@ -57,7 +59,7 @@ impl<'a> ClientRepository<'a> {
     }
 
     /// Get all clients with their configs
-    pub async fn get_all_clients(&self) -> Result<Vec<ClientDto>> {
+    pub async fn get_all_clients(&self, server_version: &str) -> Result<Vec<ClientDto>> {
         let clients = sqlx::query!(
             r#"
             SELECT
@@ -74,12 +76,22 @@ impl<'a> ClientRepository<'a> {
 
         Ok(clients
             .into_iter()
-            .map(|r| ClientDto {
-                id: r.id,
-                host_name: r.host_name,
-                min_poll_interval_in_ms: u16::try_from(r.min_poll_interval_in_ms)
-                    .expect("should fit"),
-                version: r.version,
+            .map(|r| {
+                let version = if r.version == WEB_CLIENT_UUID.to_string().as_str()
+                    || r.version == PWA_CLIENT_UUID.to_string().as_str()
+                {
+                    server_version.to_string()
+                } else {
+                    r.version
+                };
+
+                ClientDto {
+                    id: r.id,
+                    host_name: r.host_name,
+                    min_poll_interval_in_ms: u16::try_from(r.min_poll_interval_in_ms)
+                        .expect("should fit"),
+                    version,
+                }
             })
             .collect())
     }

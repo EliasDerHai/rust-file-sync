@@ -51,6 +51,7 @@ pub(crate) struct AppState {
     history: Arc<InMemoryFileHistory>,
     monitor_writer: Arc<Mutex<RotatingFileWriter>>,
     db: ServerDatabase,
+    version: &'static str,
 }
 
 #[tokio::main]
@@ -113,6 +114,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         history: Arc::new(history),
         monitor_writer,
         db,
+        version: env!("CARGO_PKG_VERSION"),
     };
 
     let app = Router::new()
@@ -133,7 +135,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route(ServerEndpoint::Delete.to_str(), post(handler::delete))
         .route(
             ServerEndpoint::Version.to_str(),
-            get(|| async { env!("CARGO_PKG_VERSION") }),
+            get(|State(state): State<AppState>| async move { state.version }),
         )
         .route(ServerEndpoint::Config.to_str(), get(handler::get_config))
         // json api - for frontends

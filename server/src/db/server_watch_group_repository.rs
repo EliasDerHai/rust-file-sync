@@ -42,12 +42,9 @@ impl<'a> ServerWatchGroupRepository<'a> {
     }
 
     pub async fn exists(&self, id: i64) -> Result<bool> {
-        let count = sqlx::query_scalar!(
-            "SELECT COUNT(*) FROM server_watch_group WHERE id = ?",
-            id
-        )
-        .fetch_one(self.pool)
-        .await?;
+        let count = sqlx::query_scalar!("SELECT COUNT(*) FROM server_watch_group WHERE id = ?", id)
+            .fetch_one(self.pool)
+            .await?;
         Ok(count > 0)
     }
 

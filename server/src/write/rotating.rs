@@ -1,5 +1,5 @@
 use chrono::Local;
-use std::fs::{self, create_dir_all, OpenOptions};
+use std::fs::{self, OpenOptions, create_dir_all};
 use std::io::{self, Write};
 use std::path::PathBuf;
 

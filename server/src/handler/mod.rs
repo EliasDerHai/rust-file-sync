@@ -16,6 +16,8 @@ pub use client_watch_group::{
 pub use config::get_config;
 pub use link::{delete_link, get_links, post_link, post_link_tag};
 pub use pwa::serve_embedded_pwa;
+pub(crate) use server_watch_group::PWA_CLIENT_UUID;
+pub(crate) use server_watch_group::WEB_CLIENT_UUID;
 pub use server_watch_group::{
     api_create_watch_group, api_delete_watch_group, api_delete_watch_group_file,
     api_get_watch_group_files, api_list_watch_groups, api_serve_watch_group_file,

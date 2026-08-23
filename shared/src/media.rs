@@ -1,4 +1,3 @@
-
 /// How a file should be presented in the web UI, derived from its extension.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MediaKind {
@@ -10,39 +9,35 @@ pub enum MediaKind {
 }
 
 impl MediaKind {
-
-/// Classifies a file extension (with or without a leading dot, any case).
-///
-/// The listed formats are the ones browsers can render natively — no
-/// transcoding or thumbnailing happens anywhere in the stack.
-pub fn from(ext: &str) -> Self {
-    let ext = ext.trim_start_matches('.').to_ascii_lowercase();
-    match ext.as_str() {
-        "jpg" | "jpeg" | "jfif" | "png" | "apng" | "gif" | "webp" | "avif" | "svg" | "bmp"
-        | "ico" | "heic" | "heif" => MediaKind::Image,
-        "mp4" | "m4v" | "webm" | "mov" | "mkv" | "ogv" | "3gp" => MediaKind::Video,
-        "mp3" | "m4a" | "aac" | "wav" | "flac" | "ogg" | "oga" | "opus" | "weba" => {
-            MediaKind::Audio
+    /// Classifies a file extension (with or without a leading dot, any case).
+    ///
+    /// The listed formats are the ones browsers can render natively — no
+    /// transcoding or thumbnailing happens anywhere in the stack.
+    pub fn from(ext: &str) -> Self {
+        let ext = ext.trim_start_matches('.').to_ascii_lowercase();
+        match ext.as_str() {
+            "jpg" | "jpeg" | "jfif" | "png" | "apng" | "gif" | "webp" | "avif" | "svg" | "bmp"
+            | "ico" | "heic" | "heif" => MediaKind::Image,
+            "mp4" | "m4v" | "webm" | "mov" | "mkv" | "ogv" | "3gp" => MediaKind::Video,
+            "mp3" | "m4a" | "aac" | "wav" | "flac" | "ogg" | "oga" | "opus" | "weba" => {
+                MediaKind::Audio
+            }
+            "txt" | "md" | "rs" | "toml" | "json" | "yaml" | "yml" | "sh" | "log" => {
+                MediaKind::Text
+            }
+            _ => MediaKind::Other,
         }
-        "txt" | "md" | "rs" | "toml" | "json" | "yaml" | "yml" | "sh" | "log" => MediaKind::Text,
-        _ => MediaKind::Other,
+    }
+
+    pub fn is_image(&self) -> bool {
+        *self == MediaKind::Image
+    }
+
+    /// True for anything the gallery can display: image, video or audio.
+    pub fn is_media(&self) -> bool {
+        matches!(self, MediaKind::Image | MediaKind::Video | MediaKind::Audio)
     }
 }
-
-pub fn is_image(&self) -> bool {
-    *self == MediaKind::Image
-}
-
-/// True for anything the gallery can display: image, video or audio.
-pub fn is_media(&self) -> bool {
-    matches!(
-        self,
-        MediaKind::Image | MediaKind::Video | MediaKind::Audio
-    )
-}
-}
-
-
 
 /// Content type to serve a file with, or `None` to let the server fall back to
 /// guessing. Explicit because mime guessing misses several of these (`heic`,

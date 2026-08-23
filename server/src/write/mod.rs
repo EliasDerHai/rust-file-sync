@@ -3,15 +3,15 @@ mod rotating;
 pub use rotating::RotatingFileWriter;
 
 use axum::extract::multipart::{Field, MultipartError};
+use chrono::{Local, NaiveTime};
 use crc32fast::Hasher as Crc32Hasher;
 use shared::content_hash::ContentHash;
-use chrono::{Local, NaiveTime};
 use std::fs::{self, create_dir_all};
 use std::io;
 use std::path::Path;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
-use tokio::time::{sleep_until, Instant};
+use tokio::time::{Instant, sleep_until};
 use tracing::{debug, error, info};
 
 pub async fn schedule_data_backups(data_path: &Path, backup_path: &Path) {
@@ -131,7 +131,6 @@ pub fn create_all_paths_if_not_exist(paths: Vec<&Path>) -> io::Result<()> {
     }
     Ok::<(), io::Error>(())
 }
-
 
 pub fn create_file_if_not_exists(path: &Path) -> io::Result<()> {
     if !path.exists() {

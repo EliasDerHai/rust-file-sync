@@ -1,6 +1,8 @@
 use crate::{
     ClientState, WatchGroup,
-    init::{config::fetch_watch_config, state::PersistedClientState, update::check_and_self_update},
+    init::{
+        config::fetch_watch_config, state::PersistedClientState, update::check_and_self_update,
+    },
 };
 use reqwest::{
     Client,

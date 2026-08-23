@@ -52,7 +52,10 @@ pub async fn monitor_sys(writer: Arc<Mutex<RotatingFileWriter>>) {
             .map(|d| {
                 let total = d.total_space() as f32;
                 let available = d.available_space() as f32;
-                ((total - available) / total * 100.0, available / (1024.0_f32.powi(3)))
+                (
+                    (total - available) / total * 100.0,
+                    available / (1024.0_f32.powi(3)),
+                )
             })
             .unwrap_or((0.0, 0.0));
 
@@ -166,12 +169,30 @@ fn csv_to_json(csv: &str, max_points: usize) -> String {
     let mut disk_free = Vec::with_capacity(rows.len());
 
     for row in &rows {
-        sys_mem.push(format!(r#"{{"x":"{}","y":{}}}"#, row.timestamp, row.sys_mem));
-        app_mem.push(format!(r#"{{"x":"{}","y":{}}}"#, row.timestamp, row.app_mem));
-        sys_cpu.push(format!(r#"{{"x":"{}","y":{}}}"#, row.timestamp, row.sys_cpu));
-        app_cpu.push(format!(r#"{{"x":"{}","y":{}}}"#, row.timestamp, row.app_cpu));
-        disk_used.push(format!(r#"{{"x":"{}","y":{}}}"#, row.timestamp, row.disk_used));
-        disk_free.push(format!(r#"{{"x":"{}","y":{:.2}}}"#, row.timestamp, row.disk_free));
+        sys_mem.push(format!(
+            r#"{{"x":"{}","y":{}}}"#,
+            row.timestamp, row.sys_mem
+        ));
+        app_mem.push(format!(
+            r#"{{"x":"{}","y":{}}}"#,
+            row.timestamp, row.app_mem
+        ));
+        sys_cpu.push(format!(
+            r#"{{"x":"{}","y":{}}}"#,
+            row.timestamp, row.sys_cpu
+        ));
+        app_cpu.push(format!(
+            r#"{{"x":"{}","y":{}}}"#,
+            row.timestamp, row.app_cpu
+        ));
+        disk_used.push(format!(
+            r#"{{"x":"{}","y":{}}}"#,
+            row.timestamp, row.disk_used
+        ));
+        disk_free.push(format!(
+            r#"{{"x":"{}","y":{:.2}}}"#,
+            row.timestamp, row.disk_free
+        ));
     }
 
     format!(

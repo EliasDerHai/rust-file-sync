@@ -80,15 +80,15 @@ impl<'a> ClientWatchGroupRepository<'a> {
         let mut map: std::collections::BTreeMap<i64, ClientWatchGroupDto> =
             std::collections::BTreeMap::new();
         for row in rows {
-            let entry = map
-                .entry(row.server_watch_group_id)
-                .or_insert_with(|| ClientWatchGroupDto {
-                    server_watch_group_id: row.server_watch_group_id,
-                    server_watch_group_name: row.name.clone(),
-                    path_to_monitor: row.path_to_monitor.clone(),
-                    exclude_dirs: Vec::new(),
-                    exclude_dot_dirs: row.exclude_dot_dirs,
-                });
+            let entry =
+                map.entry(row.server_watch_group_id)
+                    .or_insert_with(|| ClientWatchGroupDto {
+                        server_watch_group_id: row.server_watch_group_id,
+                        server_watch_group_name: row.name.clone(),
+                        path_to_monitor: row.path_to_monitor.clone(),
+                        exclude_dirs: Vec::new(),
+                        exclude_dot_dirs: row.exclude_dot_dirs,
+                    });
             if let Some(dir) = row.exclude_dir {
                 entry.exclude_dirs.push(dir);
             }
