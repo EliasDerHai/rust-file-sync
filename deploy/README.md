@@ -37,40 +37,19 @@ artifact for the GitHub-artifact path.
 
 ## Server TLS
 
-The server uses TLS when `TLS_CERT_PATH` and `TLS_KEY_PATH` environment variables are set; otherwise it falls back to plain HTTP. The certs on the Pi were generated with [mkcert](https://github.com/FiloSottile/mkcert) and live at `~/certs/cert.pem` and `~/certs/key.pem`.
+The server itself speaks plain HTTP on `127.0.0.1:<PORT>`.
+I recommend tailscale with **`tailscale serve`** as:
 
-These env vars must be set in the server's systemd unit on the Pi:
+**Prerequisite (one-time, per tailnet):** HTTPS Certificates must be enabled in the
+[admin console → DNS tab](https://login.tailscale.com/admin/dns).
 
-```ini
-# /etc/systemd/system/rust-file-sync_server.service
-[Service]
-Environment="TLS_CERT_PATH=/home/pi/certs/cert.pem"
-Environment="TLS_KEY_PATH=/home/pi/certs/key.pem"
-```
-
-## Trusting the mkcert CA on client machines
-
-The server cert is signed by a local mkcert CA, not a public CA. Each client machine needs to trust that CA once.
-
-**Fetch the CA cert from the Pi:**
+**One-time setup on the Pi:**
 ```bash
-scp pi@raspberrypi.local:~/.local/share/mkcert/rootCA.pem /tmp/mkcert-ca.pem
+sudo tailscale set --operator=$USER   # optional, avoids sudo below
+tailscale serve --bg --https=3000 http://127.0.0.1:3000
+tailscale serve status                # confirm the mapping
 ```
+This persists across reboots — `tailscaled` keeps the serve config, so it doesn't need to be
+re-run after a Pi restart or a server redeploy.
 
-**macOS:**
-```bash
-sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/mkcert-ca.pem
-```
-
-**Linux (Debian/Ubuntu):**
-```bash
-sudo cp /tmp/mkcert-ca.pem /usr/local/share/ca-certificates/mkcert-raspberrypi.crt
-sudo update-ca-certificates
-```
-
-**Windows (run in an elevated PowerShell):**
-```powershell
-Import-Certificate -FilePath "$env:TEMP\mkcert-ca.pem" -CertStoreLocation Cert:\LocalMachine\Root
-```
-
-After trusting the CA, restart the client service so it picks up the updated trust store.
+To remove it or start over: `tailscale serve reset`.

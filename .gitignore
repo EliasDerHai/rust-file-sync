@@ -10,3 +10,4 @@ CLAUDE.md
 *.db
 *dist
 *.bak
+.env.secret

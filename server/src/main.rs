@@ -9,12 +9,10 @@ use axum::routing::{post, put};
 
 const UPLOAD_LIMIT_BYTES: usize = 500 * 1024 * 1024; // 500 MB
 use axum::{Router, routing::get};
-use axum_server::tls_rustls::RustlsConfig;
 use shared::endpoint::ServerEndpoint;
 use sqlx::SqlitePool;
 use sqlx::migrate::Migrator;
 use sqlx::sqlite::SqliteConnectOptions;
-use std::env;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
@@ -208,25 +206,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-
-    match (env::var("TLS_CERT_PATH"), env::var("TLS_KEY_PATH")) {
-        (Ok(cert_path), Ok(key_path)) => {
-            tracing::info!("Starting HTTPS server on {addr}");
-            let tls_config = RustlsConfig::from_pem_file(&cert_path, &key_path)
-                .await
-                .expect("Failed to load TLS certificate/key");
-            axum_server::bind_rustls(addr, tls_config)
-                .serve(app.into_make_service())
-                .await
-                .unwrap();
-        }
-        _ => {
-            tracing::info!("Starting HTTP server on {addr} (no TLS_CERT_PATH/TLS_KEY_PATH)");
-            let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-            axum::serve(listener, app).await.unwrap();
-        }
-    }
+    let port: u16 = option_env!("PORT").unwrap_or("3000").parse().expect("Port is not a number");
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    tracing::info!("Starting HTTP server on {addr}");
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 
     Ok(())
 }

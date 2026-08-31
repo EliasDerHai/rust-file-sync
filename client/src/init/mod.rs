@@ -119,10 +119,10 @@ async fn check_server_reachable(server_url: &str) {
 
     while !confirmed_availablity {
         match client.get(&hello_endpoint).send().await {
-            Err(_) => {
+            Err(e) => {
                 let time_out = Duration::from_secs(5 * attempts * attempts);
                 warn!(
-                    "{hello_endpoint} not reachable - attempt {attempts} - retrying in {}",
+                    "{hello_endpoint} not reachable ({e}) - attempt {attempts} - retrying in {}",
                     humantime::format_duration(time_out)
                 );
                 sleep(time_out);

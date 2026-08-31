@@ -19,8 +19,18 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+# Single source of truth for PORT is the workspace .env (same file/pattern
+# sqlx-macros already reads at compile time for DATABASE_URL). REMOTE_HOST
+# lives in .env.secret instead (gitignored) - it's your tailnet hostname, not
+# something to publish in this public repo.
+set -a
+[ -f ../.env ] && source ../.env
+[ -f ../.env.secret ] && source ../.env.secret
+set +a
+PORT="${PORT:-3000}"
+: "${REMOTE_HOST:?REMOTE_HOST not set - copy ../.env.secret.example to ../.env.secret and fill it in}"
+
 REMOTE_USER="pi"
-REMOTE_HOST="raspberrypi.local"
 REMOTE_PATH="/home/pi/Downloads/Rust-File-Sync_Server"
 SERVICE_NAME="rust-file-sync_server.service"
 PROJECT="server"
@@ -113,7 +123,7 @@ if [ ! -f "$BINARY_PATH" ]; then
     exit 1
 fi
 
-CURRENT_VERSION=$(curl -sk "https://${REMOTE_HOST}:3000/version" || true)
+CURRENT_VERSION=$(curl -s "https://${REMOTE_HOST}:${PORT}/version" || true)
 [[ -z "$CURRENT_VERSION" ]] && CURRENT_VERSION="unknown (unreachable)"
 echo ""
 echo "  running:   ${CURRENT_VERSION}"
@@ -136,7 +146,7 @@ ssh ${REMOTE_USER}@${REMOTE_HOST} "sudo systemctl start ${SERVICE_NAME}"
 echo "Waiting for the server to start..."
 # Poll the /ping endpoint for up to (10 attempts every 2 second intervals)
 for i in {1..10}; do
-    response=$(curl -sk https://${REMOTE_HOST}:3000/ping || true)
+    response=$(curl -s "https://${REMOTE_HOST}:${PORT}/ping" || true)
     if [ "$response" == "pong" ]; then
         echo "Server is up and running!"
         exit 0
