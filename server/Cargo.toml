@@ -10,6 +10,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
+futures = { workspace = true }
 tokio-util = { version = "0.7.13", features = ["io"] }
 shared = { path = "../shared" }
 tracing = { workspace = true }

@@ -69,6 +69,25 @@ a:hover {
   border-bottom-color: #4a90d9;
 }
 
+/* live SSE connection status, pinned to the right end of the navbar */
+.status-dot {
+  margin-left: auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background-color 0.2s;
+}
+.status-dot--connecting {
+  background: #888;
+}
+.status-dot--connected {
+  background: #3ecf5e;
+}
+.status-dot--failed {
+  background: #e5484d;
+}
+
 /* === Card === */
 .card {
   background: #16213e;

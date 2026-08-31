@@ -6,6 +6,7 @@ mod api;
 mod components;
 mod format;
 mod pages;
+mod sse;
 
 fn main() {
     leptos::mount::mount_to_body(App);
@@ -13,6 +14,8 @@ fn main() {
 
 #[component]
 fn App() -> impl IntoView {
+    provide_context(sse::init());
+
     view! {
         <Router base="/app">
             <components::Navbar />

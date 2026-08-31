@@ -191,3 +191,13 @@ pub struct BackupFileDto {
     pub size_in_bytes: u64,
     pub created_at_utc_millis: UtcMillis,
 }
+
+// server-sent events (GET /api/events, web client only)
+
+/// Payload pushed to web clients over the SSE stream. Internally tagged so future
+/// variants can carry their own fields without breaking the wire format.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ServerEventDto {
+    ServerHello,
+}

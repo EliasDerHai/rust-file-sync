@@ -1,4 +1,5 @@
 use crate::db::ServerDatabase;
+use crate::events::EventRegistry;
 use crate::file_history::InMemoryFileHistory;
 use crate::write::{
     RotatingFileWriter, create_all_paths_if_not_exist, create_file_if_not_exists,
@@ -23,6 +24,7 @@ use tracing_subscriber::EnvFilter;
 
 mod client_file_event;
 mod db;
+mod events;
 mod file_event;
 mod file_history;
 mod handler;
@@ -50,6 +52,7 @@ pub(crate) struct AppState {
     monitor_writer: Arc<Mutex<RotatingFileWriter>>,
     db: ServerDatabase,
     version: &'static str,
+    events: Arc<EventRegistry>,
 }
 
 #[tokio::main]
@@ -118,6 +121,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         monitor_writer,
         db,
         version: env!("CARGO_PKG_VERSION"),
+        events: Arc::new(EventRegistry::new()),
     };
 
     let app = Router::new()
@@ -207,6 +211,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ServerEndpoint::ApiBackup.to_str(),
             get(handler::download_backup),
         )
+        .route(
+            ServerEndpoint::ApiEvents.to_str(),
+            get(handler::api_events_stream),
+        )
         // apps
         .nest_service(
             ServerEndpoint::ServePWA.to_str(),
@@ -219,10 +227,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state);
 
-    let port: u16 = option_env!("PORT")
-        .unwrap_or("3000")
-        .parse()
-        .expect("Port is not a number");
+    let port: u16 = match std::env::var("PORT") {
+        Ok(port) => port.parse().expect("PORT is not a number"),
+        Err(_) => 3000,
+    };
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     tracing::info!("Starting HTTP server on {addr}");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();

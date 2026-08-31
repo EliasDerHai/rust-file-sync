@@ -3,6 +3,7 @@ mod backup;
 mod client;
 mod client_watch_group;
 mod config;
+mod events;
 pub mod link;
 mod pwa;
 mod server_watch_group;
@@ -11,6 +12,7 @@ mod sync;
 pub use app::serve_embedded_app;
 pub use backup::{download_backup, list_backups};
 pub use client::{api_delete_client, api_get_client, api_list_clients, api_update_client};
+pub use events::api_events_stream;
 pub use client_watch_group::{
     api_create_client_watch_group, api_delete_client_watch_group, api_list_client_watch_groups,
     api_update_client_watch_group,

@@ -4,7 +4,8 @@
 # .git/hooks/pre-commit directly - edit this file instead and rerun
 # `cargo test` (or delete .git/hooks/pre-commit) to reinstall.
 #
-# Bumps the workspace's minor version on every commit
+# Bumps the workspace's minor version and refreshes the sqlx offline query
+# cache (.sqlx/) on every commit.
 
 set -euo pipefail
 
@@ -13,3 +14,20 @@ cd "$(git rev-parse --show-toplevel)"
 echo "Bumping workspace minor version..."
 cargo run --quiet -p version-bump -- --toml Cargo.toml --semver patch
 git add Cargo.toml
+
+if ! cargo sqlx --version >/dev/null 2>&1; then
+    echo "sqlx-cli not found - install it with:" >&2
+    echo "  cargo install sqlx-cli --no-default-features --features sqlite" >&2
+    exit 1
+fi
+
+echo "Refreshing sqlx offline query cache..."
+# ./comptime.db is a throwaway DB used only for `sqlx::query!` compile-time checking
+# (see DATABASE_URL in .env) - never used for real data, that's ./data/sqlite.db.
+# Rebuilt from scratch every commit so its migration ledger can never drift from
+# server/migrations; a migration that fails to apply cleanly here blocks the commit.
+rm -f comptime.db
+touch comptime.db
+cargo sqlx migrate run --source server/migrations
+cargo sqlx prepare --workspace
+git add .sqlx

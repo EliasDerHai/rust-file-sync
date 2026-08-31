@@ -48,6 +48,9 @@ pub enum ServerEndpoint {
     ApiBackups,
     /// Download one backup archive
     ApiBackup,
+
+    /// Server-sent events stream (web client only)
+    ApiEvents,
 }
 
 impl ServerEndpoint {
@@ -100,6 +103,8 @@ impl ServerEndpoint {
             // backups
             ServerEndpoint::ApiBackups => "/api/backups",
             ServerEndpoint::ApiBackup => "/api/backups/{index}",
+            // events
+            ServerEndpoint::ApiEvents => "/api/events",
         }
     }
 }
@@ -109,7 +114,7 @@ mod tests {
     use super::*;
     use ServerEndpoint::*;
 
-    const ALL_ENDPOINTS: [ServerEndpoint; 23] = [
+    const ALL_ENDPOINTS: [ServerEndpoint; 24] = [
         Hello,
         Ping,
         Version,
@@ -133,6 +138,7 @@ mod tests {
         ApiMonitor,
         ApiBackups,
         ApiBackup,
+        ApiEvents,
     ];
 
     #[test]
@@ -176,6 +182,7 @@ mod tests {
                 ApiMonitor => assert_eq!("http://localhost/api/monitor", actual),
                 ApiBackups => assert_eq!("http://localhost/api/backups", actual),
                 ApiBackup => assert_eq!("http://localhost/api/backups/{index}", actual),
+                ApiEvents => assert_eq!("http://localhost/api/events", actual),
             }
         })
     }
