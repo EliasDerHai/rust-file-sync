@@ -151,21 +151,5 @@ impl<'a> ClientRepository<'a> {
 #[allow(unused_imports, dead_code)]
 mod tests {
     use super::*;
-    use crate::db::ServerDatabase;
-    use sqlx::migrate::Migrator;
-    use sqlx::sqlite::SqlitePoolOptions;
-    use sqlx::{Pool, Sqlite};
-
-    static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
-
-    async fn setup_test_db() -> (Pool<Sqlite>, ServerDatabase) {
-        let pool = SqlitePoolOptions::new()
-            .connect("sqlite::memory:")
-            .await
-            .expect("Failed to create in-memory database");
-
-        MIGRATOR.run(&pool).await.expect("Failed to run migrations");
-
-        (pool.clone(), ServerDatabase::new(pool))
-    }
+    use crate::db::test_support::setup_test_db;
 }

@@ -2,7 +2,6 @@
 
 ### Features
 
-- implement backup strategy (currently mocked TODOs)
 - add more metrics (up/download per day etc.)
 - add SSE to update web on the fly 
 - brainstorm access-limitation for specific watchgroups

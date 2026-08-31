@@ -4,6 +4,8 @@ mod file_event_repository;
 mod link_repository;
 mod link_tag_repository;
 mod server_watch_group_repository;
+#[cfg(test)]
+pub(crate) mod test_support;
 
 pub use client_repository::ClientRepository;
 pub use client_watch_group_repository::ClientWatchGroupRepository;
@@ -13,6 +15,7 @@ pub use link_tag_repository::LinkTagRepository;
 pub use server_watch_group_repository::ServerWatchGroupRepository;
 
 use sqlx::SqlitePool;
+use std::path::Path;
 
 #[derive(Clone)]
 pub struct ServerDatabase {
@@ -22,6 +25,18 @@ pub struct ServerDatabase {
 impl ServerDatabase {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
+    }
+
+    /// Writes a transactionally-consistent snapshot of the entire database to `path`
+    /// using SQLite's `VACUUM INTO`. `path` must not already exist - SQLite refuses to
+    /// overwrite an existing file for this statement and returns an error instead.
+    pub async fn vacuum_into(&self, path: &Path) -> sqlx::Result<()> {
+        let path_str = path.to_string_lossy().into_owned();
+        sqlx::query("VACUUM INTO ?")
+            .bind(path_str)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 
     pub fn server_watch_group(&self) -> ServerWatchGroupRepository<'_> {

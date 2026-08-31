@@ -66,7 +66,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         create_file_if_not_exists(*DB_FILE_PATH)?;
         Ok::<(), std::io::Error>(())
     });
-    tokio::spawn(schedule_data_backups(&UPLOAD_PATH, &BACKUP_PATH));
 
     let db = {
         let opts = SqliteConnectOptions::new()
@@ -77,6 +76,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         MIGRATOR.run(&pool).await?;
         ServerDatabase::new(pool)
     };
+
+    tokio::spawn(schedule_data_backups(&UPLOAD_PATH, &BACKUP_PATH, db.clone()));
 
     // Load history from DB into in-memory store
     let history = match db.file_event().get_all_events().await {
