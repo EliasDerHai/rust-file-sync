@@ -79,12 +79,6 @@ case "$METHOD" in
     # (aarch64-linux-musl-gcc). Works on a host that has that cross-gcc
     # installed. On macOS use option 1 or 3 instead.
     BINARY_PATH="../target/${TARGET}/release/server"
-    if yes_or_no "Bump the semantic version of the workspace's Cargo.toml"; then
-        echo "Bumping version..."
-        cargo run -p version-bump -- --toml ../Cargo.toml --semver patch
-    else
-        echo "Skipping version bump."
-    fi
     echo "Building web assets..."
     (cd ../web && trunk build --release)
     echo "Building ${PROJECT} for ${TARGET}..."
@@ -94,12 +88,6 @@ case "$METHOD" in
 
 3)
     BINARY_PATH="../target/${TARGET}/release/server"
-    if yes_or_no "Bump the semantic version of the workspace's Cargo.toml"; then
-        echo "Bumping version..."
-        cargo run -p version-bump -- --toml ../Cargo.toml --semver patch
-    else
-        echo "Skipping version bump."
-    fi
     echo "Building web assets..."
     (cd ../web && trunk build --release)
     echo "Building ${PROJECT} for ${TARGET} (cross)..."

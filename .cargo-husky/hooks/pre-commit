@@ -1,0 +1,15 @@
+#!/bin/bash
+# Auto-installed by cargo-husky (see server/Cargo.toml [dev-dependencies]) into
+# .git/hooks/pre-commit on `cargo test`/`cargo build --tests`. Do not edit
+# .git/hooks/pre-commit directly - edit this file instead and rerun
+# `cargo test` (or delete .git/hooks/pre-commit) to reinstall.
+#
+# Bumps the workspace's minor version on every commit
+
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+echo "Bumping workspace minor version..."
+cargo run --quiet -p version-bump -- --toml Cargo.toml --semver patch
+git add Cargo.toml

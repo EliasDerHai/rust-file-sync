@@ -74,8 +74,15 @@ fn bump_version(original_line: &str, part: &SemVersionPart) -> String {
     let (mut major, mut minor, mut patch) = extract_sem_version(original_line);
     let original = format_version_string(major, minor, patch);
     match part {
-        SemVersionPart::Major => major += 1,
-        SemVersionPart::Minor => minor += 1,
+        SemVersionPart::Major => {
+            major += 1;
+            minor = 0;
+            patch = 0;
+        }
+        SemVersionPart::Minor => {
+            minor += 1;
+            patch = 0;
+        }
         SemVersionPart::Patch => patch += 1,
     }
     let updated = format_version_string(major, minor, patch);
@@ -132,6 +139,26 @@ mod test {
         assert_eq!(
             "version = \"0.1.11\"",
             bump_version("version = \"0.1.10\"", &SemVersionPart::Patch)
+        );
+    }
+
+    #[test]
+    fn should_bump_minor_version_and_reset_patch() {
+        assert_eq!(
+            "version = \"0.2.0\"",
+            bump_version("version = \"0.1.27\"", &SemVersionPart::Minor)
+        );
+        assert_eq!(
+            "version = \"1.4.0\"",
+            bump_version("version = \"1.3.9\"", &SemVersionPart::Minor)
+        );
+    }
+
+    #[test]
+    fn should_bump_major_version_and_reset_minor_and_patch() {
+        assert_eq!(
+            "version = \"1.0.0\"",
+            bump_version("version = \"0.9.9\"", &SemVersionPart::Major)
         );
     }
 }

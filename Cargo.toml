@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.1.27"
+version = "0.1.28"
 
 [workspace]
 resolver = "2"
@@ -15,4 +15,3 @@ chrono = { version = "0.4", features = ["serde"] }
 futures = { version = "0.3", features = ["std"] }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3", features = ["fmt"] }
-

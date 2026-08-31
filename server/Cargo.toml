@@ -30,3 +30,4 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 
 [dev-dependencies]
 tempfile = "3"
+cargo-husky = { version = "1", default-features = false, features = ["user-hooks"] }
