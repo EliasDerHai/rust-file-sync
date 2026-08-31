@@ -42,6 +42,12 @@ pub enum ServerEndpoint {
     ApiWatchGroupFile,
     /// JSON API: monitoring data
     ApiMonitor,
+
+    /// Backups
+    /// JSON API: list backup archives
+    ApiBackups,
+    /// Download one backup archive
+    ApiBackup,
 }
 
 impl ServerEndpoint {
@@ -91,6 +97,9 @@ impl ServerEndpoint {
             ServerEndpoint::ApiWatchGroupFiles => "/api/watch-groups/{id}/files",
             ServerEndpoint::ApiWatchGroupFile => "/api/watch-groups/{id}/file",
             ServerEndpoint::ApiMonitor => "/api/monitor",
+            // backups
+            ServerEndpoint::ApiBackups => "/api/backups",
+            ServerEndpoint::ApiBackup => "/api/backups/{index}",
         }
     }
 }
@@ -100,7 +109,7 @@ mod tests {
     use super::*;
     use ServerEndpoint::*;
 
-    const ALL_ENDPOINTS: [ServerEndpoint; 21] = [
+    const ALL_ENDPOINTS: [ServerEndpoint; 23] = [
         Hello,
         Ping,
         Version,
@@ -122,6 +131,8 @@ mod tests {
         ApiWatchGroupFiles,
         ApiWatchGroupFile,
         ApiMonitor,
+        ApiBackups,
+        ApiBackup,
     ];
 
     #[test]
@@ -163,6 +174,8 @@ mod tests {
                     assert_eq!("http://localhost/api/watch-groups/{id}/file", actual)
                 }
                 ApiMonitor => assert_eq!("http://localhost/api/monitor", actual),
+                ApiBackups => assert_eq!("http://localhost/api/backups", actual),
+                ApiBackup => assert_eq!("http://localhost/api/backups/{index}", actual),
             }
         })
     }
@@ -184,6 +197,10 @@ mod tests {
         assert_eq!(
             "http://localhost/sys/delete/99",
             Delete.to_uri_with_wg("http://localhost", 99)
+        );
+        assert_eq!(
+            "http://localhost/api/backups/3",
+            ApiBackup.to_uri_with("http://localhost", &[("index", "3")])
         );
     }
 }

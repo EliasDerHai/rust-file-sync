@@ -1,7 +1,7 @@
 use gloo_net::http::Request;
 use shared::{
     dtos::{
-        ClientDto, ClientUpdateDto, ClientWatchGroupCreateDto, ClientWatchGroupDto,
+        BackupFileDto, ClientDto, ClientUpdateDto, ClientWatchGroupCreateDto, ClientWatchGroupDto,
         ClientWatchGroupUpdateDto, FileDescription, LinkCreateDto, LinkDeleteDto, LinkDto,
         MonitorData, ServerWatchGroup, WatchGroupNameDto,
     },
@@ -257,4 +257,22 @@ pub async fn delete_link(url: &str) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     let text = resp.text().await.map_err(|e| e.to_string())?;
     if resp.ok() { Ok(()) } else { Err(text) }
+}
+
+// backups
+
+pub async fn fetch_backups() -> Result<Vec<BackupFileDto>, String> {
+    Request::get(ServerEndpoint::ApiBackups.to_str())
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .json()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+pub fn backup_download_url(index: u8) -> String {
+    ServerEndpoint::ApiBackup
+        .to_str()
+        .replace("{index}", &index.to_string())
 }

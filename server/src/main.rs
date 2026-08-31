@@ -33,7 +33,7 @@ mod write;
 /// base directory for files synced from clients (subdirs per watch group: upload/{wg_id}/)
 pub(crate) static UPLOAD_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/upload"));
 /// directory to hold zipped backup files
-static BACKUP_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/backup"));
+pub(crate) static BACKUP_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/backup"));
 static MONITORING_DIR: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/monitor"));
 /// dir to which multipart-files can be saved to, before being moved to the actual 'mirrored path'
 /// temporary and might be cleaned upon encountering errors or on scheduled intervals
@@ -77,7 +77,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ServerDatabase::new(pool)
     };
 
-    tokio::spawn(schedule_data_backups(&UPLOAD_PATH, &BACKUP_PATH, db.clone()));
+    tokio::spawn(schedule_data_backups(
+        &UPLOAD_PATH,
+        &BACKUP_PATH,
+        db.clone(),
+    ));
 
     // Load history from DB into in-memory store
     let history = match db.file_event().get_all_events().await {
@@ -195,6 +199,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ServerEndpoint::ApiLinkTags.to_str(),
             post(handler::post_link_tag),
         )
+        .route(
+            ServerEndpoint::ApiBackups.to_str(),
+            get(handler::list_backups),
+        )
+        .route(
+            ServerEndpoint::ApiBackup.to_str(),
+            get(handler::download_backup),
+        )
         // apps
         .nest_service(
             ServerEndpoint::ServePWA.to_str(),
@@ -207,7 +219,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state);
 
-    let port: u16 = option_env!("PORT").unwrap_or("3000").parse().expect("Port is not a number");
+    let port: u16 = option_env!("PORT")
+        .unwrap_or("3000")
+        .parse()
+        .expect("Port is not a number");
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     tracing::info!("Starting HTTP server on {addr}");
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();

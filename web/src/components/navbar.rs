@@ -10,6 +10,7 @@ pub fn Navbar() -> impl IntoView {
             <A href="/app/watch-groups">"Watch Groups"</A>
             <A href="/app/links">"Links"</A>
             <A href="/app/monitor">"Monitor"</A>
+            <A href="/app/backups">"Backups"</A>
         </nav>
     }
 }

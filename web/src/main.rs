@@ -4,6 +4,7 @@ use leptos_router::path;
 
 mod api;
 mod components;
+mod format;
 mod pages;
 
 fn main() {
@@ -24,6 +25,7 @@ fn App() -> impl IntoView {
                     <Route path=path!("/watch-groups/:id/gallery") view=pages::MediaGalleryPage />
                     <Route path=path!("/links") view=pages::LinksPage />
                     <Route path=path!("/monitor") view=pages::MonitorPage />
+                    <Route path=path!("/backups") view=pages::BackupsPage />
                 </Routes>
             </main>
         </Router>

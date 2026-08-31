@@ -3,6 +3,7 @@ mod field_writer;
 mod rotating;
 mod setup;
 
+pub(crate) use backup::enumerate_backup_files;
 pub use backup::schedule_data_backups;
 // _write_all_at_once is kept for manual comparison against write_all_chunks_of_field;
 // not currently called anywhere, hence the explicit allow instead of dead_code removal.

@@ -2,15 +2,21 @@ use crate::db::ServerDatabase;
 use anyhow::Context;
 use chrono::{Local, NaiveTime};
 use flate2::{Compression, write::GzEncoder};
+use shared::dtos::BackupFileDto;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 use tokio::time::{Instant, sleep_until};
 use tracing::{error, info};
 
 const BACKUP_FILE_PREFIX: &str = "backup";
 const DB_SNAPSHOT_PREFIX: &str = "sqlite_snapshot_";
 const MAX_BACKUP_FILES: usize = 7;
+
+fn is_backup_archive_name(file_name: &str) -> bool {
+    file_name.starts_with(BACKUP_FILE_PREFIX) && file_name.ends_with(".tar.gz")
+}
 
 pub async fn schedule_data_backups(data_path: &Path, backup_path: &Path, db: ServerDatabase) {
     info!("Scheduling backups");
@@ -40,7 +46,10 @@ pub async fn schedule_data_backups(data_path: &Path, backup_path: &Path, db: Ser
 
         let backup_start = Instant::now();
         match perform_backup(data_path, backup_path, &db).await {
-            Ok(()) => info!("Backup completed successfully in {}s", backup_start.elapsed().as_secs()),
+            Ok(()) => info!(
+                "Backup completed successfully in {}s",
+                backup_start.elapsed().as_secs()
+            ),
             Err(err) => error!("Backup failed, will retry at next scheduled run: {err:#}"),
         }
     }
@@ -170,7 +179,7 @@ fn prune_old_backups(backup_path: &Path, max_files: usize) -> io::Result<()> {
                 && path
                     .file_name()
                     .and_then(|n| n.to_str())
-                    .map(|n| n.starts_with(BACKUP_FILE_PREFIX) && n.ends_with(".tar.gz"))
+                    .map(is_backup_archive_name)
                     .unwrap_or(false)
         })
         .collect();
@@ -183,6 +192,51 @@ fn prune_old_backups(backup_path: &Path, max_files: usize) -> io::Result<()> {
         info!("Pruned old backup: {path:?}");
     }
     Ok(())
+}
+
+/// Lists existing backup archives with their size and last-modified time, sorted
+/// newest first and indexed accordingly (`index` 0 = most recent) - this is the
+/// order/numbering exposed to API clients, so the download endpoint can identify an
+/// archive by that index instead of by filename (see `handler::download_backup`).
+/// Backup files are write-once (built under a `.tmp` name, then atomically renamed),
+/// so mtime is an accurate stand-in for creation time.
+pub(crate) fn enumerate_backup_files(backup_path: &Path) -> io::Result<Vec<BackupFileDto>> {
+    let mut entries: Vec<(String, u64, SystemTime)> = fs::read_dir(backup_path)?
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| {
+            entry.path().is_file()
+                && entry
+                    .file_name()
+                    .to_str()
+                    .map(is_backup_archive_name)
+                    .unwrap_or(false)
+        })
+        .filter_map(|entry| {
+            let metadata = entry.metadata().ok()?;
+            Some((
+                entry.file_name().to_string_lossy().into_owned(),
+                metadata.len(),
+                metadata.modified().ok()?,
+            ))
+        })
+        .collect();
+
+    // descending filename = newest first (the embedded timestamp sorts lexicographically)
+    entries.sort_by(|a, b| b.0.cmp(&a.0));
+
+    Ok(entries
+        .into_iter()
+        .enumerate()
+        .map(
+            |(index, (file_name, size_in_bytes, modified))| BackupFileDto {
+                // fits `u8` as long as MAX_BACKUP_FILES stays well under 256, which it does
+                index: index as u8,
+                file_name,
+                size_in_bytes,
+                created_at_utc_millis: modified.into(),
+            },
+        )
+        .collect())
 }
 
 #[cfg(test)]
@@ -240,7 +294,10 @@ mod tests {
                     .unwrap_or(false)
             })
             .collect();
-        assert!(leftovers.is_empty(), "no temp files should remain: {leftovers:?}");
+        assert!(
+            leftovers.is_empty(),
+            "no temp files should remain: {leftovers:?}"
+        );
 
         let newest = archives.iter().max().unwrap();
         let decoder = flate2::read::GzDecoder::new(fs::File::open(newest).unwrap());
@@ -256,6 +313,36 @@ mod tests {
             entry_paths
                 .iter()
                 .any(|p| p.starts_with("upload/watch_group_1/hello.txt"))
+        );
+    }
+
+    #[tokio::test]
+    async fn enumerate_backup_files_indexes_newest_first() {
+        let source_dir = tempfile::tempdir().unwrap();
+        let backup_dir = tempfile::tempdir().unwrap();
+        let db_dir = tempfile::tempdir().unwrap();
+        let db = setup_test_db_file(&db_dir.path().join("sqlite.db")).await;
+
+        for _ in 0..3 {
+            perform_backup(source_dir.path(), backup_dir.path(), &db)
+                .await
+                .expect("backup should succeed");
+            // filenames are timestamped to millisecond precision; make sure three
+            // consecutive runs don't land in the same millisecond and sort ambiguously
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+
+        let backups = enumerate_backup_files(backup_dir.path()).unwrap();
+        assert_eq!(backups.len(), 3);
+
+        for (expected_index, backup) in backups.iter().enumerate() {
+            assert_eq!(backup.index, expected_index as u8);
+        }
+        // newest first: index 0's filename should sort after every other entry's
+        assert!(
+            backups
+                .windows(2)
+                .all(|pair| pair[0].file_name > pair[1].file_name)
         );
     }
 }

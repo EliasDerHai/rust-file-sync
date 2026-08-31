@@ -179,3 +179,15 @@ pub enum SyncInstruction {
     Download(MatchablePath, ContentHash),
     Delete(MatchablePath),
 }
+
+// backups
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackupFileDto {
+    /// Position among currently existing backups, newest first (0 = latest). A rank,
+    /// not a stable id - shifts as new backups are created and old ones are pruned.
+    pub index: u8,
+    pub file_name: String,
+    pub size_in_bytes: u64,
+    pub created_at_utc_millis: UtcMillis,
+}
