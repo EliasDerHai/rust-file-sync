@@ -38,8 +38,9 @@ pub async fn schedule_data_backups(data_path: &Path, backup_path: &Path, db: Ser
 
         sleep_until(Instant::now() + next_run_duration).await;
 
+        let backup_start = Instant::now();
         match perform_backup(data_path, backup_path, &db).await {
-            Ok(()) => info!("Backup completed successfully"),
+            Ok(()) => info!("Backup completed successfully in {}s", backup_start.elapsed().as_secs()),
             Err(err) => error!("Backup failed, will retry at next scheduled run: {err:#}"),
         }
     }
