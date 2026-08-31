@@ -1,16 +1,10 @@
 [workspace.package]
-version = "0.1.26"
+version = "0.1.27"
 
 [workspace]
 resolver = "2"
 
-members = [
-    "client",
-    "server",
-    "shared",
-    "deploy/version-bump",
-    "web",
-]
+members = ["client", "server", "shared", "deploy/version-bump", "web"]
 
 [workspace.dependencies]
 tokio = { version = "1", features = ["full"] }
@@ -21,3 +15,4 @@ chrono = { version = "0.4", features = ["serde"] }
 futures = { version = "0.3", features = ["std"] }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3", features = ["fmt"] }
+
