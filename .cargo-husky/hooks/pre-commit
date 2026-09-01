@@ -1,8 +1,10 @@
 #!/bin/bash
-# Auto-installed by cargo-husky (see server/Cargo.toml [dev-dependencies]) into
-# .git/hooks/pre-commit on `cargo test`/`cargo build --tests`. Do not edit
-# .git/hooks/pre-commit directly - edit this file instead and rerun
-# `cargo test` (or delete .git/hooks/pre-commit) to reinstall.
+# Auto-installed by cargo-husky (see server/Cargo.toml [dev-dependencies]) via
+# its build script, which only runs when cargo actually recompiles the
+# cargo-husky crate - i.e. a fresh clone/target, not every `cargo test`.
+# Cargo caches build script runs, so deleting .git/hooks/pre-commit alone
+# won't bring it back. Do not edit .git/hooks/pre-commit directly - edit this
+# file instead and run `cargo clean -p cargo-husky && cargo test` to reinstall.
 #
 # Bumps the workspace's minor version and refreshes the sqlx offline query
 # cache (.sqlx/) on every commit.
@@ -13,7 +15,6 @@ cd "$(git rev-parse --show-toplevel)"
 
 echo "Bumping workspace minor version..."
 cargo run --quiet -p version-bump -- --toml Cargo.toml --semver patch
-git add Cargo.toml
 
 if ! cargo sqlx --version >/dev/null 2>&1; then
     echo "sqlx-cli not found - install it with:" >&2
@@ -30,4 +31,5 @@ rm -f comptime.db
 touch comptime.db
 cargo sqlx migrate run --source server/migrations
 cargo sqlx prepare --workspace
-git add .sqlx
+cargo build
+git add .sqlx Cargo.toml Cargo.lock 
