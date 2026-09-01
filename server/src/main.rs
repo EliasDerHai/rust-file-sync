@@ -1,5 +1,5 @@
 use crate::db::ServerDatabase;
-use crate::events::EventRegistry;
+use crate::sse::SseRegistry;
 use crate::file_history::InMemoryFileHistory;
 use crate::logs::LogBuffer;
 use crate::write::{
@@ -28,13 +28,13 @@ use tracing_subscriber::util::SubscriberInitExt;
 
 mod client_file_event;
 mod db;
-mod events;
 mod file_event;
 mod file_history;
 mod handler;
 mod logs;
 mod monitor;
 mod multipart;
+mod sse;
 mod write;
 
 /// base directory for files synced from clients (subdirs per watch group: upload/{wg_id}/)
@@ -57,9 +57,9 @@ pub(crate) struct AppState {
     monitor_writer: Arc<Mutex<RotatingFileWriter>>,
     db: ServerDatabase,
     version: &'static str,
-    events: Arc<EventRegistry<ServerEventDto>>,
+    events: Arc<SseRegistry<ServerEventDto>>,
     log_buffer: Arc<LogBuffer>,
-    log_events: Arc<EventRegistry<Vec<LogLineDto>>>,
+    log_events: Arc<SseRegistry<Vec<LogLineDto>>>,
 }
 
 #[tokio::main]
@@ -129,7 +129,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tokio::spawn(monitor::monitor_sys(monitor_writer.clone()));
 
-    let log_events = Arc::new(EventRegistry::new());
+    let log_events = Arc::new(SseRegistry::new());
     tokio::spawn(logs::flush_pending_periodically(
         log_buffer.clone(),
         log_events.clone(),
@@ -140,7 +140,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         monitor_writer,
         db,
         version: env!("CARGO_PKG_VERSION"),
-        events: Arc::new(EventRegistry::new()),
+        events: Arc::new(SseRegistry::new()),
         log_buffer,
         log_events,
     };

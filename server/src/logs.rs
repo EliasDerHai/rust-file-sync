@@ -9,7 +9,7 @@ use tracing::Subscriber;
 use tracing_subscriber::Layer;
 use tracing_subscriber::layer::Context;
 
-use crate::events::EventRegistry;
+use crate::sse::SseRegistry;
 use std::sync::Arc;
 
 /// Cap on the in-memory backlog. Bounded on purpose - logs are ephemeral, not
@@ -144,7 +144,7 @@ impl tracing::field::Visit for MessageVisitor {
 /// per line - smooths bursts and fits the registry's bounded per-connection channel.
 pub(crate) async fn flush_pending_periodically(
     buffer: Arc<LogBuffer>,
-    events: Arc<EventRegistry<Vec<LogLineDto>>>,
+    events: Arc<SseRegistry<Vec<LogLineDto>>>,
 ) {
     let mut interval = tokio::time::interval(FLUSH_INTERVAL);
     loop {

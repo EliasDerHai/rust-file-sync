@@ -7,7 +7,7 @@ use futures::Stream;
 use shared::dtos::LogLineDto;
 
 use crate::AppState;
-use crate::events::ConnectionGuard;
+use crate::sse::SseConnectionGuard;
 use crate::logs::MAX_LOG_LINES;
 
 #[derive(serde::Deserialize, Default)]
@@ -40,7 +40,7 @@ pub async fn api_logs_stream(
     State(state): State<AppState>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let (id, rx) = state.log_events.register();
-    let guard = ConnectionGuard::new(state.log_events.clone(), id);
+    let guard = SseConnectionGuard::new(state.log_events.clone(), id);
 
     let stream = futures::stream::unfold((rx, guard), |(mut rx, guard)| async move {
         let batch = rx.recv().await?;
