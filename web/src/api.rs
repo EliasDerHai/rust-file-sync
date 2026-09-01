@@ -3,7 +3,7 @@ use shared::{
     dtos::{
         BackupFileDto, ClientDto, ClientUpdateDto, ClientWatchGroupCreateDto, ClientWatchGroupDto,
         ClientWatchGroupUpdateDto, FileDescription, LinkCreateDto, LinkDeleteDto, LinkDto,
-        MonitorData, ServerWatchGroup, WatchGroupNameDto,
+        LogLineDto, MonitorData, ServerWatchGroup, WatchGroupNameDto,
     },
     endpoint::ServerEndpoint,
 };
@@ -275,4 +275,31 @@ pub fn backup_download_url(index: u8) -> String {
     ServerEndpoint::ApiBackup
         .to_str()
         .replace("{index}", &index.to_string())
+}
+
+// logs
+
+pub async fn fetch_logs(tail: usize) -> Result<Vec<LogLineDto>, String> {
+    Request::get(&format!("{}?tail={}", ServerEndpoint::ApiLogs.to_str(), tail))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .json()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Lines with `seq` greater than `seq`, for resuming a paused live stream with no gaps.
+pub async fn fetch_logs_since(seq: u64) -> Result<Vec<LogLineDto>, String> {
+    Request::get(&format!(
+        "{}?since_seq={}",
+        ServerEndpoint::ApiLogs.to_str(),
+        seq
+    ))
+    .send()
+    .await
+    .map_err(|e| e.to_string())?
+    .json()
+    .await
+    .map_err(|e| e.to_string())
 }

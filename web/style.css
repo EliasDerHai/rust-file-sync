@@ -88,6 +88,52 @@ a:hover {
   background: #e5484d;
 }
 
+/* === Log viewer === */
+.log-viewer {
+  background: #16213e;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  max-height: 70vh;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 0.8rem;
+}
+.log-line {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.15rem 0;
+  border-bottom: 1px solid #1e2a4a;
+  color: #aaa;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.log-line-timestamp {
+  color: #666;
+  flex-shrink: 0;
+}
+.log-line-level {
+  flex-shrink: 0;
+  width: 4.5em;
+}
+.log-line-target {
+  color: #666;
+  flex-shrink: 0;
+}
+.log-line-message {
+  color: #eee;
+}
+.log-line--warn .log-line-level {
+  color: #f4a261;
+}
+.log-line--error .log-line-level,
+.log-line--error .log-line-message {
+  color: #f08090;
+}
+.log-line--debug .log-line-level,
+.log-line--trace .log-line-level {
+  color: #666;
+}
+
 /* === Card === */
 .card {
   background: #16213e;

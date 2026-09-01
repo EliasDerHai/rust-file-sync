@@ -1,6 +1,7 @@
 use crate::db::ServerDatabase;
 use crate::events::EventRegistry;
 use crate::file_history::InMemoryFileHistory;
+use crate::logs::LogBuffer;
 use crate::write::{
     RotatingFileWriter, create_all_paths_if_not_exist, create_file_if_not_exists,
     schedule_data_backups,
@@ -10,6 +11,7 @@ use axum::routing::{post, put};
 
 const UPLOAD_LIMIT_BYTES: usize = 500 * 1024 * 1024; // 500 MB
 use axum::{Router, routing::get};
+use shared::dtos::{LogLineDto, ServerEventDto};
 use shared::endpoint::ServerEndpoint;
 use sqlx::SqlitePool;
 use sqlx::migrate::Migrator;
@@ -21,6 +23,8 @@ use std::sync::LazyLock;
 use std::sync::Mutex;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 mod client_file_event;
 mod db;
@@ -28,6 +32,7 @@ mod events;
 mod file_event;
 mod file_history;
 mod handler;
+mod logs;
 mod monitor;
 mod multipart;
 mod write;
@@ -52,13 +57,21 @@ pub(crate) struct AppState {
     monitor_writer: Arc<Mutex<RotatingFileWriter>>,
     db: ServerDatabase,
     version: &'static str,
-    events: Arc<EventRegistry>,
+    events: Arc<EventRegistry<ServerEventDto>>,
+    log_buffer: Arc<LogBuffer>,
+    log_events: Arc<EventRegistry<Vec<LogLineDto>>>,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let log_level = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info"));
-    tracing_subscriber::fmt().with_env_filter(log_level).init();
+    let log_buffer = Arc::new(LogBuffer::new());
+
+    tracing_subscriber::registry()
+        .with(log_level)
+        .with(tracing_subscriber::fmt::layer())
+        .with(logs::LogCaptureLayer::new(log_buffer.clone()))
+        .init();
 
     tokio::spawn(async {
         create_all_paths_if_not_exist(vec![
@@ -116,12 +129,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tokio::spawn(monitor::monitor_sys(monitor_writer.clone()));
 
+    let log_events = Arc::new(EventRegistry::new());
+    tokio::spawn(logs::flush_pending_periodically(
+        log_buffer.clone(),
+        log_events.clone(),
+    ));
+
     let state = AppState {
         history: Arc::new(history),
         monitor_writer,
         db,
         version: env!("CARGO_PKG_VERSION"),
         events: Arc::new(EventRegistry::new()),
+        log_buffer,
+        log_events,
     };
 
     let app = Router::new()
@@ -212,8 +233,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             get(handler::download_backup),
         )
         .route(
-            ServerEndpoint::ApiEvents.to_str(),
+            ServerEndpoint::ApiEventsStream.to_str(),
             get(handler::api_events_stream),
+        )
+        .route(ServerEndpoint::ApiLogs.to_str(), get(handler::api_get_logs))
+        .route(
+            ServerEndpoint::ApiLogsStream.to_str(),
+            get(handler::api_logs_stream),
         )
         // apps
         .nest_service(

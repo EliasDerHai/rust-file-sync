@@ -29,6 +29,7 @@ fn App() -> impl IntoView {
                     <Route path=path!("/links") view=pages::LinksPage />
                     <Route path=path!("/monitor") view=pages::MonitorPage />
                     <Route path=path!("/backups") view=pages::BackupsPage />
+                    <Route path=path!("/logs") view=pages::LogsPage />
                 </Routes>
             </main>
         </Router>

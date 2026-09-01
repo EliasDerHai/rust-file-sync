@@ -11,3 +11,4 @@ CLAUDE.md
 *dist
 *.bak
 .env.secret
+state.json

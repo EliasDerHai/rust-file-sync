@@ -4,6 +4,7 @@ use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
 use crate::content_hash::ContentHash;
+use crate::log_level::LogLevel;
 use crate::{matchable_path::MatchablePath, utc_millis::UtcMillis};
 
 // sync
@@ -200,4 +201,20 @@ pub struct BackupFileDto {
 #[serde(tag = "type")]
 pub enum ServerEventDto {
     ServerHello,
+}
+
+// live server logs (GET /api/logs, GET /api/logs/stream, web client only)
+
+/// One captured tracing event, either from the `/api/logs` backlog snapshot or
+/// pushed in batches over `/api/logs/stream`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LogLineDto {
+    /// Monotonic per-process counter. The backlog fetch and the live stream are two
+    /// separate HTTP requests, so the client uses this to de-dupe the small overlap/gap
+    /// possible at the seam between them, rather than the server engineering it away.
+    pub seq: u64,
+    pub timestamp: UtcMillis,
+    pub level: LogLevel,
+    pub target: String,
+    pub message: String,
 }

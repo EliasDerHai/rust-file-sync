@@ -42,15 +42,16 @@ pub enum ServerEndpoint {
     ApiWatchGroupFile,
     /// JSON API: monitoring data
     ApiMonitor,
-
-    /// Backups
     /// JSON API: list backup archives
     ApiBackups,
     /// Download one backup archive
     ApiBackup,
-
-    /// Server-sent events stream (web client only)
-    ApiEvents,
+    /// Server-sent events stream
+    ApiEventsStream,
+    /// JSON API: backlog snapshot of recent server logs (?tail=N)
+    ApiLogs,
+    /// Server-sent events stream of live log line batches
+    ApiLogsStream,
 }
 
 impl ServerEndpoint {
@@ -104,7 +105,10 @@ impl ServerEndpoint {
             ServerEndpoint::ApiBackups => "/api/backups",
             ServerEndpoint::ApiBackup => "/api/backups/{index}",
             // events
-            ServerEndpoint::ApiEvents => "/api/events",
+            ServerEndpoint::ApiEventsStream => "/api/events/stream",
+            // logs
+            ServerEndpoint::ApiLogs => "/api/logs",
+            ServerEndpoint::ApiLogsStream => "/api/logs/stream",
         }
     }
 }
@@ -114,7 +118,7 @@ mod tests {
     use super::*;
     use ServerEndpoint::*;
 
-    const ALL_ENDPOINTS: [ServerEndpoint; 24] = [
+    const ALL_ENDPOINTS: [ServerEndpoint; 26] = [
         Hello,
         Ping,
         Version,
@@ -138,7 +142,9 @@ mod tests {
         ApiMonitor,
         ApiBackups,
         ApiBackup,
-        ApiEvents,
+        ApiEventsStream,
+        ApiLogs,
+        ApiLogsStream,
     ];
 
     #[test]
@@ -182,7 +188,9 @@ mod tests {
                 ApiMonitor => assert_eq!("http://localhost/api/monitor", actual),
                 ApiBackups => assert_eq!("http://localhost/api/backups", actual),
                 ApiBackup => assert_eq!("http://localhost/api/backups/{index}", actual),
-                ApiEvents => assert_eq!("http://localhost/api/events", actual),
+                ApiEventsStream => assert_eq!("http://localhost/api/events/stream", actual),
+                ApiLogs => assert_eq!("http://localhost/api/logs", actual),
+                ApiLogsStream => assert_eq!("http://localhost/api/logs/stream", actual),
             }
         })
     }

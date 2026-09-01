@@ -13,6 +13,7 @@ pub fn Navbar() -> impl IntoView {
             <A href="/app/links">"Links"</A>
             <A href="/app/monitor">"Monitor"</A>
             <A href="/app/backups">"Backups"</A>
+            <A href="/app/logs">"Logs"</A>
             <ConnectionIndicator />
         </nav>
     }

@@ -21,7 +21,7 @@ pub struct ConnectionStatusSignal(pub RwSignal<ConnectionStatus>);
 /// its status. Intended to be called once from the root component and provided as context.
 pub fn init() -> ConnectionStatusSignal {
     let status = RwSignal::new(ConnectionStatus::Connecting);
-    let source = EventSource::new(ServerEndpoint::ApiEvents.to_str())
+    let source = EventSource::new(ServerEndpoint::ApiEventsStream.to_str())
         .expect("failed to open SSE connection");
     let onopen = Closure::<dyn FnMut()>::new(move || {
         status.set(ConnectionStatus::Connected);
