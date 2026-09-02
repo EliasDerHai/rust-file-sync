@@ -241,6 +241,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ServerEndpoint::ApiLogsStream.to_str(),
             get(handler::api_logs_stream),
         )
+        .route(
+            ServerEndpoint::ApiLocations.to_str(),
+            post(handler::post_location_points),
+        )
         // apps
         .nest_service(
             ServerEndpoint::ServePWA.to_str(),

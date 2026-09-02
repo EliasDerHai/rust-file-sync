@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                INSERT INTO location_point\n                    (timestamp_epoch_ms, latitude, longitude, altitude_meters, accuracy_meters, speed_meters_per_second)\n                VALUES (?, ?, ?, ?, ?, ?)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "f95af3b4e8c0ba885ab87afe1ac48c609bfa8697e44944b464ad01754cc192f2"
+}

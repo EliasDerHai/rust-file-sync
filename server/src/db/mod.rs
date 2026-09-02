@@ -3,6 +3,7 @@ mod client_watch_group_repository;
 mod file_event_repository;
 mod link_repository;
 mod link_tag_repository;
+mod location_point_repository;
 mod server_watch_group_repository;
 #[cfg(test)]
 pub(crate) mod test_support;
@@ -12,6 +13,7 @@ pub use client_watch_group_repository::ClientWatchGroupRepository;
 pub use file_event_repository::FileEventRepository;
 pub use link_repository::LinkRepository;
 pub use link_tag_repository::LinkTagRepository;
+pub use location_point_repository::LocationPointRepository;
 pub use server_watch_group_repository::ServerWatchGroupRepository;
 
 use sqlx::SqlitePool;
@@ -61,5 +63,9 @@ impl ServerDatabase {
 
     pub fn file_event(&self) -> FileEventRepository<'_> {
         FileEventRepository::new(&self.pool)
+    }
+
+    pub fn location_point(&self) -> LocationPointRepository<'_> {
+        LocationPointRepository::new(&self.pool)
     }
 }

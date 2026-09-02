@@ -5,6 +5,7 @@ mod client_watch_group;
 mod config;
 mod events;
 pub mod link;
+mod location_point;
 mod logs;
 mod pwa;
 mod server_watch_group;
@@ -20,6 +21,7 @@ pub use client_watch_group::{
 };
 pub use config::get_config;
 pub use link::{delete_link, get_links, post_link, post_link_tag};
+pub use location_point::post_location_points;
 pub use logs::{api_get_logs, api_logs_stream};
 pub use pwa::serve_embedded_pwa;
 pub(crate) use server_watch_group::PWA_CLIENT_UUID;

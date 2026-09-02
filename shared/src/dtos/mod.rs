@@ -218,3 +218,23 @@ pub struct LogLineDto {
     pub target: String,
     pub message: String,
 }
+
+// location points (POST /api/locations, bulk upload from the Android app)
+
+/// One recorded GPS point, as sent by the Android app's `LocationPointEntity`. The
+/// entity's own local Room `id` is not included - it's a local autoincrement with no
+/// meaning outside the device, so the server assigns its own id on insert.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocationPointCreateDto {
+    pub timestamp_epoch_ms: UtcMillis,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub altitude_meters: Option<f64>,
+    pub accuracy_meters: Option<f32>,
+    pub speed_meters_per_second: Option<f32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocationPointUploadResultDto {
+    pub inserted: usize,
+}

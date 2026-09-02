@@ -52,6 +52,8 @@ pub enum ServerEndpoint {
     ApiLogs,
     /// Server-sent events stream of live log line batches
     ApiLogsStream,
+    /// JSON API: bulk-upload recorded GPS location points
+    ApiLocations,
 }
 
 impl ServerEndpoint {
@@ -109,6 +111,8 @@ impl ServerEndpoint {
             // logs
             ServerEndpoint::ApiLogs => "/api/logs",
             ServerEndpoint::ApiLogsStream => "/api/logs/stream",
+            // location points
+            ServerEndpoint::ApiLocations => "/api/locations",
         }
     }
 }
@@ -118,7 +122,7 @@ mod tests {
     use super::*;
     use ServerEndpoint::*;
 
-    const ALL_ENDPOINTS: [ServerEndpoint; 26] = [
+    const ALL_ENDPOINTS: [ServerEndpoint; 27] = [
         Hello,
         Ping,
         Version,
@@ -145,6 +149,7 @@ mod tests {
         ApiEventsStream,
         ApiLogs,
         ApiLogsStream,
+        ApiLocations,
     ];
 
     #[test]
@@ -191,6 +196,7 @@ mod tests {
                 ApiEventsStream => assert_eq!("http://localhost/api/events/stream", actual),
                 ApiLogs => assert_eq!("http://localhost/api/logs", actual),
                 ApiLogsStream => assert_eq!("http://localhost/api/logs/stream", actual),
+                ApiLocations => assert_eq!("http://localhost/api/locations", actual),
             }
         })
     }
