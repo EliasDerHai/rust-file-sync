@@ -16,13 +16,14 @@ impl<'a> LocationPointRepository<'a> {
     /// partway through a large batch never leaves a partial upload stored.
     pub async fn insert_batch(&self, points: &[LocationPointCreateDto]) -> Result<usize> {
         let mut tx = self.pool.begin().await?;
+        let mut inserted = 0usize;
 
         for p in points {
             let timestamp_epoch_ms = p.timestamp_epoch_ms.as_u64() as i64;
 
-            sqlx::query!(
+            let result = sqlx::query!(
                 r#"
-                INSERT INTO location_point
+                INSERT OR IGNORE INTO location_point
                     (timestamp_epoch_ms, latitude, longitude, altitude_meters, accuracy_meters, speed_meters_per_second)
                 VALUES (?, ?, ?, ?, ?, ?)
                 "#,
@@ -35,10 +36,12 @@ impl<'a> LocationPointRepository<'a> {
             )
             .execute(&mut *tx)
             .await?;
+
+            inserted += result.rows_affected() as usize;
         }
 
         tx.commit().await?;
 
-        Ok(points.len())
+        Ok(inserted)
     }
 }
