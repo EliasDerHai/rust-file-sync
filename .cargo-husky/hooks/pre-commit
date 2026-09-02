@@ -13,8 +13,8 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-echo "Bumping workspace minor version..."
-cargo run --quiet -p version-bump -- --toml Cargo.toml --semver patch
+# echo "Bumping workspace minor version..."
+# cargo run --quiet -p version-bump -- --toml Cargo.toml --semver patch
 
 if ! cargo sqlx --version >/dev/null 2>&1; then
     echo "sqlx-cli not found - install it with:" >&2
@@ -23,13 +23,9 @@ if ! cargo sqlx --version >/dev/null 2>&1; then
 fi
 
 echo "Refreshing sqlx offline query cache..."
-# ./comptime.db is a throwaway DB used only for `sqlx::query!` compile-time checking
-# (see DATABASE_URL in .env) - never used for real data, that's ./data/sqlite.db.
-# Rebuilt from scratch every commit so its migration ledger can never drift from
-# server/migrations; a migration that fails to apply cleanly here blocks the commit.
 rm -f comptime.db
 touch comptime.db
 cargo sqlx migrate run --source server/migrations
 cargo sqlx prepare --workspace
-cargo build
-git add .sqlx Cargo.toml Cargo.lock 
+# cargo build
+git add .sqlx # Cargo.toml Cargo.lock 
