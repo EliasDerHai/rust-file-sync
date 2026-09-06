@@ -1,0 +1,62 @@
+#!/bin/bash
+# Auto-installed by cargo-husky (see server/Cargo.toml [dev-dependencies]) via
+# its build script, which only runs when cargo actually recompiles the
+# cargo-husky crate - i.e. a fresh clone/target, not every `cargo test`.
+# Cargo caches build script runs, so deleting .git/hooks/pre-push alone
+# won't bring it back. Do not edit .git/hooks/pre-push directly - edit this
+# file instead and run `cargo clean -p cargo-husky && cargo test` to reinstall.
+#
+# Verifies the sqlx offline query cache (.sqlx/) is up to date before pushing,
+# but only when something that could affect it is actually being pushed
+# (server/migrations or server/src - the only places sqlx query!/query_as!
+# macros live). Runs on push rather than every commit since it needs to spin
+# up a scratch DB and compile the workspace to check the queries - too slow
+# to pay on every commit, and CI only builds from a tag push so this is the
+# last local checkpoint before that.
+#
+# This only checks - it does not regenerate/stage .sqlx for you (the push is
+# already made up of commits by this point). If it fails, run
+# `cargo sqlx prepare --workspace`, commit the updated .sqlx/, and push again.
+
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+zero="0000000000000000000000000000000000000000"
+needs_check=false
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ -z "${local_sha:-}" ] && continue
+    if [ "$local_sha" = "$zero" ]; then
+        continue # deleting a remote ref - nothing to check
+    fi
+    if [ "$remote_sha" = "$zero" ]; then
+        needs_check=true # new branch/ref - no remote sha to diff against, be safe
+        continue
+    fi
+    if ! git diff --quiet "$remote_sha" "$local_sha" -- server/migrations server/src; then
+        needs_check=true
+    fi
+done
+
+if [ "$needs_check" = false ]; then
+    exit 0
+fi
+
+if ! cargo sqlx --version >/dev/null 2>&1; then
+    echo "sqlx-cli not found - install it with:" >&2
+    echo "  cargo install sqlx-cli --no-default-features --features sqlite" >&2
+    exit 1
+fi
+
+echo "server/ changed - verifying sqlx offline query cache..."
+rm -f comptime.db
+touch comptime.db
+cargo sqlx migrate run --source server/migrations
+if ! cargo sqlx prepare --check --workspace; then
+    echo >&2
+    echo "sqlx offline query cache (.sqlx/) is stale. Run:" >&2
+    echo "  cargo sqlx prepare --workspace" >&2
+    echo "then commit the updated .sqlx/ and push again." >&2
+    exit 1
+fi
