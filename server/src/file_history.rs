@@ -34,7 +34,7 @@ impl From<Vec<FileEvent>> for InMemoryFileHistory {
         let i = Instant::now();
         if !value.is_sorted_by(|a, b| a.utc_millis < b.utc_millis) {
             warn!("History not chronological - correcting order...");
-            value.sort_by_key(|e| e.utc_millis.clone());
+            value.sort_by_key(|e| e.utc_millis);
         }
 
         let inner: HistoryStore = value.into_iter().fold(HashMap::new(), |mut outer, curr| {

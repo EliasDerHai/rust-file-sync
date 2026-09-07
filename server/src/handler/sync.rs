@@ -388,7 +388,7 @@ pub async fn delete(
 
     let event = FileEvent::new(
         Uuid::new_v4(),
-        millis.clone(),
+        millis,
         matchable_path,
         0,
         ContentHash::unknown(),

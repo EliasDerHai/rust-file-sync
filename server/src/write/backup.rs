@@ -144,9 +144,13 @@ async fn perform_backup(
     let mut last_path: Option<PathBuf> = None;
     for p in final_archive_paths {
         if let Some(last_path) = last_path {
-            tokio::fs::copy(&last_path, &p)
+            // Same content as `last_path`, just a different cycle tag - hard-link
+            // rather than copy so multiple tags in one run share a single on-disk
+            // archive. Pruning one tag later just drops that directory entry; the
+            // data survives until the last link is removed.
+            tokio::fs::hard_link(&last_path, &p)
                 .await
-                .context("failed to rename temp archive into place")?;
+                .context("failed to hard-link archive into place")?;
         } else {
             tokio::fs::rename(&tmp_archive_path, &p)
                 .await
@@ -156,7 +160,7 @@ async fn perform_backup(
         last_path = Some(p);
     }
 
-    // FIFO-prune old backups
+    // Prune old backups: per-cycle retention plus a sweep of pre-tag leftovers
     if let Err(err) = prune_old_backups(backup_path) {
         error!("Failed to prune old backups: {err}");
     }
@@ -217,35 +221,50 @@ fn cleanup_stale_temp_files(backup_path: &Path) {
     }
 }
 
-/// Lists existing `backup_*.tar.gz` files (sorted oldest to newest by filename,
-/// since the embedded timestamp sorts lexicographically) and FIFO-deletes the
-/// oldest ones beyond `max_files`.
+/// For each cycle, lists that cycle's `backup_*.tar.gz` files (sorted oldest to
+/// newest by filename, since the embedded timestamp sorts lexicographically) and
+/// FIFO-deletes the oldest
 fn prune_old_backups(backup_path: &Path) -> io::Result<()> {
-    let files: Vec<PathBuf> = fs::read_dir(backup_path)?
+    let files_to_delete: Vec<PathBuf> = fs::read_dir(backup_path)?
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.path())
-        .filter(|path| path.is_file())
+        .filter(|path| {
+            path.is_file()
+                && path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .map(is_backup_archive_name)
+                    .unwrap_or(false)
+        })
         .collect();
+    let mut files_to_keep: Vec<&PathBuf> = Vec::new();
 
     for cycle in BackupCycle::iter() {
         let max = cycle.max_files();
-        let mut files: Vec<&PathBuf> = files
+        let mut files: Vec<&PathBuf> = files_to_delete
             .iter()
             .filter(|&path| {
                 path.file_name()
                     .and_then(|name| name.to_str())
-                    .map(|n| is_backup_archive_name(n) && n.contains(&format!("_{}_", cycle)))
+                    .map(|n| n.contains(&format!("_{}_", cycle)))
                     .unwrap_or(false)
             })
             .collect();
 
         files.sort();
 
-        let files_to_delete = files.len().saturating_sub(max);
-        for path in files.into_iter().take(files_to_delete) {
-            fs::remove_file(path)?;
-            info!("Pruned old backup: {path:?}");
+        for path in files.iter().skip(files.len().saturating_sub(max)).take(max) {
+            files_to_keep.push(path);
+            info!("Keeping: {path:?}");
         }
+    }
+
+    for path in files_to_delete.iter() {
+        if files_to_keep.contains(&path) {
+            continue;
+        }
+        fs::remove_file(path)?;
+        info!("Pruned old backup: {path:?}");
     }
 
     Ok(())
@@ -376,7 +395,9 @@ mod tests {
 
     /// A single run tagged with multiple cycles (e.g. the first Sunday of the
     /// month: Monthly+Weekly+Daily) must write one independently-named archive
-    /// per tag, since each tag is pruned on its own retention count.
+    /// per tag, since each tag is pruned on its own retention count - and those
+    /// archives must be hard links of one another (same inode), not copies, so
+    /// multiple tags in one run don't multiply disk usage.
     #[tokio::test]
     async fn perform_backup_creates_one_archive_per_cycle_tag() {
         let source_dir = tempfile::tempdir().unwrap();
@@ -393,18 +414,80 @@ mod tests {
         .await
         .expect("backup should succeed");
 
+        let mut inodes = Vec::new();
         for tag in [Monthly, Weekly, Daily] {
-            let found = fs::read_dir(backup_dir.path())
+            let path = fs::read_dir(backup_dir.path())
                 .unwrap()
                 .filter_map(|e| e.ok())
-                .any(|e| {
+                .find(|e| {
                     e.file_name()
                         .to_str()
                         .map(|n| is_backup_archive_name(n) && n.contains(&format!("_{tag}_")))
                         .unwrap_or(false)
-                });
-            assert!(found, "expected a {tag} archive to be written");
+                })
+                .unwrap_or_else(|| panic!("expected a {tag} archive to be written"))
+                .path();
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::MetadataExt;
+                inodes.push(fs::metadata(&path).unwrap().ino());
+            }
         }
+
+        #[cfg(unix)]
+        assert!(
+            inodes.iter().all(|ino| *ino == inodes[0]),
+            "expected all cycle-tagged archives to share one inode via hard-linking: {inodes:?}"
+        );
+    }
+
+    /// Backups written before cycle-tagging existed (no `_daily_`/`_weekly_`/
+    /// `_monthly_` in the name) have no tier of their own and must be swept away
+    /// once a tagged backup has taken their place.
+    #[tokio::test]
+    async fn perform_backup_removes_legacy_untagged_backups() {
+        let source_dir = tempfile::tempdir().unwrap();
+        let backup_dir = tempfile::tempdir().unwrap();
+        let db_dir = tempfile::tempdir().unwrap();
+        let db = setup_test_db_file(&db_dir.path().join("sqlite.db")).await;
+
+        let legacy_path = backup_dir
+            .path()
+            .join("backup_2024-01-01T00-00-00-000.tar.gz");
+        fs::write(&legacy_path, b"pretend old archive").unwrap();
+
+        perform_backup(source_dir.path(), backup_dir.path(), &db, vec![Daily])
+            .await
+            .expect("backup should succeed");
+
+        assert!(
+            !legacy_path.exists(),
+            "legacy untagged backup should have been pruned"
+        );
+        let remaining: Vec<PathBuf> = fs::read_dir(backup_dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .map(is_backup_archive_name)
+                    .unwrap_or(false)
+            })
+            .collect();
+        assert_eq!(
+            remaining.len(),
+            1,
+            "only the new tagged backup should remain: {remaining:?}"
+        );
+        assert!(
+            remaining[0]
+                .file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| n.contains("_daily_"))
+                .unwrap_or(false)
+        );
     }
 
     #[tokio::test]
