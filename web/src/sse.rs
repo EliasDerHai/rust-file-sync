@@ -1,4 +1,7 @@
-use leptos::{logging::{log, warn}, prelude::*};
+use leptos::{
+    logging::{log, warn},
+    prelude::*,
+};
 use shared::dtos::ServerEventDto;
 use shared::endpoint::ServerEndpoint;
 use wasm_bindgen::JsCast;

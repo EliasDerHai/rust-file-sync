@@ -14,12 +14,12 @@ mod sync;
 pub use app::serve_embedded_app;
 pub use backup::{download_backup, list_backups};
 pub use client::{api_delete_client, api_get_client, api_list_clients, api_update_client};
-pub use events::api_events_stream;
 pub use client_watch_group::{
     api_create_client_watch_group, api_delete_client_watch_group, api_list_client_watch_groups,
     api_update_client_watch_group,
 };
 pub use config::get_config;
+pub use events::api_events_stream;
 pub use link::{delete_link, get_links, post_link, post_link_tag};
 pub use location_point::post_location_points;
 pub use logs::{api_get_logs, api_logs_stream};

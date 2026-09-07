@@ -72,7 +72,12 @@ impl LogBuffer {
     /// that more than `MAX_LOG_LINES` lines were produced, the oldest of the missed
     /// ones are gone. Same bounded-retention trade-off `snapshot` already has today.
     pub(crate) fn snapshot_since(&self, since: u64) -> Vec<LogLineDto> {
-        self.inner().ring.iter().filter(|l| l.seq > since).cloned().collect()
+        self.inner()
+            .ring
+            .iter()
+            .filter(|l| l.seq > since)
+            .cloned()
+            .collect()
     }
 
     /// Takes the batch accumulated since the last call, leaving the ring buffer intact.
@@ -81,7 +86,9 @@ impl LogBuffer {
     }
 
     fn inner(&self) -> MutexGuard<'_, LogBufferInner> {
-        self.0.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+        self.0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 }
 

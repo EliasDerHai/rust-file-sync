@@ -1,7 +1,7 @@
 use crate::db::ServerDatabase;
-use crate::sse::SseRegistry;
 use crate::file_history::InMemoryFileHistory;
 use crate::logs::LogBuffer;
+use crate::sse::SseRegistry;
 use crate::write::{
     RotatingFileWriter, create_all_paths_if_not_exist, create_file_if_not_exists,
     schedule_data_backups,

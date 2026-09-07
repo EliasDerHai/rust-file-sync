@@ -7,8 +7,8 @@ use futures::Stream;
 use shared::dtos::LogLineDto;
 
 use crate::AppState;
-use crate::sse::SseConnectionGuard;
 use crate::logs::MAX_LOG_LINES;
+use crate::sse::SseConnectionGuard;
 
 #[derive(serde::Deserialize, Default)]
 pub struct LogsQuery {
@@ -29,7 +29,9 @@ pub async fn api_get_logs(
 ) -> Json<Vec<LogLineDto>> {
     let lines = match q.since_seq {
         Some(seq) => state.log_buffer.snapshot_since(seq),
-        None => state.log_buffer.snapshot(q.tail.unwrap_or(500).min(MAX_LOG_LINES)),
+        None => state
+            .log_buffer
+            .snapshot(q.tail.unwrap_or(500).min(MAX_LOG_LINES)),
     };
     Json(lines)
 }

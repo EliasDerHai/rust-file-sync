@@ -1,18 +1,45 @@
 use crate::db::ServerDatabase;
+use crate::write::backup::BackupCycle::{Daily, Monthly, Weekly};
 use anyhow::Context;
+use chrono::{Datelike, Weekday};
 use chrono::{Local, NaiveTime};
 use flate2::{Compression, write::GzEncoder};
 use shared::dtos::BackupFileDto;
+use std::fmt::Display;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 use tokio::time::{Instant, sleep_until};
 use tracing::{error, info};
 
 const BACKUP_FILE_PREFIX: &str = "backup";
 const DB_SNAPSHOT_PREFIX: &str = "sqlite_snapshot_";
-const MAX_BACKUP_FILES: usize = 7;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
+enum BackupCycle {
+    Daily,
+    Weekly,
+    Monthly,
+}
+
+impl BackupCycle {
+    fn max_files(self) -> usize {
+        match self {
+            Daily => 1,
+            Weekly => 1,
+            Monthly => 1,
+        }
+    }
+}
+
+impl Display for BackupCycle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", format!("{:?}", self).to_lowercase())
+    }
+}
 
 fn is_backup_archive_name(file_name: &str) -> bool {
     file_name.starts_with(BACKUP_FILE_PREFIX) && file_name.ends_with(".tar.gz")
@@ -45,7 +72,16 @@ pub async fn schedule_data_backups(data_path: &Path, backup_path: &Path, db: Ser
         sleep_until(Instant::now() + next_run_duration).await;
 
         let backup_start = Instant::now();
-        match perform_backup(data_path, backup_path, &db).await {
+        let today = Local::now().date_naive();
+        let cycle = if today.day() == 1 {
+            vec![Monthly, Weekly, Daily]
+        } else if today.weekday() == Weekday::Sun {
+            vec![Weekly, Daily]
+        } else {
+            vec![Daily]
+        };
+
+        match perform_backup(data_path, backup_path, &db, cycle).await {
             Ok(()) => info!(
                 "Backup completed successfully in {}s",
                 backup_start.elapsed().as_secs()
@@ -64,6 +100,7 @@ async fn perform_backup(
     data_path: &Path,
     backup_path: &Path,
     db: &ServerDatabase,
+    cycle: Vec<BackupCycle>,
 ) -> anyhow::Result<()> {
     info!("Executing daily backup...");
     cleanup_stale_temp_files(backup_path);
@@ -71,7 +108,10 @@ async fn perform_backup(
     let timestamp = Local::now().format("%Y-%m-%dT%H-%M-%S-%3f").to_string();
     let db_snapshot_path = backup_path.join(format!("{DB_SNAPSHOT_PREFIX}{timestamp}.db"));
     let tmp_archive_path = backup_path.join(format!("{BACKUP_FILE_PREFIX}_{timestamp}.tar.gz.tmp"));
-    let final_archive_path = backup_path.join(format!("{BACKUP_FILE_PREFIX}_{timestamp}.tar.gz"));
+    let final_archive_paths: Vec<PathBuf> = cycle
+        .into_iter()
+        .map(|cycle| backup_path.join(format!("{BACKUP_FILE_PREFIX}_{cycle}_{timestamp}.tar.gz")))
+        .collect();
 
     // VACUUM INTO errors if db_snapshot_path already exists (timestamping)
     db.vacuum_into(&db_snapshot_path)
@@ -101,13 +141,23 @@ async fn perform_backup(
         return Err(err).context("failed to build backup archive");
     }
 
-    tokio::fs::rename(&tmp_archive_path, &final_archive_path)
-        .await
-        .context("failed to rename temp archive into place")?;
-    info!("Backup written to {final_archive_path:?}");
+    let mut last_path: Option<PathBuf> = None;
+    for p in final_archive_paths {
+        if let Some(last_path) = last_path {
+            tokio::fs::copy(&last_path, &p)
+                .await
+                .context("failed to rename temp archive into place")?;
+        } else {
+            tokio::fs::rename(&tmp_archive_path, &p)
+                .await
+                .context("failed to rename temp archive into place")?;
+        }
+        info!("Backup written to {p:?}");
+        last_path = Some(p);
+    }
 
     // FIFO-prune old backups
-    if let Err(err) = prune_old_backups(backup_path, MAX_BACKUP_FILES) {
+    if let Err(err) = prune_old_backups(backup_path) {
         error!("Failed to prune old backups: {err}");
     }
 
@@ -170,27 +220,34 @@ fn cleanup_stale_temp_files(backup_path: &Path) {
 /// Lists existing `backup_*.tar.gz` files (sorted oldest to newest by filename,
 /// since the embedded timestamp sorts lexicographically) and FIFO-deletes the
 /// oldest ones beyond `max_files`.
-fn prune_old_backups(backup_path: &Path, max_files: usize) -> io::Result<()> {
-    let mut files: Vec<PathBuf> = fs::read_dir(backup_path)?
+fn prune_old_backups(backup_path: &Path) -> io::Result<()> {
+    let files: Vec<PathBuf> = fs::read_dir(backup_path)?
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.path())
-        .filter(|path| {
-            path.is_file()
-                && path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .map(is_backup_archive_name)
-                    .unwrap_or(false)
-        })
+        .filter(|path| path.is_file())
         .collect();
 
-    files.sort();
+    for cycle in BackupCycle::iter() {
+        let max = cycle.max_files();
+        let mut files: Vec<&PathBuf> = files
+            .iter()
+            .filter(|&path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .map(|n| is_backup_archive_name(n) && n.contains(&format!("_{}_", cycle)))
+                    .unwrap_or(false)
+            })
+            .collect();
 
-    let files_to_delete = files.len().saturating_sub(max_files);
-    for path in files.into_iter().take(files_to_delete) {
-        fs::remove_file(&path)?;
-        info!("Pruned old backup: {path:?}");
+        files.sort();
+
+        let files_to_delete = files.len().saturating_sub(max);
+        for path in files.into_iter().take(files_to_delete) {
+            fs::remove_file(path)?;
+            info!("Pruned old backup: {path:?}");
+        }
     }
+
     Ok(())
 }
 
@@ -261,7 +318,7 @@ mod tests {
         let db = setup_test_db_file(&db_dir.path().join("sqlite.db")).await;
 
         for _ in 0..9 {
-            perform_backup(source_dir.path(), backup_dir.path(), &db)
+            perform_backup(source_dir.path(), backup_dir.path(), &db, vec![Daily])
                 .await
                 .expect("backup should succeed");
         }
@@ -273,14 +330,15 @@ mod tests {
             .filter(|p| {
                 p.file_name()
                     .and_then(|n| n.to_str())
-                    .map(|n| n.starts_with(BACKUP_FILE_PREFIX) && n.ends_with(".tar.gz"))
+                    .map(is_backup_archive_name)
                     .unwrap_or(false)
             })
             .collect();
         assert_eq!(
             archives.len(),
-            MAX_BACKUP_FILES,
-            "retention should keep exactly {MAX_BACKUP_FILES} archives"
+            Daily.max_files(),
+            "retention should keep exactly {} daily archive(s)",
+            Daily.max_files()
         );
 
         let leftovers: Vec<PathBuf> = fs::read_dir(backup_dir.path())
@@ -316,6 +374,39 @@ mod tests {
         );
     }
 
+    /// A single run tagged with multiple cycles (e.g. the first Sunday of the
+    /// month: Monthly+Weekly+Daily) must write one independently-named archive
+    /// per tag, since each tag is pruned on its own retention count.
+    #[tokio::test]
+    async fn perform_backup_creates_one_archive_per_cycle_tag() {
+        let source_dir = tempfile::tempdir().unwrap();
+        let backup_dir = tempfile::tempdir().unwrap();
+        let db_dir = tempfile::tempdir().unwrap();
+        let db = setup_test_db_file(&db_dir.path().join("sqlite.db")).await;
+
+        perform_backup(
+            source_dir.path(),
+            backup_dir.path(),
+            &db,
+            vec![Monthly, Weekly, Daily],
+        )
+        .await
+        .expect("backup should succeed");
+
+        for tag in [Monthly, Weekly, Daily] {
+            let found = fs::read_dir(backup_dir.path())
+                .unwrap()
+                .filter_map(|e| e.ok())
+                .any(|e| {
+                    e.file_name()
+                        .to_str()
+                        .map(|n| is_backup_archive_name(n) && n.contains(&format!("_{tag}_")))
+                        .unwrap_or(false)
+                });
+            assert!(found, "expected a {tag} archive to be written");
+        }
+    }
+
     #[tokio::test]
     async fn enumerate_backup_files_indexes_newest_first() {
         let source_dir = tempfile::tempdir().unwrap();
@@ -323,8 +414,11 @@ mod tests {
         let db_dir = tempfile::tempdir().unwrap();
         let db = setup_test_db_file(&db_dir.path().join("sqlite.db")).await;
 
-        for _ in 0..3 {
-            perform_backup(source_dir.path(), backup_dir.path(), &db)
+        // Distinct cycle tags so each backup survives its own tier's retention
+        // instead of being pruned by the next call, leaving three archives to
+        // enumerate together.
+        for cycle in [vec![Monthly], vec![Weekly], vec![Daily]] {
+            perform_backup(source_dir.path(), backup_dir.path(), &db, cycle)
                 .await
                 .expect("backup should succeed");
             // filenames are timestamped to millisecond precision; make sure three

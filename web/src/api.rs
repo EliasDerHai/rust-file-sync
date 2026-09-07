@@ -280,13 +280,17 @@ pub fn backup_download_url(index: u8) -> String {
 // logs
 
 pub async fn fetch_logs(tail: usize) -> Result<Vec<LogLineDto>, String> {
-    Request::get(&format!("{}?tail={}", ServerEndpoint::ApiLogs.to_str(), tail))
-        .send()
-        .await
-        .map_err(|e| e.to_string())?
-        .json()
-        .await
-        .map_err(|e| e.to_string())
+    Request::get(&format!(
+        "{}?tail={}",
+        ServerEndpoint::ApiLogs.to_str(),
+        tail
+    ))
+    .send()
+    .await
+    .map_err(|e| e.to_string())?
+    .json()
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// Lines with `seq` greater than `seq`, for resuming a paused live stream with no gaps.
