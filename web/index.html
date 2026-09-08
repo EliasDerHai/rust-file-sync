@@ -9,6 +9,11 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
     <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2"></script>
+    <!-- @maptiler/sdk ships ESM-only (no UMD build) - MapLibre GL JS (what the SDK
+         itself wraps) has a proper UMD bundle, so we drive it directly and build
+         MapTiler style URLs by hand (see web/src/pages/locations/map_interop.rs). -->
+    <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4/dist/maplibre-gl.js"></script>
   </head>
   <body></body>
 </html>

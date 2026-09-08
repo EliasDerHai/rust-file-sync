@@ -52,8 +52,10 @@ pub enum ServerEndpoint {
     ApiLogs,
     /// Server-sent events stream of live log line batches
     ApiLogsStream,
-    /// JSON API: bulk-upload recorded GPS location points
+    /// JSON API: recorded GPS location points (GET range / POST bulk-upload / DELETE bulk-exclude)
     ApiLocations,
+    /// JSON API: MapTiler config (API key) for the web admin's Locations map
+    ApiMapConfig,
 }
 
 impl ServerEndpoint {
@@ -113,6 +115,7 @@ impl ServerEndpoint {
             ServerEndpoint::ApiLogsStream => "/api/logs/stream",
             // location points
             ServerEndpoint::ApiLocations => "/api/locations",
+            ServerEndpoint::ApiMapConfig => "/api/map-config",
         }
     }
 }
@@ -122,7 +125,7 @@ mod tests {
     use super::*;
     use ServerEndpoint::*;
 
-    const ALL_ENDPOINTS: [ServerEndpoint; 27] = [
+    const ALL_ENDPOINTS: [ServerEndpoint; 28] = [
         Hello,
         Ping,
         Version,
@@ -150,6 +153,7 @@ mod tests {
         ApiLogs,
         ApiLogsStream,
         ApiLocations,
+        ApiMapConfig,
     ];
 
     #[test]
@@ -197,6 +201,7 @@ mod tests {
                 ApiLogs => assert_eq!("http://localhost/api/logs", actual),
                 ApiLogsStream => assert_eq!("http://localhost/api/logs/stream", actual),
                 ApiLocations => assert_eq!("http://localhost/api/locations", actual),
+                ApiMapConfig => assert_eq!("http://localhost/api/map-config", actual),
             }
         })
     }

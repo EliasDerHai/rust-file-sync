@@ -3,7 +3,8 @@ use shared::{
     dtos::{
         BackupFileDto, ClientDto, ClientUpdateDto, ClientWatchGroupCreateDto, ClientWatchGroupDto,
         ClientWatchGroupUpdateDto, FileDescription, LinkCreateDto, LinkDeleteDto, LinkDto,
-        LogLineDto, MonitorData, ServerWatchGroup, WatchGroupNameDto,
+        LocationPointDeleteDto, LocationPointDto, LogLineDto, MapConfigDto, MonitorData,
+        ServerWatchGroup, WatchGroupNameDto,
     },
     endpoint::ServerEndpoint,
 };
@@ -306,4 +307,63 @@ pub async fn fetch_logs_since(seq: u64) -> Result<Vec<LogLineDto>, String> {
     .json()
     .await
     .map_err(|e| e.to_string())
+}
+
+// locations
+
+/// Active (non-excluded) points in `[since_epoch_ms, until_epoch_ms]` (either bound
+/// omitted means unbounded on that side - e.g. both omitted for "all time").
+pub async fn fetch_location_points(
+    since_epoch_ms: Option<i64>,
+    until_epoch_ms: Option<i64>,
+) -> Result<Vec<LocationPointDto>, String> {
+    let mut params = Vec::new();
+    if let Some(since) = since_epoch_ms {
+        params.push(format!("since_epoch_ms={since}"));
+    }
+    if let Some(until) = until_epoch_ms {
+        params.push(format!("until_epoch_ms={until}"));
+    }
+    let mut url = ServerEndpoint::ApiLocations.to_str().to_string();
+    if !params.is_empty() {
+        url = format!("{url}?{}", params.join("&"));
+    }
+
+    Request::get(&url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .json()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Bulk soft-delete (exclude) user-confirmed outlier points. Returns the number
+/// actually excluded.
+pub async fn soft_delete_location_points(ids: &[i64]) -> Result<usize, String> {
+    let resp = Request::delete(ServerEndpoint::ApiLocations.to_str())
+        .json(&LocationPointDeleteDto {
+            ids: ids.to_vec(),
+        })
+        .map_err(|e| e.to_string())?
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if resp.ok() {
+        resp.json().await.map_err(|e| e.to_string())
+    } else {
+        Err(resp.text().await.unwrap_or_default())
+    }
+}
+
+/// MapTiler config (API key) for the Locations map - `maptiler_key` is `None` when
+/// the server has no `MAPTILER_API_KEY` configured.
+pub async fn fetch_map_config() -> Result<MapConfigDto, String> {
+    Request::get(ServerEndpoint::ApiMapConfig.to_str())
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .json()
+        .await
+        .map_err(|e| e.to_string())
 }

@@ -221,9 +221,7 @@ fn cleanup_stale_temp_files(backup_path: &Path) {
     }
 }
 
-/// For each cycle, lists that cycle's `backup_*.tar.gz` files (sorted oldest to
-/// newest by filename, since the embedded timestamp sorts lexicographically) and
-/// FIFO-deletes the oldest
+/// Keeps each cycle's newest `max_files` archives and deletes everything else.
 fn prune_old_backups(backup_path: &Path) -> io::Result<()> {
     let files_to_delete: Vec<PathBuf> = fs::read_dir(backup_path)?
         .filter_map(|entry| entry.ok())

@@ -11,7 +11,7 @@ use axum::routing::{post, put};
 
 const UPLOAD_LIMIT_BYTES: usize = 500 * 1024 * 1024; // 500 MB
 use axum::{Router, routing::get};
-use shared::dtos::{LogLineDto, ServerEventDto};
+use shared::dtos::{LogLineDto, MapConfigDto, ServerEventDto};
 use shared::endpoint::ServerEndpoint;
 use sqlx::SqlitePool;
 use sqlx::migrate::Migrator;
@@ -60,6 +60,10 @@ pub(crate) struct AppState {
     events: Arc<SseRegistry<ServerEventDto>>,
     log_buffer: Arc<LogBuffer>,
     log_events: Arc<SseRegistry<Vec<LogLineDto>>>,
+    /// MapTiler API key for the web admin's Locations map, if configured. Meant to
+    /// reach the browser (restricted by domain in the MapTiler dashboard), so no
+    /// need to proxy tiles through the server.
+    maptiler_key: Option<String>,
 }
 
 #[tokio::main]
@@ -135,6 +139,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         log_events.clone(),
     ));
 
+    let maptiler_key = std::env::var("MAPTILER_API_KEY").ok();
+
     let state = AppState {
         history: Arc::new(history),
         monitor_writer,
@@ -143,6 +149,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         events: Arc::new(SseRegistry::new()),
         log_buffer,
         log_events,
+        maptiler_key,
     };
 
     let app = Router::new()
@@ -243,7 +250,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route(
             ServerEndpoint::ApiLocations.to_str(),
-            post(handler::post_location_points),
+            get(handler::get_location_points)
+                .post(handler::post_location_points)
+                .delete(handler::delete_location_points),
+        )
+        .route(
+            ServerEndpoint::ApiMapConfig.to_str(),
+            get(|State(state): State<AppState>| async move {
+                axum::Json(MapConfigDto {
+                    maptiler_key: state.maptiler_key.clone(),
+                })
+            }),
         )
         // apps
         .nest_service(

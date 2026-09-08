@@ -1,6 +1,7 @@
 mod backups;
 mod clients;
 mod links;
+mod locations;
 mod logs;
 mod media_gallery;
 mod monitor;
@@ -10,6 +11,7 @@ mod watch_groups;
 pub use backups::BackupsPage;
 pub use clients::ClientsPage;
 pub use links::LinksPage;
+pub use locations::LocationsPage;
 pub use logs::LogsPage;
 pub use media_gallery::MediaGalleryPage;
 pub use monitor::MonitorPage;

@@ -238,3 +238,34 @@ pub struct LocationPointCreateDto {
 pub struct LocationPointUploadResultDto {
     pub inserted: usize,
 }
+
+/// One recorded GPS point as returned to the web admin's Locations tab.
+/// `is_flagged` is computed fresh on every read (accuracy/implied-speed heuristics in
+/// `LocationPointRepository::get_range`), never persisted, so the thresholds stay
+/// tunable without a migration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocationPointDto {
+    pub id: i64,
+    pub timestamp_epoch_ms: UtcMillis,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub altitude_meters: Option<f64>,
+    pub accuracy_meters: Option<f32>,
+    pub speed_meters_per_second: Option<f32>,
+    pub is_flagged: bool,
+}
+
+/// DELETE /api/locations body - bulk soft-delete (sets `excluded_at`) of
+/// user-confirmed outlier points.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocationPointDeleteDto {
+    pub ids: Vec<i64>,
+}
+
+/// GET /api/map-config - hands the server-held MapTiler API key to the web admin's
+/// Locations map. MapTiler keys are meant to reach the browser (restricted by domain
+/// in the MapTiler dashboard, not treated as secret).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MapConfigDto {
+    pub maptiler_key: Option<String>,
+}

@@ -27,6 +27,7 @@ fn App() -> impl IntoView {
                     <Route path=path!("/watch-groups/:id") view=pages::WatchGroupFilesPage />
                     <Route path=path!("/watch-groups/:id/gallery") view=pages::MediaGalleryPage />
                     <Route path=path!("/links") view=pages::LinksPage />
+                    <Route path=path!("/locations") view=pages::LocationsPage />
                     <Route path=path!("/monitor") view=pages::MonitorPage />
                     <Route path=path!("/backups") view=pages::BackupsPage />
                     <Route path=path!("/logs") view=pages::LogsPage />

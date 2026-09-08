@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE location_point SET excluded_at = CURRENT_TIMESTAMP WHERE id = ? AND excluded_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "8fe4301cc02052b080936e19db9601d884174622daf2fdf47e5993c8f3401185"
+}
