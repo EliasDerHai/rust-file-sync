@@ -24,8 +24,6 @@ pub async fn post_location_points(
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
         })?;
 
-    info!("Stored {} location points", inserted);
-
     Ok(Json(LocationPointUploadResultDto { inserted }))
 }
 
