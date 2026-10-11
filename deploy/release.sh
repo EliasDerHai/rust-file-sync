@@ -33,6 +33,9 @@ echo "Releasing from branch '${BRANCH}'..."
 
 echo "Bumping ${SEMVER} version..."
 cargo run -p version-bump -- --toml Cargo.toml --semver "${SEMVER}"
+# sync the workspace crates' versions into Cargo.lock (doesn't touch dependencies),
+# otherwise the next cargo invocation leaves an uncommitted lock diff behind
+cargo update --workspace
 
 VERSION=$(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2)
 TAG="v${VERSION}"
@@ -43,7 +46,7 @@ if git rev-parse "${TAG}" >/dev/null 2>&1; then
 fi
 
 echo "Committing and tagging ${TAG}..."
-git add Cargo.toml
+git add Cargo.toml Cargo.lock
 git commit -m "bump version to ${VERSION}"
 git tag "${TAG}"
 
