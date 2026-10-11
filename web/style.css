@@ -365,6 +365,20 @@ select.form-input {
 .chart-wrapper canvas {
   width: 100% !important;
 }
+.monitor-toolbar {
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.monitor-loading {
+  color: #aaa;
+  font-size: 0.875rem;
+}
+.monitor-hint {
+  color: #888;
+  font-size: 0.8rem;
+  margin: 0 0 1rem;
+}
 
 /* === Name input (inline edit) === */
 .name-input {

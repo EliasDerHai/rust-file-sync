@@ -3,7 +3,7 @@ use shared::{
     dtos::{
         BackupFileDto, ClientDto, ClientUpdateDto, ClientWatchGroupCreateDto, ClientWatchGroupDto,
         ClientWatchGroupUpdateDto, FileDescription, LinkCreateDto, LinkDeleteDto, LinkDto,
-        LocationPointDeleteDto, LocationPointDto, LogLineDto, MapConfigDto, MonitorData,
+        LocationPointDeleteDto, LocationPointDto, LogLineDto, MapConfigDto, MonitorSeriesDto,
         ServerWatchGroup, WatchGroupNameDto,
     },
     endpoint::ServerEndpoint,
@@ -227,14 +227,25 @@ pub fn gallery_url(wg_id: i64, path: &str, sort_mode: SortMode) -> String {
     )
 }
 
-pub async fn fetch_monitor_data() -> Result<MonitorData, String> {
-    Request::get(ServerEndpoint::ApiMonitor.to_str())
-        .send()
-        .await
-        .map_err(|e| e.to_string())?
-        .json()
-        .await
-        .map_err(|e| e.to_string())
+/// Monitoring buckets for `[from_ms, to_ms)`; the server picks the tier (5s / 1m / 1h)
+/// and bucket size so roughly `points` buckets come back.
+pub async fn fetch_monitor(
+    from_ms: i64,
+    to_ms: i64,
+    points: u32,
+) -> Result<MonitorSeriesDto, String> {
+    let url = format!(
+        "{}?from={from_ms}&to={to_ms}&points={points}",
+        ServerEndpoint::ApiMonitor.to_str()
+    );
+    let resp = Request::get(&url).send().await.map_err(|e| e.to_string())?;
+    if !resp.ok() {
+        return Err(resp
+            .text()
+            .await
+            .unwrap_or_else(|_| resp.status().to_string()));
+    }
+    resp.json().await.map_err(|e| e.to_string())
 }
 
 // links

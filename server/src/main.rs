@@ -1,12 +1,12 @@
 use crate::db::ServerDatabase;
 use crate::file_history::InMemoryFileHistory;
 use crate::logs::LogBuffer;
+use crate::monitor::MonitorDb;
 use crate::sse::SseRegistry;
 use crate::write::{
-    RotatingFileWriter, create_all_paths_if_not_exist, create_file_if_not_exists,
-    schedule_data_backups,
+    create_all_paths_if_not_exist, create_file_if_not_exists, schedule_data_backups,
 };
-use axum::extract::{DefaultBodyLimit, Query, State};
+use axum::extract::{DefaultBodyLimit, State};
 use axum::routing::{post, put};
 
 const UPLOAD_LIMIT_BYTES: usize = 500 * 1024 * 1024; // 500 MB
@@ -20,7 +20,6 @@ use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::LazyLock;
-use std::sync::Mutex;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
@@ -45,7 +44,11 @@ pub(crate) static BACKUP_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./d
 /// cached tile-view thumbnails (subdirs per watch group, mirroring upload/{wg_id}/) -
 /// derived data, so deliberately outside `upload/` and therefore out of backups
 pub(crate) static THUMBNAIL_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/thumbnail"));
-static MONITORING_DIR: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/monitor"));
+/// legacy rotating monitoring CSVs - only read once, for the import into `monitor.db`
+static LEGACY_MONITORING_DIR: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/monitor"));
+/// tiered system monitoring (see `monitor/`) - separate from `sqlite.db`, so it stays
+/// out of the daily `VACUUM INTO` backups
+static MONITOR_DB_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/monitor.db"));
 /// dir to which multipart-files can be saved to, before being moved to the actual 'mirrored path'
 /// temporary and might be cleaned upon encountering errors or on scheduled intervals
 pub(crate) static UPLOAD_TMP_PATH: LazyLock<&Path> =
@@ -58,7 +61,7 @@ static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
 #[derive(Clone)]
 pub(crate) struct AppState {
     history: Arc<InMemoryFileHistory>,
-    monitor_writer: Arc<Mutex<RotatingFileWriter>>,
+    monitor_db: MonitorDb,
     db: ServerDatabase,
     version: &'static str,
     events: Arc<SseRegistry<ServerEventDto>>,
@@ -120,23 +123,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // Create rotating file writer for monitoring (4 files, 5MB each)
-    let monitor_writer = RotatingFileWriter::new(
-        MONITORING_DIR.to_path_buf(),
-        "monitor".to_string(),
-        5 * 1024 * 1024, // 5MB
-        4,
-        Some(
-            "Timestamp;Total used mem in %;App used mem in %;Total used cpu in %;App used cpu in %;Disk used in %;Disk free in GiB"
-                .to_string(),
-        ),
-    )
-    .unwrap_or_else(|err| {
-        panic!("Failed to create monitor writer: {}", err);
-    });
-    let monitor_writer = Arc::new(Mutex::new(monitor_writer));
-
-    tokio::spawn(monitor::monitor_sys(monitor_writer.clone()));
+    let monitor_db = MonitorDb::open(&MONITOR_DB_PATH).await?;
+    tokio::spawn(monitor::start(
+        monitor_db.clone(),
+        LEGACY_MONITORING_DIR.to_path_buf(),
+    ));
 
     let log_events = Arc::new(SseRegistry::new());
     tokio::spawn(logs::flush_pending_periodically(
@@ -148,7 +139,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let state = AppState {
         history: Arc::new(history),
-        monitor_writer,
+        monitor_db,
         db,
         version: env!("CARGO_PKG_VERSION"),
         events: Arc::new(SseRegistry::new()),
@@ -222,13 +213,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route(
             ServerEndpoint::ApiMonitor.to_str(),
-            get(
-                |state: State<AppState>, Query(q): Query<monitor::MonitorQuery>| {
-                    let writer = state.monitor_writer.clone();
-                    let points = q.points.unwrap_or(monitor::DEFAULT_MAX_POINTS);
-                    monitor::api_get_monitoring(writer, points)
-                },
-            ),
+            get(monitor::api_get_monitoring),
         )
         .route(
             ServerEndpoint::ApiLinks.to_str(),

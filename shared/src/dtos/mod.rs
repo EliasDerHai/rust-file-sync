@@ -113,20 +113,58 @@ pub struct WatchGroupNameDto {
 
 // monitoring
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DataPoint {
-    pub x: String,
-    pub y: f32,
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct MonitorStatDto {
+    pub min: f32,
+    pub avg: f32,
+    pub max: f32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MonitorData {
-    pub sys_mem: Vec<DataPoint>,
-    pub app_mem: Vec<DataPoint>,
-    pub sys_cpu: Vec<DataPoint>,
-    pub app_cpu: Vec<DataPoint>,
-    pub disk_used: Vec<DataPoint>,
-    pub disk_free: Vec<DataPoint>,
+/// One bucket of `GET /api/monitor`. `None` = metric not available for this bucket
+/// (not measured on this machine, or older imported history).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MonitorPointDto {
+    /// bucket start, UTC epoch ms
+    pub t: i64,
+    /// number of 1s samples in the bucket
+    pub n: u32,
+    /// %
+    pub sys_cpu: Option<MonitorStatDto>,
+    /// %, not normalized by core count
+    pub app_cpu: Option<MonitorStatDto>,
+    /// % of total memory
+    pub sys_mem: Option<MonitorStatDto>,
+    /// % of total memory
+    pub app_mem: Option<MonitorStatDto>,
+    /// % of total swap
+    pub swap: Option<MonitorStatDto>,
+    /// 1-minute load average
+    pub load1: Option<MonitorStatDto>,
+    /// °C
+    pub cpu_temp: Option<MonitorStatDto>,
+    /// bytes/s
+    pub net_rx: Option<MonitorStatDto>,
+    /// bytes/s
+    pub net_tx: Option<MonitorStatDto>,
+    /// bytes/s read by the server process
+    pub app_read: Option<MonitorStatDto>,
+    /// bytes/s written by the server process
+    pub app_write: Option<MonitorStatDto>,
+    /// % of the root filesystem
+    pub disk_used: Option<f32>,
+    pub disk_free_gib: Option<f32>,
+    /// Raspberry Pi throttle bits 0-3 (under-voltage, freq capped, throttled, soft temp
+    /// limit), OR-ed over the bucket; `None` off-Pi
+    pub throttled: Option<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MonitorSeriesDto {
+    /// bucket size of `points`, ms
+    pub resolution_ms: i64,
+    /// oldest stored data at all, for "all time" ranges and zoom limits
+    pub earliest_ms: Option<i64>,
+    pub points: Vec<MonitorPointDto>,
 }
 
 // links
