@@ -122,7 +122,7 @@ async fn check_server_reachable(server_url: &str) {
             Err(e) => {
                 let time_out = Duration::from_secs(5 * attempts * attempts);
                 warn!(
-                    "{hello_endpoint} not reachable ({e}) - attempt {attempts} - retrying in {}",
+                    "{hello_endpoint} not reachable - attempt {attempts} - retrying in {} ({e})",
                     humantime::format_duration(time_out)
                 );
                 sleep(time_out);
