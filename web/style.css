@@ -510,24 +510,19 @@ select.form-input {
 .filetree-row:hover { background: #1e2a4a; }
 .filetree-row-meta { margin-left: auto; font-size: 0.75rem; color: #666; display: flex; gap: 1rem; }
 
-.filetree-tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 1rem; margin-top: 0.5rem; }
-.filetree-tile { background: #16213e; border-radius: 8px; padding: 0.75rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; cursor: pointer; border: 1px solid transparent; transition: border-color 0.15s; text-align: center; min-height: 130px; overflow: hidden; text-decoration: none; color: inherit; }
+.filetree-tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; margin-top: 0.5rem; }
+.filetree-tile { background: #16213e; border-radius: 8px; padding: 0.75rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; cursor: pointer; border: 1px solid transparent; transition: border-color 0.15s; text-align: center; overflow: hidden; text-decoration: none; color: inherit; }
 .filetree-tile:hover { border-color: #4a90d9; }
-.filetree-tile-img { width: 100%; height: 80px; object-fit: cover; border-radius: 4px; }
-.filetree-tile-media-card { min-height: 170px; cursor: default; justify-content: center; }
-.filetree-tile-media { width: 100%; height: 100px; object-fit: contain; border-radius: 4px; background: #000; }
-/* an explicit height is required — `auto` collapses the audio widget to zero */
-.filetree-tile-media.filetree-tile-audio { height: 54px; background: none; }
-/* browsers refuse to draw the audio widget in a single ~120px grid cell */
-.filetree-tile-wrapper-audio { grid-column: span 2; }
-.filetree-tile-wrapper-audio .filetree-tile { min-height: 130px; justify-content: center; }
-.filetree-tile-media-card .filetree-tile-name { color: #ccc; text-decoration: none; }
-.filetree-tile-media-card .filetree-tile-name:hover { color: #4a90d9; text-decoration: underline; }
+/* square box shared by every tile so the grid rows line up */
+.filetree-tile-preview { width: 100%; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: #0f1730; border-radius: 4px; overflow: hidden; }
+.filetree-tile-img { width: 100%; height: 100%; object-fit: contain; }
 .filetree-tile-name { font-size: 0.75rem; color: #ccc; word-break: break-all; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .filetree-tile-icon { width: 48px; height: 48px; }
 .filetree-tile-icon.dir { color: #f0a500; }
 .filetree-tile-icon.text { color: #6fcf7c; }
 .filetree-tile-icon.file { color: #4a90d9; }
+.filetree-tile-icon.video { color: #c77dff; }
+.filetree-tile-icon.audio { color: #f07167; }
 
 /* media gallery */
 .gallery-container { display: flex; align-items: center; justify-content: center; height: 100vh; background: #0a0a0a; }
