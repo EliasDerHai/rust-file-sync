@@ -16,6 +16,15 @@ use tracing::{error, info};
 
 use crate::WatchGroup;
 
+/// What `execute()` changed on the local filesystem, if anything - used to keep
+/// `descriptions` (persisted as the next loop's `last_scan`) in sync with disk
+/// reality at the END of the loop, not just the start.
+enum DiskChange {
+    NoChange,
+    Upserted(FileDescription),
+    Removed(MatchablePath),
+}
+
 pub async fn loop_scan(
     server_url: &str,
     wg_id: i64,
@@ -38,7 +47,7 @@ pub async fn loop_scan(
             );
             last_scan.unwrap_or_default()
         }
-        Ok(descriptions) => {
+        Ok(mut descriptions) => {
             let mut deleted_files = Vec::new();
             if let Some(ref last) = last_scan {
                 deleted_files =
@@ -82,7 +91,10 @@ pub async fn loop_scan(
                         )
                         .await
                         {
-                            Ok(msg) => info!("{msg}"),
+                            Ok((msg, disk_change)) => {
+                                info!("{msg}");
+                                apply_disk_change(&mut descriptions, disk_change);
+                            }
                             // logging is fine if something went wrong, we just try again at next poll cycle
                             Err(e) => error!("{e}"),
                         }
@@ -156,14 +168,34 @@ async fn send_to_server_and_receive_instructions(
         .map_err(|e| format!("failed to decode instructions - {e}"))
 }
 
+/// Keeps `descriptions` (persisted as the next loop's `last_scan`) in sync with the
+/// local filesystem mutation `execute()` just performed, so the scan reflects disk
+/// state at the END of the loop rather than the start.
+fn apply_disk_change(descriptions: &mut Vec<FileDescription>, change: DiskChange) {
+    match change {
+        DiskChange::NoChange => {}
+        DiskChange::Upserted(description) => {
+            match descriptions
+                .iter_mut()
+                .find(|d| d.relative_path == description.relative_path)
+            {
+                Some(existing) => *existing = description,
+                None => descriptions.push(description),
+            }
+        }
+        DiskChange::Removed(path) => descriptions.retain(|d| d.relative_path != path),
+    }
+}
+
 /// on os level files are just there or not so we got to keep track of the last state
 /// and diff it with the new one in order to determine file deletion and propagate the event accordingly
 /// [`https://docs.rs/notify/latest/notify/index.html`] could also be an option for later, but
 /// I prefer a more native approach for now
 ///
-/// Note: Deletes will reverb one time as server instructed deletes are again sent to the server as delete events.
-/// This is due to the stateless nature of the client.
-/// Since it doesn't do harm, it doesn't make sense to introduce state in order to deal with this reverb.
+/// Note: `last` (the previously persisted scan) is kept in lockstep with every disk mutation
+/// `execute()` performs during `loop_scan` (see `apply_disk_change`), so by the time this runs
+/// again next cycle, a server-instructed delete from the previous cycle is already reflected in
+/// `last` and will not be mistaken for a fresh local deletion here.
 fn determine_deleted_files(
     last: &[FileDescription],
     curr: &[FileDescription],
@@ -186,7 +218,7 @@ async fn execute(
     base: &str,
     wg_id: i64,
     synced: &mut HashMap<MatchablePath, ContentHash>,
-) -> Result<String, String> {
+) -> Result<(String, DiskChange), String> {
     match instruction {
         SyncInstruction::Upload(p) => {
             let file_path = p.resolve(root);
@@ -215,8 +247,9 @@ async fn execute(
                 .map_err(|e| format!("BOM sniffing failed - {e}"))?;
 
             synced.insert(p, description.content_hash);
-            Ok(format!(
-                "Upload successful - server replied with '{response}'"
+            Ok((
+                format!("Upload successful - server replied with '{response}'"),
+                DiskChange::NoChange,
             ))
         }
 
@@ -252,12 +285,17 @@ async fn execute(
                 .await
                 .map_err(|e| format!("Could not save downloaded file ({:?}): {}", &file_path, e))?;
 
+            let description = get_file_description(file_path.as_path(), root)
+                .map_err(|e| format!("Downloaded file but failed to describe it - {e}"))?;
             let file_name = file_path
                 .file_name()
                 .map(|osstr| osstr.to_string_lossy().to_string())
                 .unwrap_or_else(|| "?".to_string());
             synced.insert(p, hash);
-            Ok(format!("Downloaded {file_name} successfully"))
+            Ok((
+                format!("Downloaded {file_name} successfully"),
+                DiskChange::Upserted(description),
+            ))
         }
 
         SyncInstruction::Delete(p) => {
@@ -272,8 +310,62 @@ async fn execute(
                         .map(|osstr| osstr.to_string_lossy().to_string())
                         .unwrap_or("?".to_string());
                     synced.remove(&p);
-                    format!("Deleted file '{file_name}'")
+                    (
+                        format!("Deleted file '{file_name}'"),
+                        DiskChange::Removed(p),
+                    )
                 })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use shared::utc_millis::UtcMillis;
+
+    fn description(path: &str) -> FileDescription {
+        FileDescription {
+            file_name: path.to_string(),
+            relative_path: MatchablePath::new(vec![path.to_string()]),
+            size_in_bytes: 0,
+            file_type: "txt".to_string(),
+            last_updated_utc_millis: UtcMillis::from(0),
+            content_hash: ContentHash::unknown(),
+        }
+    }
+
+    #[test]
+    fn no_change_leaves_descriptions_untouched() {
+        let mut descriptions = vec![description("a.txt")];
+        apply_disk_change(&mut descriptions, DiskChange::NoChange);
+        assert_eq!(descriptions, vec![description("a.txt")]);
+    }
+
+    #[test]
+    fn upserted_replaces_existing_entry_for_same_path() {
+        let mut descriptions = vec![description("a.txt"), description("b.txt")];
+        let mut updated = description("a.txt");
+        updated.size_in_bytes = 42;
+        apply_disk_change(&mut descriptions, DiskChange::Upserted(updated.clone()));
+        assert_eq!(descriptions, vec![updated, description("b.txt")]);
+    }
+
+    #[test]
+    fn upserted_pushes_new_entry_when_path_is_unknown() {
+        let mut descriptions = vec![description("a.txt")];
+        let new = description("b.txt");
+        apply_disk_change(&mut descriptions, DiskChange::Upserted(new.clone()));
+        assert_eq!(descriptions, vec![description("a.txt"), new]);
+    }
+
+    #[test]
+    fn removed_drops_only_the_matching_entry() {
+        let mut descriptions = vec![description("a.txt"), description("b.txt")];
+        apply_disk_change(
+            &mut descriptions,
+            DiskChange::Removed(MatchablePath::new(vec!["a.txt".to_string()])),
+        );
+        assert_eq!(descriptions, vec![description("b.txt")]);
     }
 }
