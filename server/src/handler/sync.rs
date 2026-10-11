@@ -401,7 +401,6 @@ pub async fn delete(
     );
 
     if !p.exists() {
-        state.history.add(event);
         info!("Skip delete because file doesn't exist");
         return Err((
             StatusCode::OK,
