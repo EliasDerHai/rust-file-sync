@@ -68,7 +68,11 @@ impl<'a> LocationPointRepository<'a> {
     /// ordered by time, with `is_flagged` computed fresh from the outlier
     /// heuristics above. Note: the speed check only sees predecessors within this
     /// range, so a range's first point is never speed-flagged - acceptable for v1.
-    pub async fn get_range(&self, since_epoch_ms: i64, until_epoch_ms: i64) -> Result<Vec<LocationPointDto>> {
+    pub async fn get_range(
+        &self,
+        since_epoch_ms: i64,
+        until_epoch_ms: i64,
+    ) -> Result<Vec<LocationPointDto>> {
         let rows = sqlx::query!(
             r#"
             SELECT id as "id!: i64", timestamp_epoch_ms, latitude, longitude, altitude_meters,

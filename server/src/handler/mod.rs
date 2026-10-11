@@ -29,7 +29,7 @@ pub(crate) use server_watch_group::WEB_CLIENT_UUID;
 pub use server_watch_group::{
     api_create_watch_group, api_delete_watch_group, api_delete_watch_group_file,
     api_get_watch_group_files, api_list_watch_groups, api_serve_watch_group_file,
-    api_update_watch_group, api_upload_to_watch_group,
+    api_serve_watch_group_thumbnail, api_update_watch_group, api_upload_to_watch_group,
 };
 pub use sync::{delete, download, scan_disk, sync_handler, upload_handler};
 

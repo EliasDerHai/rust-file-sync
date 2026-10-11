@@ -205,6 +205,18 @@ pub fn watch_group_file_preview_url(wg_id: i64, path: &str) -> String {
     )
 }
 
+/// Small server-generated JPEG for tile previews; `mtime` only busts the browser cache
+/// (the server sends a long `Cache-Control`), so a changed file gets a new URL.
+pub fn watch_group_file_thumbnail_url(wg_id: i64, path: &str, mtime: u64) -> String {
+    let encoded = js_sys::encode_uri_component(path);
+    format!(
+        "/api/watch-groups/{}/thumbnail?path={}&m={}",
+        wg_id,
+        String::from(encoded),
+        mtime
+    )
+}
+
 pub fn gallery_url(wg_id: i64, path: &str, sort_mode: SortMode) -> String {
     let encoded = js_sys::encode_uri_component(path);
     format!(
@@ -342,9 +354,7 @@ pub async fn fetch_location_points(
 /// actually excluded.
 pub async fn soft_delete_location_points(ids: &[i64]) -> Result<usize, String> {
     let resp = Request::delete(ServerEndpoint::ApiLocations.to_str())
-        .json(&LocationPointDeleteDto {
-            ids: ids.to_vec(),
-        })
+        .json(&LocationPointDeleteDto { ids: ids.to_vec() })
         .map_err(|e| e.to_string())?
         .send()
         .await

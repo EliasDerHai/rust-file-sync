@@ -11,8 +11,9 @@ pub enum MediaKind {
 impl MediaKind {
     /// Classifies a file extension (with or without a leading dot, any case).
     ///
-    /// The listed formats are the ones browsers can render natively — no
-    /// transcoding or thumbnailing happens anywhere in the stack.
+    /// The listed formats are the ones browsers can render natively — the gallery
+    /// serves originals untouched; only the tile view uses server-side thumbnails
+    /// (see `server/src/thumbnail.rs`).
     pub fn from(ext: &str) -> Self {
         let ext = ext.trim_start_matches('.').to_ascii_lowercase();
         match ext.as_str() {

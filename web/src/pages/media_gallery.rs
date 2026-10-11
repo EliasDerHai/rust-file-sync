@@ -13,6 +13,14 @@ use crate::pages::SortMode;
 /// clips shorter than this loop, so short videos behave like the gifs they replace
 const LOOP_THRESHOLD_SECONDS: f64 = 8.0;
 
+/// a detached media element keeps downloading until it's garbage collected -
+/// dropping `src` and calling `load()` is what actually aborts the request
+fn release_media(el: &web_sys::HtmlMediaElement) {
+    let _ = el.pause();
+    let _ = el.remove_attribute("src");
+    el.load();
+}
+
 fn media_in_same_dir(
     all: &[FileDescription],
     current_path: &str,
@@ -140,6 +148,18 @@ fn GalleryViewer(
             let file_name = media[idx].file_name.clone();
             let kind = MediaKind::from(&media[idx].file_type);
 
+            // runs before the next file is shown and when leaving the gallery
+            let video_ref = NodeRef::<leptos::html::Video>::new();
+            let audio_ref = NodeRef::<leptos::html::Audio>::new();
+            on_cleanup(move || {
+                if let Some(el) = video_ref.get_untracked() {
+                    release_media(&el);
+                }
+                if let Some(el) = audio_ref.get_untracked() {
+                    release_media(&el);
+                }
+            });
+
             let prev_path = if !is_first {
                 Some(media[idx - 1].relative_path.to_serialized_string())
             } else {
@@ -232,6 +252,7 @@ fn GalleryViewer(
                             MediaKind::Video => {
                                 view! {
                                     <video
+                                        node_ref=video_ref
                                         class="gallery-video"
                                         src=src
                                         controls
@@ -252,7 +273,7 @@ fn GalleryViewer(
                                     .into_any()
                             }
                             MediaKind::Audio => {
-                                view! { <audio class="gallery-audio" src=src controls autoplay /> }
+                                view! { <audio node_ref=audio_ref class="gallery-audio" src=src controls autoplay /> }
                                     .into_any()
                             }
                             _ => view! { <img class="gallery-img" src=src /> }.into_any(),

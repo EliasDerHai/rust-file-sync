@@ -1,7 +1,8 @@
 use crate::client_file_event::{ClientFileEvent, ClientFileEventDto};
 use crate::file_event::{FileEvent, FileEventType};
 use crate::file_history::FileHistory;
-use crate::{AppState, UPLOAD_PATH, UPLOAD_TMP_PATH, multipart};
+use crate::thumbnail;
+use crate::{AppState, THUMBNAIL_PATH, UPLOAD_PATH, UPLOAD_TMP_PATH, multipart};
 use axum::Json;
 use axum::extract::{Multipart, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -375,6 +376,7 @@ pub async fn delete(
     debug!("Received delete request for '{}'", payload);
     let matchable_path = MatchablePath::from(payload.as_str());
     let p = matchable_path.resolve(&upload_path);
+    let rel: PathBuf = matchable_path.get().iter().collect();
     let millis = UtcMillis::now();
     let client_host = header_value_as_opt_string(&headers, CLIENT_HOST_HEADER_KEY);
     let client_id = header_value_as_string(&headers, CLIENT_ID_HEADER_KEY)
@@ -410,6 +412,7 @@ pub async fn delete(
 
     match tokio::fs::remove_file(&p).await {
         Ok(()) => {
+            thumbnail::remove(&THUMBNAIL_PATH, wg_id, &rel).await;
             if let Err(e) = state.db.file_event().insert(&event).await {
                 error!("Failed to persist delete event to DB: {e}");
             }

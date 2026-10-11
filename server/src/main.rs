@@ -35,12 +35,16 @@ mod logs;
 mod monitor;
 mod multipart;
 mod sse;
+mod thumbnail;
 mod write;
 
 /// base directory for files synced from clients (subdirs per watch group: upload/{wg_id}/)
 pub(crate) static UPLOAD_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/upload"));
 /// directory to hold zipped backup files
 pub(crate) static BACKUP_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/backup"));
+/// cached tile-view thumbnails (subdirs per watch group, mirroring upload/{wg_id}/) -
+/// derived data, so deliberately outside `upload/` and therefore out of backups
+pub(crate) static THUMBNAIL_PATH: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/thumbnail"));
 static MONITORING_DIR: LazyLock<&Path> = LazyLock::new(|| Path::new("./data/monitor"));
 /// dir to which multipart-files can be saved to, before being moved to the actual 'mirrored path'
 /// temporary and might be cleaned upon encountering errors or on scheduled intervals
@@ -86,6 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         create_file_if_not_exists(*DB_FILE_PATH)?;
         Ok::<(), std::io::Error>(())
     });
+    tokio::spawn(thumbnail::probe_ffmpeg());
 
     let db = {
         let opts = SqliteConnectOptions::new()
@@ -210,6 +215,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route(
             ServerEndpoint::ApiWatchGroupFile.to_str(),
             get(handler::api_serve_watch_group_file).delete(handler::api_delete_watch_group_file),
+        )
+        .route(
+            ServerEndpoint::ApiWatchGroupThumbnail.to_str(),
+            get(handler::api_serve_watch_group_thumbnail),
         )
         .route(
             ServerEndpoint::ApiMonitor.to_str(),

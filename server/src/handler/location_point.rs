@@ -2,8 +2,7 @@ use axum::Json;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use shared::dtos::{
-    LocationPointCreateDto, LocationPointDeleteDto, LocationPointDto,
-    LocationPointUploadResultDto,
+    LocationPointCreateDto, LocationPointDeleteDto, LocationPointDto, LocationPointUploadResultDto,
 };
 use tracing::{error, info};
 

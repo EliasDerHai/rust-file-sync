@@ -40,6 +40,8 @@ pub enum ServerEndpoint {
     ApiWatchGroupFiles,
     /// Inline file preview for one watch group file
     ApiWatchGroupFile,
+    /// Small cached JPEG preview of one watch group image / video (tile view)
+    ApiWatchGroupThumbnail,
     /// JSON API: monitoring data
     ApiMonitor,
     /// JSON API: list backup archives
@@ -104,6 +106,7 @@ impl ServerEndpoint {
             ServerEndpoint::ApiWatchGroup => "/api/watch-groups/{id}",
             ServerEndpoint::ApiWatchGroupFiles => "/api/watch-groups/{id}/files",
             ServerEndpoint::ApiWatchGroupFile => "/api/watch-groups/{id}/file",
+            ServerEndpoint::ApiWatchGroupThumbnail => "/api/watch-groups/{id}/thumbnail",
             ServerEndpoint::ApiMonitor => "/api/monitor",
             // backups
             ServerEndpoint::ApiBackups => "/api/backups",
@@ -125,7 +128,7 @@ mod tests {
     use super::*;
     use ServerEndpoint::*;
 
-    const ALL_ENDPOINTS: [ServerEndpoint; 28] = [
+    const ALL_ENDPOINTS: [ServerEndpoint; 29] = [
         Hello,
         Ping,
         Version,
@@ -146,6 +149,7 @@ mod tests {
         ApiWatchGroup,
         ApiWatchGroupFiles,
         ApiWatchGroupFile,
+        ApiWatchGroupThumbnail,
         ApiMonitor,
         ApiBackups,
         ApiBackup,
@@ -193,6 +197,9 @@ mod tests {
                 }
                 ApiWatchGroupFile => {
                     assert_eq!("http://localhost/api/watch-groups/{id}/file", actual)
+                }
+                ApiWatchGroupThumbnail => {
+                    assert_eq!("http://localhost/api/watch-groups/{id}/thumbnail", actual)
                 }
                 ApiMonitor => assert_eq!("http://localhost/api/monitor", actual),
                 ApiBackups => assert_eq!("http://localhost/api/backups", actual),

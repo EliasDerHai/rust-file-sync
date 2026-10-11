@@ -185,26 +185,46 @@ fn file_tree_tile_view(
                 .into_iter()
                 .map(|file| {
                     let path_str = file.relative_path.to_serialized_string();
-                    let raw_url = api::watch_group_file_preview_url(wg_id, &path_str);
                     let kind = MediaKind::from(&file.file_type);
                     let href = if kind.is_media() {
                         api::gallery_url(wg_id, &path_str, sort_mode.get_untracked())
                     } else {
-                        raw_url.clone()
+                        api::watch_group_file_preview_url(wg_id, &path_str)
                     };
-                    // only images get a real preview: <video>/<audio> elements in the grid
-                    // pull data for every file and stall the app, so those play in the gallery
+                    // tiles only ever load small server thumbnails - never originals and never
+                    // <video>/<audio>, which pulled data for every file and stalled the app.
+                    // a 404 (heic, undecodable, no ffmpeg on the server) falls back to the icon
+                    let is_video = kind == MediaKind::Video;
                     let preview = match kind {
-                        MediaKind::Image => view! {
-                            <img
-                                src=raw_url
-                                class="filetree-tile-img"
-                                loading="lazy"
-                                decoding="async"
-                            />
+                        MediaKind::Image | MediaKind::Video => {
+                            let thumb_url = api::watch_group_file_thumbnail_url(
+                                wg_id,
+                                &path_str,
+                                file.last_updated_utc_millis.as_u64(),
+                            );
+                            let failed = RwSignal::new(false);
+                            view! {
+                                <Show
+                                    when=move || !failed.get()
+                                    fallback=move || {
+                                        if is_video {
+                                            view! { <VideoIconLarge /> }.into_any()
+                                        } else {
+                                            view! { <FileIconLarge /> }.into_any()
+                                        }
+                                    }
+                                >
+                                    <img
+                                        src=thumb_url.clone()
+                                        class="filetree-tile-img"
+                                        loading="lazy"
+                                        decoding="async"
+                                        on:error=move |_| failed.set(true)
+                                    />
+                                </Show>
+                            }
+                            .into_any()
                         }
-                        .into_any(),
-                        MediaKind::Video => view! { <VideoIconLarge /> }.into_any(),
                         MediaKind::Audio => view! { <AudioIconLarge /> }.into_any(),
                         MediaKind::Text => view! { <TextFileIconLarge /> }.into_any(),
                         _ => view! { <FileIconLarge /> }.into_any(),
@@ -236,7 +256,12 @@ fn file_tree_tile_view(
                                 on:change=on_toggle
                             />
                             <a class="filetree-tile" href=href target="_blank">
-                                <div class="filetree-tile-preview">{preview}</div>
+                                <div
+                                    class="filetree-tile-preview"
+                                    class:filetree-tile-preview-video=is_video
+                                >
+                                    {preview}
+                                </div>
                                 <span class="filetree-tile-name">{file_name}</span>
                             </a>
                         </div>

@@ -1,7 +1,8 @@
 use crate::file_event::{FileEvent, FileEventType};
 use crate::file_history::FileHistory;
+use crate::thumbnail;
 use crate::write::write_all_chunks_of_field;
-use crate::{AppState, UPLOAD_PATH, UPLOAD_TMP_PATH};
+use crate::{AppState, THUMBNAIL_PATH, UPLOAD_PATH, UPLOAD_TMP_PATH};
 
 /// UUID of the sentinel 'pwa' client row — must match the migration.
 const PWA_CLIENT_ID: &str = "f4a7b3c2-8d5e-4f6a-9b2c-1e3d5f7a9b0c";
@@ -17,7 +18,7 @@ use axum::body::Body;
 use axum::extract::{Multipart, Query, Request, State};
 use axum::http::HeaderValue;
 use axum::http::StatusCode;
-use axum::http::header::CONTENT_TYPE;
+use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use axum::response::IntoResponse;
 use shared::content_hash::ContentHash;
 use shared::dtos::{FileDescription, ServerWatchGroup, WatchGroupNameDto};
@@ -119,33 +120,18 @@ pub async fn api_serve_watch_group_file(
     Query(params): Query<HashMap<String, String>>,
     request: Request,
 ) -> impl IntoResponse {
-    let path_str = match params.get("path") {
-        Some(p) if !p.is_empty() => p.clone(),
-        _ => {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                "Missing path parameter".to_string(),
-            ));
-        }
-    };
+    let (_, _, full_path) = resolve_upload_path(id, &params)?;
+    serve_original(&full_path, request).await
+}
 
-    let matchable = MatchablePath::from(Path::new(&path_str));
-    let segments = matchable.get();
+/// `ServeFile` (range requests, 304s) with our own content type table on top
+async fn serve_original(
+    full_path: &Path,
+    request: Request,
+) -> Result<axum::response::Response, (StatusCode, String)> {
+    let ext = extension_of(full_path);
 
-    if segments.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "Invalid path".to_string()));
-    }
-
-    let rel: PathBuf = segments.iter().collect();
-    let full_path = UPLOAD_PATH.join(id.to_string()).join(rel);
-
-    let ext = full_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_lowercase();
-
-    let mut response = ServeFile::new(&full_path)
+    let mut response = ServeFile::new(full_path)
         .try_call(request)
         .await
         .map_err(|e| (StatusCode::NOT_FOUND, format!("File not found: {}", e)))?;
@@ -158,6 +144,80 @@ pub async fn api_serve_watch_group_file(
     }
 
     Ok(response.map(Body::new))
+}
+
+/// GET /api/watch-groups/{id}/thumbnail?path=dir/file.ext&m=<mtime>
+///
+/// Small JPEG for the tile view, generated on first request and cached under
+/// `data/thumbnail/` (see `crate::thumbnail`). 404 means "no thumbnail" (unsupported
+/// format, undecodable file, no ffmpeg) and the SPA falls back to an icon. The `m`
+/// param is only a cache-buster, which is what makes the long `Cache-Control` safe.
+pub async fn api_serve_watch_group_thumbnail(
+    axum::extract::Path(id): axum::extract::Path<i64>,
+    Query(params): Query<HashMap<String, String>>,
+    request: Request,
+) -> Result<axum::response::Response, (StatusCode, String)> {
+    let (_, rel, full_path) = resolve_upload_path(id, &params)?;
+    if !full_path.is_file() {
+        return Err((StatusCode::NOT_FOUND, "File not found".to_string()));
+    }
+
+    let strategy = thumbnail::Strategy::for_ext(&extension_of(&full_path));
+    if strategy == thumbnail::Strategy::Passthrough {
+        return serve_original(&full_path, request).await;
+    }
+
+    let thumb = thumbnail::get_or_create(&THUMBNAIL_PATH, id, &rel, &full_path, strategy)
+        .await
+        .map_err(|e| {
+            error!("Thumbnail lookup failed for {}: {e}", full_path.display());
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?
+        .ok_or((StatusCode::NOT_FOUND, "No thumbnail available".to_string()))?;
+
+    let mut response = ServeFile::new(&thumb)
+        .try_call(request)
+        .await
+        .map_err(|e| (StatusCode::NOT_FOUND, format!("Thumbnail not found: {}", e)))?;
+    let headers = response.headers_mut();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("image/jpeg"));
+    headers.insert(
+        CACHE_CONTROL,
+        HeaderValue::from_static("private, max-age=31536000, immutable"),
+    );
+    Ok(response.map(Body::new))
+}
+
+/// `?path=` query -> (matchable path, path relative to the watch group, full path under `upload/{id}/`)
+fn resolve_upload_path(
+    id: i64,
+    params: &HashMap<String, String>,
+) -> Result<(MatchablePath, PathBuf, PathBuf), (StatusCode, String)> {
+    let path_str = match params.get("path") {
+        Some(p) if !p.is_empty() => p,
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Missing path parameter".to_string(),
+            ));
+        }
+    };
+
+    let matchable = MatchablePath::from(Path::new(path_str));
+    if matchable.get().is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "Invalid path".to_string()));
+    }
+
+    let rel: PathBuf = matchable.get().iter().collect();
+    let full_path = UPLOAD_PATH.join(id.to_string()).join(&rel);
+    Ok((matchable, rel, full_path))
+}
+
+fn extension_of(path: &Path) -> String {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase()
 }
 
 pub async fn api_get_watch_group_files(
@@ -273,20 +333,7 @@ pub async fn api_delete_watch_group_file(
     axum::extract::Path(id): axum::extract::Path<i64>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    let path_str = match params.get("path") {
-        Some(p) if !p.is_empty() => p.clone(),
-        _ => {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                "Missing path parameter".to_string(),
-            ));
-        }
-    };
-
-    let matchable_path = MatchablePath::from(Path::new(&path_str));
-    let full_path = UPLOAD_PATH
-        .join(id.to_string())
-        .join(matchable_path.get().iter().collect::<PathBuf>());
+    let (matchable_path, rel, full_path) = resolve_upload_path(id, &params)?;
 
     if !full_path.exists() {
         return Err((StatusCode::NOT_FOUND, "File not found".to_string()));
@@ -295,6 +342,7 @@ pub async fn api_delete_watch_group_file(
     tokio::fs::remove_file(&full_path)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    thumbnail::remove(&THUMBNAIL_PATH, id, &rel).await;
 
     let event = FileEvent::new(
         Uuid::new_v4(),
@@ -313,7 +361,10 @@ pub async fn api_delete_watch_group_file(
     }
     state.history.add(event);
 
-    info!("Web UI deleted file '{}' from watch group {id}", path_str);
+    info!(
+        "Web UI deleted file '{}' from watch group {id}",
+        rel.display()
+    );
     Ok(StatusCode::NO_CONTENT)
 }
 

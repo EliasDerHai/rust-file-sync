@@ -25,6 +25,15 @@ sqlx = { version = "0.8.6", features = [
 ] }
 rust-embed = { version = "8", features = ["axum", "mime-guess"] }
 anyhow = "1.0.102"
+# pure-Rust decoders only, so the static musl build stays free of C deps
+image = { version = "0.25", default-features = false, features = [
+	"jpeg",
+	"png",
+	"gif",
+	"webp",
+	"bmp",
+	"ico",
+] }
 crc32fast = "1"
 tar = "0.4"
 flate2 = { version = "1", default-features = false, features = [

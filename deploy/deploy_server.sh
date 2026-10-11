@@ -117,6 +117,13 @@ echo ""
 echo "  running:   ${CURRENT_VERSION}"
 echo "  deploying: ${TARGET_VERSION:-unknown}"
 echo ""
+# video thumbnails shell out to the system ffmpeg - the server runs without it
+# (video tiles fall back to an icon), so only warn
+if ! ssh ${REMOTE_USER}@${REMOTE_HOST} "command -v ffmpeg >/dev/null"; then
+    echo "Warning: ffmpeg not found on ${REMOTE_HOST} - video thumbnails will be disabled."
+    echo "         Install it with: ssh ${REMOTE_USER}@${REMOTE_HOST} 'sudo apt install ffmpeg'"
+    echo ""
+fi
 if ! yes_or_no "Proceed with deployment"; then
     exit 0
 fi
