@@ -6,7 +6,7 @@ use shared::{
         LocationPointDeleteDto, LocationPointDto, LogLineDto, MapConfigDto, MonitorSeriesDto,
         ServerWatchGroup, WatchGroupNameDto,
     },
-    endpoint::ServerEndpoint,
+    endpoint::{CLIENT_ID_HEADER_KEY, ServerEndpoint, WEB_CLIENT_ID},
 };
 
 use crate::pages::SortMode;
@@ -178,6 +178,33 @@ pub async fn delete_watch_group_file(wg_id: i64, path: &str) -> Result<(), Strin
         .send()
         .await
         .map_err(|e| e.to_string())?;
+    let text = resp.text().await.map_err(|e| e.to_string())?;
+    if resp.ok() { Ok(()) } else { Err(text) }
+}
+
+/// Uploads one file into `dir` (`/`-separated, relative to the watch group root; may be empty).
+/// An existing file with the same name is replaced.
+pub async fn upload_watch_group_file(
+    wg_id: i64,
+    dir: &str,
+    file: &web_sys::File,
+) -> Result<(), String> {
+    let form = web_sys::FormData::new().map_err(|e| format!("{e:?}"))?;
+    form.append_with_str("dir", dir)
+        .map_err(|e| format!("{e:?}"))?;
+    form.append_with_blob_and_filename("file", file, &file.name())
+        .map_err(|e| format!("{e:?}"))?;
+    let resp = Request::post(
+        &ServerEndpoint::ApiWatchGroupFiles
+            .to_str()
+            .replace("{id}", &wg_id.to_string()),
+    )
+    .header(CLIENT_ID_HEADER_KEY, WEB_CLIENT_ID)
+    .body(form)
+    .map_err(|e| e.to_string())?
+    .send()
+    .await
+    .map_err(|e| e.to_string())?;
     let text = resp.text().await.map_err(|e| e.to_string())?;
     if resp.ok() { Ok(()) } else { Err(text) }
 }

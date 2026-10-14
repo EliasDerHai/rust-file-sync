@@ -4,24 +4,21 @@ use crate::thumbnail;
 use crate::write::write_all_chunks_of_field;
 use crate::{AppState, THUMBNAIL_PATH, UPLOAD_PATH, UPLOAD_TMP_PATH};
 
-/// UUID of the sentinel 'pwa' client row — must match the migration.
-const PWA_CLIENT_ID: &str = "f4a7b3c2-8d5e-4f6a-9b2c-1e3d5f7a9b0c";
 pub(crate) static PWA_CLIENT_UUID: LazyLock<Uuid> =
     LazyLock::new(|| Uuid::parse_str(PWA_CLIENT_ID).expect("not a uuid"));
-/// UUID of the sentinel 'web' client row — must match the migration.
-const WEB_CLIENT_ID: &str = "c3d4e5f6-7a8b-4c9d-8e2f-1a3b5c7d9e0f";
 pub(crate) static WEB_CLIENT_UUID: LazyLock<Uuid> =
     LazyLock::new(|| Uuid::parse_str(WEB_CLIENT_ID).expect("not a uuid"));
 
 use axum::Json;
 use axum::body::Body;
 use axum::extract::{Multipart, Query, Request, State};
-use axum::http::HeaderValue;
 use axum::http::StatusCode;
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
+use axum::http::{HeaderMap, HeaderValue};
 use axum::response::IntoResponse;
 use shared::content_hash::ContentHash;
 use shared::dtos::{FileDescription, ServerWatchGroup, WatchGroupNameDto};
+use shared::endpoint::{CLIENT_ID_HEADER_KEY, PWA_CLIENT_ID, WEB_CLIENT_ID};
 use shared::matchable_path::MatchablePath;
 use shared::media::content_type_for;
 use shared::utc_millis::UtcMillis;
@@ -235,12 +232,17 @@ pub async fn api_get_watch_group_files(
     Ok(Json(events))
 }
 
-/// POST /api/watch-groups/{id}/files
+/// POST /api/watch-groups/{id}/files — multipart `file` plus optional `dir` (e.g. `photos/2026`).
+///
+/// `X-Client-Id` must be one of the app clients (web / pwa); an existing file is replaced.
 pub async fn api_upload_to_watch_group(
     State(state): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<i64>,
+    headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    let (client_id, client_host) = app_client(&headers)?;
+
     let exists = state
         .db
         .server_watch_group()
@@ -255,12 +257,14 @@ pub async fn api_upload_to_watch_group(
         return Err((StatusCode::NOT_FOUND, format!("Watch group {id} not found")));
     }
 
-    let (tmp_path, filename, size, hash) = extract_file(&mut multipart).await?;
+    let (tmp_path, path_parts, size, hash) = extract_file(&mut multipart).await?;
 
-    let target_dir = UPLOAD_PATH.join(id.to_string());
-    let target_path = target_dir.join(&filename);
+    let rel: PathBuf = path_parts.iter().collect();
+    let target_path = UPLOAD_PATH.join(id.to_string()).join(&rel);
 
-    if let Err(e) = fs::create_dir_all(&target_dir) {
+    if let Some(target_dir) = target_path.parent()
+        && let Err(e) = fs::create_dir_all(target_dir)
+    {
         let _ = fs::remove_file(&tmp_path);
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -279,52 +283,91 @@ pub async fn api_upload_to_watch_group(
     let event = FileEvent::new(
         Uuid::new_v4(),
         UtcMillis::now(),
-        MatchablePath::from(vec![filename.as_str()]),
+        MatchablePath::from(path_parts),
         size as u64,
         hash,
         FileEventType::ChangeEvent,
-        *PWA_CLIENT_UUID,
-        Some("pwa".to_string()),
+        client_id,
+        Some(client_host.to_string()),
         id,
     );
 
     if let Err(e) = state.db.file_event().insert(&event).await {
-        error!("Failed to persist file event for PWA upload: {e}");
+        error!("Failed to persist file event for {client_host} upload: {e}");
     }
     state.history.add(event);
 
-    info!("PWA uploaded '{}' to watch group {id}", filename);
+    info!(
+        "{client_host} uploaded '{}' to watch group {id}",
+        rel.display()
+    );
     Ok(StatusCode::CREATED)
 }
 
+/// Only the app clients may use the web API upload; sync clients go through `/sys/upload`.
+fn app_client(headers: &HeaderMap) -> Result<(Uuid, &'static str), (StatusCode, String)> {
+    let client_id = headers
+        .get(CLIENT_ID_HEADER_KEY)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| Uuid::parse_str(v).ok());
+    match client_id {
+        Some(id) if id == *WEB_CLIENT_UUID => Ok((id, "web")),
+        Some(id) if id == *PWA_CLIENT_UUID => Ok((id, "pwa")),
+        _ => Err((
+            StatusCode::BAD_REQUEST,
+            format!("{CLIENT_ID_HEADER_KEY} must be the web or pwa client id"),
+        )),
+    }
+}
+
+/// Returns the temp file and the target path parts (`dir` segments + file name).
 async fn extract_file(
     multipart: &mut Multipart,
-) -> Result<(PathBuf, String, usize, ContentHash), (StatusCode, String)> {
+) -> Result<(PathBuf, Vec<String>, usize, ContentHash), (StatusCode, String)> {
+    let mut dir = String::new();
+    let mut upload: Option<(PathBuf, String, usize, ContentHash)> = None;
+
     while let Some(field) = multipart.next_field().await.unwrap_or(None) {
-        if field.name() != Some("file") {
-            continue;
+        match field.name() {
+            Some("dir") => {
+                dir = field.text().await.unwrap_or_default();
+            }
+            Some("file") if upload.is_none() => {
+                let raw_name = field.file_name().unwrap_or("upload").to_string();
+                let filename = sanitize_filename(&raw_name)?;
+
+                let tmp_path = UPLOAD_TMP_PATH.join(format!("{}_{}", Uuid::new_v4(), filename));
+                let (size, hash) = write_all_chunks_of_field(tmp_path.as_path(), field)
+                    .await
+                    .map_err(|e| {
+                        let _ = fs::remove_file(&tmp_path);
+                        (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            format!("Failed to write upload: {e}"),
+                        )
+                    })?;
+                upload = Some((tmp_path, filename, size, hash));
+            }
+            _ => {}
         }
-
-        let raw_name = field.file_name().unwrap_or("upload").to_string();
-        let filename = sanitize_filename(&raw_name)?;
-
-        let tmp_path = UPLOAD_TMP_PATH.join(format!("{}_{}", Uuid::new_v4(), filename));
-        let (size, hash) = write_all_chunks_of_field(tmp_path.as_path(), field)
-            .await
-            .map_err(|e| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Failed to write upload: {e}"),
-                )
-            })?;
-
-        return Ok((tmp_path, filename, size, hash));
     }
 
-    Err((
-        StatusCode::BAD_REQUEST,
-        "No 'file' field in request".to_string(),
-    ))
+    let Some((tmp_path, filename, size, hash)) = upload else {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "No 'file' field in request".to_string(),
+        ));
+    };
+    let mut parts: Vec<String> = dir
+        .split('/')
+        .filter(|s| !s.is_empty())
+        .map(sanitize_filename)
+        .collect::<Result<_, _>>()
+        .inspect_err(|_| {
+            let _ = fs::remove_file(&tmp_path);
+        })?;
+    parts.push(filename);
+    Ok((tmp_path, parts, size, hash))
 }
 
 /// DELETE /api/watch-groups/{id}/file?path=dir/subdir/file.ext

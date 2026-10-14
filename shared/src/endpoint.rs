@@ -2,6 +2,11 @@ pub const CLIENT_HOST_HEADER_KEY: &str = "X-Client-Hostname";
 pub const CLIENT_ID_HEADER_KEY: &str = "X-Client-Id";
 pub const CLIENT_VERSION_HEADER_KEY: &str = "X-Client-Version";
 
+/// UUID of the 'pwa' app client row — must match the migration.
+pub const PWA_CLIENT_ID: &str = "f4a7b3c2-8d5e-4f6a-9b2c-1e3d5f7a9b0c";
+/// UUID of the 'web' app client row — must match the migration.
+pub const WEB_CLIENT_ID: &str = "c3d4e5f6-7a8b-4c9d-8e2f-1a3b5c7d9e0f";
+
 pub enum ServerEndpoint {
     Hello,
     Ping,
