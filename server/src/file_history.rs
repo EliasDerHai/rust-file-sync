@@ -88,8 +88,8 @@ impl FileHistory for InMemoryFileHistory {
             .get(&wg_id)
             .map(|wg_map| {
                 wg_map
-                    .iter()
-                    .filter_map(|(_, events)| events.last().cloned())
+                    .values()
+                    .filter_map(|events| events.last().cloned())
                     .collect()
             })
             .unwrap_or_default()
