@@ -35,6 +35,9 @@ pub fn LogsPage() -> impl IntoView {
     let error = RwSignal::new(None::<String>);
     let search = RwSignal::new(String::new());
     let streaming = RwSignal::new(true);
+    let viewer_ref = NodeRef::<leptos::html::Div>::new();
+    // true while the viewer is scrolled to (near) the bottom: new lines then keep it pinned there
+    let stuck = RwSignal::new(true);
 
     // Backlog: fetched once on mount, merged into `lines` (see `merge_lines` for why
     // this can't just be a plain `.set()` - the live stream below may already have
@@ -108,6 +111,26 @@ pub fn LogsPage() -> impl IntoView {
             .collect::<Vec<_>>()
     });
 
+    Effect::new(move |_| {
+        visible.track();
+        if stuck.get_untracked()
+            && let Some(el) = viewer_ref.get()
+        {
+            el.set_scroll_top(el.scroll_height());
+        }
+    });
+
+    let on_scroll = move |_| {
+        if let Some(el) = viewer_ref.get_untracked() {
+            stuck.set(el.scroll_height() - el.scroll_top() - el.client_height() <= 40);
+        }
+    };
+    let scroll_to_latest = move |_| {
+        if let Some(el) = viewer_ref.get_untracked() {
+            el.set_scroll_top(el.scroll_height());
+        }
+    };
+
     view! {
         <div class="container">
             <h1>"Server Logs"</h1>
@@ -127,16 +150,21 @@ pub fn LogsPage() -> impl IntoView {
                 </button>
             </div>
 
-            <div class="log-viewer">
+            <div class="log-viewer-wrap">
+            <div class="log-viewer" node_ref=viewer_ref on:scroll=on_scroll>
                 {move || {
                     visible
                         .get()
                         .into_iter()
                         .map(|line| {
                             let level_class = format!("log-line log-line--{}", line.level.as_str());
+                            let full_ts = line.timestamp.to_string();
+                            // "YYYY-MM-DD HH:MM:SS..." - the narrow layout only has room for the time
+                            let short_ts = full_ts.get(11..19).unwrap_or(&full_ts).to_string();
                             view! {
                                 <div class=level_class>
-                                    <span class="log-line-timestamp">{line.timestamp.to_string()}</span>
+                                    <span class="log-line-timestamp">{full_ts}</span>
+                                    <span class="log-line-timestamp log-line-timestamp-short">{short_ts}</span>
                                     <span class="log-line-level">{line.level.as_str().to_uppercase()}</span>
                                     <span class="log-line-target">{line.target.clone()}</span>
                                     <span class="log-line-message">{line.message.clone()}</span>
@@ -145,6 +173,12 @@ pub fn LogsPage() -> impl IntoView {
                         })
                         .collect_view()
                 }}
+            </div>
+            <Show when=move || !stuck.get()>
+                <button class="btn btn-primary log-latest-btn" on:click=scroll_to_latest>
+                    "Latest"
+                </button>
+            </Show>
             </div>
         </div>
     }

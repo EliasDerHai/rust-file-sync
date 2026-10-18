@@ -97,21 +97,24 @@ export function initMonitorCharts(onRange) {
         clearTimeout(_debounce);
         _debounce = setTimeout(() => onRange(min, max), 300);
     };
+    // phones: less chrome around the plot (the secondary axis is dropped, tooltips still show its units)
+    const narrow = window.matchMedia('(max-width: 640px)').matches;
+    const tickFont = { size: narrow ? 10 : 12 };
     for (const cfg of CHARTS) {
         const canvas = document.getElementById(cfg.id);
         if (!canvas) continue;
         const scales = {
-            x: { type: 'time', time: { displayFormats: { hour: 'HH:mm', minute: 'HH:mm', second: 'HH:mm:ss' } }, ticks: { color: '#aaa', maxRotation: 0 }, grid: { color: '#333' } },
+            x: { type: 'time', time: { displayFormats: { hour: 'HH:mm', minute: 'HH:mm', second: 'HH:mm:ss' } }, ticks: { color: '#aaa', maxRotation: 0, font: tickFont, maxTicksLimit: narrow ? 4 : undefined }, grid: { color: '#333' } },
         };
         for (const [id, a] of Object.entries(cfg.axes)) {
-            scales[id] = { min: a.min, suggestedMax: a.suggestedMax, position: a.position || 'left', ticks: { color: '#aaa', callback: a.fmt }, grid: { color: id === 'y' ? '#333' : 'transparent' } };
+            scales[id] = { min: a.min, suggestedMax: a.suggestedMax, position: a.position || 'left', display: !(narrow && id !== 'y'), ticks: { color: '#aaa', callback: a.fmt, font: tickFont, maxTicksLimit: narrow ? 5 : undefined }, grid: { color: id === 'y' ? '#333' : 'transparent' } };
         }
         _charts[cfg.id] = new Chart(canvas, {
             type: 'line',
             data: { datasets: datasetsFor(cfg) },
             options: {
                 responsive: true,
-                aspectRatio: 2.5,
+                maintainAspectRatio: false,
                 animation: false,
                 parsing: false,
                 normalized: true,
@@ -119,7 +122,8 @@ export function initMonitorCharts(onRange) {
                 scales,
                 plugins: {
                     legend: {
-                        labels: { color: '#eee', filter: (item, data) => !data.datasets[item.datasetIndex]._band },
+                        position: narrow ? 'bottom' : 'top',
+                        labels: { color: '#eee', boxWidth: narrow ? 12 : 40, font: { size: narrow ? 11 : 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]._band },
                         onClick: (e, item, legend) => {
                             const chart = legend.chart;
                             const group = chart.data.datasets[item.datasetIndex]._group;
