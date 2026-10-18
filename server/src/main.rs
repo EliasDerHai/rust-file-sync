@@ -258,10 +258,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         // apps
         .nest_service(
-            ServerEndpoint::ServePWA.to_str(),
-            get(handler::serve_embedded_pwa),
-        )
-        .nest_service(
             ServerEndpoint::App.to_str(),
             get(handler::serve_embedded_app),
         )

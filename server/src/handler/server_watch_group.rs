@@ -4,8 +4,6 @@ use crate::thumbnail;
 use crate::write::write_all_chunks_of_field;
 use crate::{AppState, THUMBNAIL_PATH, UPLOAD_PATH, UPLOAD_TMP_PATH};
 
-pub(crate) static PWA_CLIENT_UUID: LazyLock<Uuid> =
-    LazyLock::new(|| Uuid::parse_str(PWA_CLIENT_ID).expect("not a uuid"));
 pub(crate) static WEB_CLIENT_UUID: LazyLock<Uuid> =
     LazyLock::new(|| Uuid::parse_str(WEB_CLIENT_ID).expect("not a uuid"));
 
@@ -18,7 +16,7 @@ use axum::http::{HeaderMap, HeaderValue};
 use axum::response::IntoResponse;
 use shared::content_hash::ContentHash;
 use shared::dtos::{FileDescription, ServerWatchGroup, WatchGroupNameDto};
-use shared::endpoint::{CLIENT_ID_HEADER_KEY, PWA_CLIENT_ID, WEB_CLIENT_ID};
+use shared::endpoint::{CLIENT_ID_HEADER_KEY, WEB_CLIENT_ID};
 use shared::matchable_path::MatchablePath;
 use shared::media::content_type_for;
 use shared::utc_millis::UtcMillis;
@@ -234,7 +232,7 @@ pub async fn api_get_watch_group_files(
 
 /// POST /api/watch-groups/{id}/files — multipart `file` plus optional `dir` (e.g. `photos/2026`).
 ///
-/// `X-Client-Id` must be one of the app clients (web / pwa); an existing file is replaced.
+/// `X-Client-Id` must be the web app client; an existing file is replaced.
 pub async fn api_upload_to_watch_group(
     State(state): State<AppState>,
     axum::extract::Path(id): axum::extract::Path<i64>,
@@ -304,7 +302,7 @@ pub async fn api_upload_to_watch_group(
     Ok(StatusCode::CREATED)
 }
 
-/// Only the app clients may use the web API upload; sync clients go through `/sys/upload`.
+/// Only the web app client may use the web API upload; sync clients go through `/sys/upload`.
 fn app_client(headers: &HeaderMap) -> Result<(Uuid, &'static str), (StatusCode, String)> {
     let client_id = headers
         .get(CLIENT_ID_HEADER_KEY)
@@ -312,10 +310,9 @@ fn app_client(headers: &HeaderMap) -> Result<(Uuid, &'static str), (StatusCode, 
         .and_then(|v| Uuid::parse_str(v).ok());
     match client_id {
         Some(id) if id == *WEB_CLIENT_UUID => Ok((id, "web")),
-        Some(id) if id == *PWA_CLIENT_UUID => Ok((id, "pwa")),
         _ => Err((
             StatusCode::BAD_REQUEST,
-            format!("{CLIENT_ID_HEADER_KEY} must be the web or pwa client id"),
+            format!("{CLIENT_ID_HEADER_KEY} must be the web client id"),
         )),
     }
 }

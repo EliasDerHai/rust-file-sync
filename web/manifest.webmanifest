@@ -1,9 +1,16 @@
 {
   "name": "File Sync Admin",
   "short_name": "File Sync",
+  "id": "/app/",
   "start_url": "/app/",
   "scope": "/app/",
   "display": "standalone",
+  "share_target": {
+    "action": "/app/share",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  },
   "background_color": "#1a1a2e",
   "theme_color": "#0f1528",
   "icons": [

@@ -5,6 +5,7 @@ mod locations;
 mod logs;
 mod media_gallery;
 mod monitor;
+mod share_link;
 mod watch_group_files;
 mod watch_groups;
 
@@ -15,5 +16,6 @@ pub use locations::LocationsPage;
 pub use logs::LogsPage;
 pub use media_gallery::MediaGalleryPage;
 pub use monitor::MonitorPage;
+pub use share_link::ShareLinkPage;
 pub use watch_group_files::{SortMode, WatchGroupFilesPage};
 pub use watch_groups::WatchGroupsPage;

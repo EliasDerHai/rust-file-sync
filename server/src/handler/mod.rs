@@ -7,7 +7,6 @@ mod events;
 pub mod link;
 mod location_point;
 mod logs;
-mod pwa;
 mod server_watch_group;
 mod sync;
 
@@ -23,7 +22,6 @@ pub use events::api_events_stream;
 pub use link::{delete_link, get_links, post_link, post_link_tag};
 pub use location_point::{delete_location_points, get_location_points, post_location_points};
 pub use logs::{api_get_logs, api_logs_stream};
-pub use pwa::serve_embedded_pwa;
 pub use server_watch_group::{
     api_create_watch_group, api_delete_watch_group, api_delete_watch_group_file,
     api_get_watch_group_files, api_list_watch_groups, api_serve_watch_group_file,

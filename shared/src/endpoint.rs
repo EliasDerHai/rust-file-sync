@@ -2,8 +2,6 @@ pub const CLIENT_HOST_HEADER_KEY: &str = "X-Client-Hostname";
 pub const CLIENT_ID_HEADER_KEY: &str = "X-Client-Id";
 pub const CLIENT_VERSION_HEADER_KEY: &str = "X-Client-Version";
 
-/// UUID of the 'pwa' app client row — must match the migration.
-pub const PWA_CLIENT_ID: &str = "f4a7b3c2-8d5e-4f6a-9b2c-1e3d5f7a9b0c";
 /// UUID of the 'web' app client row — must match the migration.
 pub const WEB_CLIENT_ID: &str = "c3d4e5f6-7a8b-4c9d-8e2f-1a3b5c7d9e0f";
 
@@ -20,12 +18,10 @@ pub enum ServerEndpoint {
     Delete,
     Config,
 
-    /// PWA
-    ServePWA,
     /// SPA frontend
     App,
 
-    /// Shared links from PWA
+    /// Saved links (also the SPA's share target)
     ApiLinks,
     /// Tags for links
     ApiLinkTags,
@@ -98,7 +94,6 @@ impl ServerEndpoint {
             ServerEndpoint::Delete => "/sys/delete/{wg_id}",
             ServerEndpoint::Config => "/sys/config",
             // apps
-            ServerEndpoint::ServePWA => "/pwa",
             ServerEndpoint::App => "/app",
             // api
             ServerEndpoint::ApiLinks => "/api/links",
@@ -133,7 +128,7 @@ mod tests {
     use super::*;
     use ServerEndpoint::*;
 
-    const ALL_ENDPOINTS: [ServerEndpoint; 29] = [
+    const ALL_ENDPOINTS: [ServerEndpoint; 28] = [
         Hello,
         Ping,
         Version,
@@ -143,7 +138,6 @@ mod tests {
         Download,
         Delete,
         Config,
-        ServePWA,
         App,
         ApiLinks,
         ApiClients,
@@ -181,7 +175,6 @@ mod tests {
                 Delete => assert_eq!("http://localhost/sys/delete/{wg_id}", actual),
                 Config => assert_eq!("http://localhost/sys/config", actual),
 
-                ServePWA => assert_eq!("http://localhost/pwa", actual),
                 App => assert_eq!("http://localhost/app", actual),
 
                 ApiLinks => assert_eq!("http://localhost/api/links", actual),

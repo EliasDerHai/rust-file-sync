@@ -1,5 +1,4 @@
 use shared::dtos::ClientDto;
-use shared::endpoint::PWA_CLIENT_ID;
 use shared::endpoint::WEB_CLIENT_ID;
 use sqlx::SqlitePool;
 
@@ -76,7 +75,7 @@ impl<'a> ClientRepository<'a> {
 
         Ok(clients
             .into_iter()
-            .filter(|r| r.id != WEB_CLIENT_ID && r.id != PWA_CLIENT_ID)
+            .filter(|r| r.id != WEB_CLIENT_ID)
             .map(|r| ClientDto {
                 id: r.id,
                 host_name: r.host_name,
@@ -143,4 +142,20 @@ impl<'a> ClientRepository<'a> {
 mod tests {
     use super::*;
     use crate::db::test_support::setup_test_db;
+
+    #[tokio::test]
+    async fn pwa_client_is_removed_and_web_client_kept() {
+        let (pool, _db) = setup_test_db().await;
+
+        let ids: Vec<String> = sqlx::query_scalar("SELECT id FROM client")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+
+        assert!(
+            !ids.iter()
+                .any(|id| id == "f4a7b3c2-8d5e-4f6a-9b2c-1e3d5f7a9b0c")
+        );
+        assert!(ids.iter().any(|id| id == WEB_CLIENT_ID));
+    }
 }

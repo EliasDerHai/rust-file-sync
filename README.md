@@ -19,7 +19,7 @@ Example clients:
 
 https://github.com/user-attachments/assets/7ea8d0f1-770a-4b86-ad06-4c39bf338c8c
 
-+ some additional features for monitoring, local link-share incl. pwa with mobile support (local first) & whatever else I might come up with :D 
++ some additional features for monitoring, local link-share (the web app is installable as a pwa and acts as an Android share target) & whatever else I might come up with :D 
 
 ## Run
 
