@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM client_watch_group WHERE client_id = ? AND server_watch_group_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "898091474efa9d75111fd8f3f5e1343749da17ef9dbf651ab17c728be75b252f"
+}

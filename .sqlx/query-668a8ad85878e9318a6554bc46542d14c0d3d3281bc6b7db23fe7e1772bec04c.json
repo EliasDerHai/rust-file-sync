@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM server_watch_group WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "668a8ad85878e9318a6554bc46542d14c0d3d3281bc6b7db23fe7e1772bec04c"
+}

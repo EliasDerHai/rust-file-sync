@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            UPDATE client_watch_group SET path_to_monitor = ?, exclude_dot_dirs = ?\n            WHERE server_watch_group_id = ? AND client_id = ?\n            RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4161e03543c59bd7397b8adc81b88eb42db446355267e888340368e608842431"
+}

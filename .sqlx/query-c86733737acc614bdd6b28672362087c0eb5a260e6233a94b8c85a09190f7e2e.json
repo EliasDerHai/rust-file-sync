@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                cwg.server_watch_group_id,\n                cwg.path_to_monitor,\n                cwg.exclude_dot_dirs as \"exclude_dot_dirs: bool\",\n                swg.name,\n                cwged.exclude_dir as \"exclude_dir?\"\n            FROM client_watch_group cwg\n            INNER JOIN server_watch_group swg ON swg.id = cwg.server_watch_group_id\n            LEFT JOIN client_watch_group_excluded_dir cwged ON cwged.client_watch_group = cwg.id\n            WHERE cwg.client_id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "server_watch_group_id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "path_to_monitor",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "exclude_dot_dirs: bool",
+        "ordinal": 2,
+        "type_info": "Bool"
+      },
+      {
+        "name": "name",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "exclude_dir?",
+        "ordinal": 4,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c86733737acc614bdd6b28672362087c0eb5a260e6233a94b8c85a09190f7e2e"
+}

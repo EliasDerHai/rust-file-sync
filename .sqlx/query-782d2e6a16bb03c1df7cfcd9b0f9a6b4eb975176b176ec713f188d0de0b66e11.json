@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT id as \"id!: i64\", timestamp_epoch_ms, latitude, longitude, altitude_meters,\n                   accuracy_meters as \"accuracy_meters: f32\",\n                   speed_meters_per_second as \"speed_meters_per_second: f32\"\n            FROM location_point\n            WHERE excluded_at IS NULL AND timestamp_epoch_ms BETWEEN ? AND ?\n            ORDER BY timestamp_epoch_ms ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "timestamp_epoch_ms",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "latitude",
+        "ordinal": 2,
+        "type_info": "Float"
+      },
+      {
+        "name": "longitude",
+        "ordinal": 3,
+        "type_info": "Float"
+      },
+      {
+        "name": "altitude_meters",
+        "ordinal": 4,
+        "type_info": "Float"
+      },
+      {
+        "name": "accuracy_meters: f32",
+        "ordinal": 5,
+        "type_info": "Float"
+      },
+      {
+        "name": "speed_meters_per_second: f32",
+        "ordinal": 6,
+        "type_info": "Float"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "782d2e6a16bb03c1df7cfcd9b0f9a6b4eb975176b176ec713f188d0de0b66e11"
+}
