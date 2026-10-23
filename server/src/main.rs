@@ -158,7 +158,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route(
             ServerEndpoint::Upload.to_str(),
             post(handler::upload_handler).layer(DefaultBodyLimit::max(
-                10 * 1024 * 1024 * 1024, /* 10gb */
+                64 * 1024 * 1024 * 1024, /* 64gb */
             )),
         )
         .route(ServerEndpoint::Sync.to_str(), post(handler::sync_handler))
