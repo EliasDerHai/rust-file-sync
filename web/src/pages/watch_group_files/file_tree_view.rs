@@ -38,16 +38,17 @@ fn files_at_depth(all: &[FileDescription], dir: &[String]) -> (Vec<String>, Vec<
 
 #[component]
 pub fn FiletreeView(
-    all_files: Vec<FileDescription>,
+    all_files: RwSignal<Vec<FileDescription>>,
     current_path: RwSignal<Vec<String>>,
     view_mode: RwSignal<ViewMode>,
     sort_mode: RwSignal<SortMode>,
     wg_id: i64,
     selected: RwSignal<HashSet<String>>,
+    gallery: RwSignal<Option<String>>,
 ) -> impl IntoView {
     move || {
         let dir = current_path.get();
-        let (dirs, mut files_here) = files_at_depth(&all_files, &dir);
+        let (dirs, mut files_here) = all_files.with(|all| files_at_depth(all, &dir));
         match sort_mode.get() {
             SortMode::Alphabetical => files_here.sort_by_key(|desc| desc.file_name.clone()),
             SortMode::Latest => {
@@ -57,14 +58,40 @@ pub fn FiletreeView(
 
         match view_mode.get() {
             ViewMode::List => {
-                file_tree_list_view(dirs, files_here, current_path, wg_id, selected, sort_mode)
+                file_tree_list_view(dirs, files_here, current_path, wg_id, selected, gallery)
                     .into_any()
             }
             ViewMode::Tile => {
-                file_tree_tile_view(dirs, files_here, current_path, wg_id, selected, sort_mode)
+                file_tree_tile_view(dirs, files_here, current_path, wg_id, selected, gallery)
                     .into_any()
             }
         }
+    }
+}
+
+/// Media opens the gallery overlay; everything else opens the raw file in a new tab. The href
+/// is the raw file either way, so a modified click (new tab, long-press) still gets the file.
+#[component]
+fn FileLink(
+    wg_id: i64,
+    path: String,
+    is_media: bool,
+    gallery: RwSignal<Option<String>>,
+    class: &'static str,
+    children: Children,
+) -> impl IntoView {
+    let href = api::watch_group_file_preview_url(wg_id, &path);
+    if is_media {
+        let on_click = move |ev: web_sys::MouseEvent| {
+            if ev.button() != 0 || ev.ctrl_key() || ev.meta_key() || ev.shift_key() {
+                return;
+            }
+            ev.prevent_default();
+            gallery.set(Some(path.clone()));
+        };
+        view! { <a class=class href=href on:click=on_click>{children()}</a> }.into_any()
+    } else {
+        view! { <a class=class href=href target="_blank">{children()}</a> }.into_any()
     }
 }
 
@@ -74,7 +101,7 @@ fn file_tree_list_view(
     current_path: RwSignal<Vec<String>>,
     wg_id: i64,
     selected: RwSignal<HashSet<String>>,
-    sort_mode: RwSignal<SortMode>,
+    gallery: RwSignal<Option<String>>,
 ) -> impl IntoView {
     view! {
         <ul class="filetree-list">
@@ -101,13 +128,10 @@ fn file_tree_list_view(
                 .into_iter()
                 .map(|file| {
                     let path_str = file.relative_path.to_serialized_string();
-                    let href = if MediaKind::from(&file.file_type).is_media() {
-                        api::gallery_url(wg_id, &path_str, sort_mode.get_untracked())
-                    } else {
-                        api::watch_group_file_preview_url(wg_id, &path_str)
-                    };
+                    let is_media = MediaKind::from(&file.file_type).is_media();
                     let file_name = file.file_name.clone();
                     let size = format_size(file.size_in_bytes);
+                    let p_link = path_str.clone();
                     let p_class = path_str.clone();
                     let p_check = path_str.clone();
                     let p_toggle = path_str;
@@ -134,15 +158,17 @@ fn file_tree_list_view(
                                     prop:checked=is_selected_check
                                     on:change=on_toggle
                                 />
-                                <a
+                                <FileLink
+                                    wg_id
+                                    path=p_link
+                                    is_media
+                                    gallery
                                     class="filetree-row"
-                                    href=href
-                                    target="_blank"
                                 >
                                     <FileIcon />
                                     <span>{file_name}</span>
                                     <span class="filetree-row-meta">{size}</span>
-                                </a>
+                                </FileLink>
                             </div>
                         </li>
                     }
@@ -158,7 +184,7 @@ fn file_tree_tile_view(
     current_path: RwSignal<Vec<String>>,
     wg_id: i64,
     selected: RwSignal<HashSet<String>>,
-    sort_mode: RwSignal<SortMode>,
+    gallery: RwSignal<Option<String>>,
 ) -> impl IntoView {
     view! {
         <div class="filetree-tile-grid">
@@ -186,11 +212,7 @@ fn file_tree_tile_view(
                 .map(|file| {
                     let path_str = file.relative_path.to_serialized_string();
                     let kind = MediaKind::from(&file.file_type);
-                    let href = if kind.is_media() {
-                        api::gallery_url(wg_id, &path_str, sort_mode.get_untracked())
-                    } else {
-                        api::watch_group_file_preview_url(wg_id, &path_str)
-                    };
+                    let is_media = kind.is_media();
                     // tiles only ever load small server thumbnails - never originals and never
                     // <video>/<audio>, which pulled data for every file and stalled the app.
                     // a 404 (heic, undecodable, no ffmpeg on the server) falls back to the icon
@@ -230,6 +252,7 @@ fn file_tree_tile_view(
                         _ => view! { <FileIconLarge /> }.into_any(),
                     };
                     let file_name = file.file_name.clone();
+                    let p_link = path_str.clone();
                     let p_class = path_str.clone();
                     let p_check = path_str.clone();
                     let p_toggle = path_str;
@@ -255,7 +278,7 @@ fn file_tree_tile_view(
                                 prop:checked=is_selected_check
                                 on:change=on_toggle
                             />
-                            <a class="filetree-tile" href=href target="_blank">
+                            <FileLink wg_id path=p_link is_media gallery class="filetree-tile">
                                 <div
                                     class="filetree-tile-preview"
                                     class:filetree-tile-preview-video=is_video
@@ -263,7 +286,7 @@ fn file_tree_tile_view(
                                     {preview}
                                 </div>
                                 <span class="filetree-tile-name">{file_name}</span>
-                            </a>
+                            </FileLink>
                         </div>
                     }
                 })

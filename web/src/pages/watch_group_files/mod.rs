@@ -10,7 +10,9 @@ use crate::components::{
 };
 
 mod file_tree_view;
+mod gallery;
 use file_tree_view::FiletreeView;
+use gallery::GalleryViewer;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {
@@ -63,6 +65,9 @@ pub fn WatchGroupFilesPage() -> impl IntoView {
     let current_path: RwSignal<Vec<String>> = RwSignal::new(vec![]);
     let view_mode: RwSignal<ViewMode> = RwSignal::new(ViewMode::List);
     let sort_mode: RwSignal<SortMode> = RwSignal::new(SortMode::Latest);
+    // path of the file the gallery overlay was opened on; the viewer tracks the current file itself
+    let gallery: RwSignal<Option<String>> = RwSignal::new(None);
+    let gallery_open = Memo::new(move |_| gallery.with(Option::is_some));
 
     // Clear selection whenever the user navigates into a different directory
     Effect::new(move |_| {
@@ -132,6 +137,8 @@ pub fn WatchGroupFilesPage() -> impl IntoView {
                                     .iter()
                                     .map(|f| f.relative_path.get().clone())
                                     .collect();
+                                // shared with the gallery overlay so deleting there updates the list
+                                let all_files = RwSignal::new(file_list);
                                 view! {
                                     <div class="filetree-toolbar">
                                         <Breadcrumb current_path />
@@ -183,13 +190,23 @@ pub fn WatchGroupFilesPage() -> impl IntoView {
                                         </div>
                                     </div>
                                     <FiletreeView
-                                        all_files=file_list
+                                        all_files
                                         current_path
                                         view_mode
                                         sort_mode
                                         wg_id=id
                                         selected
+                                        gallery
                                     />
+                                    <Show when=move || gallery_open.get()>
+                                        <GalleryViewer
+                                            all_files
+                                            initial_path=gallery.get_untracked().unwrap_or_default()
+                                            wg_id=id
+                                            sort_mode=sort_mode.get_untracked()
+                                            on_close=Callback::new(move |_| gallery.set(None))
+                                        />
+                                    </Show>
                                 }
                                 .into_any()
                             }

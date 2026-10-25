@@ -2,14 +2,12 @@ use std::cmp::Reverse;
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
 use shared::dtos::FileDescription;
 use shared::media::MediaKind;
-use wasm_bindgen::JsValue;
 
+use super::SortMode;
 use crate::api;
-use crate::components::{CloseIcon, Loading, Message, ToastSignal, TrashIcon};
-use crate::pages::SortMode;
+use crate::components::{CloseIcon, Message, ToastSignal, TrashIcon};
 
 /// clips shorter than this loop, so short videos behave like the gifs they replace
 const LOOP_THRESHOLD_SECONDS: f64 = 8.0;
@@ -54,62 +52,6 @@ fn media_in_same_dir(
     }
 
     media
-}
-
-#[component]
-pub fn MediaGalleryPage() -> impl IntoView {
-    let params = use_params_map();
-    let query = use_query_map();
-
-    let wg_id: Option<i64> = params.with_untracked(|p| p.get("id").and_then(|s| s.parse().ok()));
-    let path: Option<String> = query.with_untracked(|q| q.get("path").filter(|s| !s.is_empty()));
-    let sort_mode: SortMode = query
-        .with_untracked(|q| q.get("sort").filter(|s| !s.is_empty()))
-        .unwrap_or_default()
-        .as_str()
-        .into();
-
-    let (Some(id), Some(current_path)) = (wg_id, path) else {
-        return view! {
-            <div class="container">
-                <div class="message message-error">"Invalid gallery URL"</div>
-            </div>
-        }
-        .into_any();
-    };
-
-    let files = LocalResource::new(move || api::fetch_watch_group_files(id));
-    let current_path_signal = RwSignal::new(current_path);
-
-    view! {
-        <Suspense fallback=Loading>
-            {move || Suspend::new(async move {
-                match files.await {
-                    Ok(file_list) => {
-                        let all_files = RwSignal::new(file_list);
-                        view! {
-                            <GalleryViewer
-                                all_files=all_files
-                                current_path=current_path_signal
-                                wg_id=id
-                                sort_mode=sort_mode
-                            />
-                        }
-                        .into_any()
-                    }
-                    Err(e) => {
-                        view! {
-                            <div class="container">
-                                <div class="message message-error">"Error: " {e}</div>
-                            </div>
-                        }
-                        .into_any()
-                    }
-                }
-            })}
-        </Suspense>
-    }
-    .into_any()
 }
 
 fn path_of(f: &FileDescription) -> String {
@@ -181,16 +123,16 @@ fn GallerySlide(
 }
 
 #[component]
-fn GalleryViewer(
+pub fn GalleryViewer(
     all_files: RwSignal<Vec<FileDescription>>,
-    current_path: RwSignal<String>,
+    initial_path: String,
     wg_id: i64,
     sort_mode: SortMode,
+    on_close: Callback<()>,
 ) -> impl IntoView {
     let msg = ToastSignal::new();
-    let navigate = use_navigate();
-    let navigate_sv = StoredValue::new(navigate);
     let track_ref = NodeRef::<leptos::html::Div>::new();
+    let current_path = RwSignal::new(initial_path);
 
     // the directory is fixed for the lifetime of the gallery, only its files change (delete)
     let dir_path = current_path.get_untracked();
@@ -201,15 +143,6 @@ fn GalleryViewer(
             .with(|m| m.iter().position(|f| path_of(f) == path))
             .unwrap_or(0)
     });
-
-    if !media.with_untracked(|m| m.iter().any(|f| path_of(f) == current_path.get_untracked())) {
-        return view! {
-            <div class="container">
-                <div class="message message-error">"File not found"</div>
-            </div>
-        }
-        .into_any();
-    }
 
     let scroll_to_index = move |i: usize, smooth: bool| {
         if let Some(track) = track_ref.get_untracked() {
@@ -258,29 +191,12 @@ fn GalleryViewer(
         }
     });
 
-    // keep the address bar on the current file (reload stays here, Back leaves the gallery)
-    Effect::new(move |_| {
-        let url = api::gallery_url(wg_id, &current_path.get(), sort_mode);
-        if let Some(history) = web_sys::window().and_then(|w| w.history().ok()) {
-            let _ = history.replace_state_with_url(&JsValue::NULL, "", Some(&url));
-        }
-    });
-
     window_event_listener(leptos::ev::keydown, move |ev| match ev.key().as_str() {
         "ArrowLeft" => go_to(idx.get_untracked().saturating_sub(1)),
         "ArrowRight" => go_to(idx.get_untracked() + 1),
+        "Escape" => on_close.run(()),
         _ => {}
     });
-
-    let on_close = move |_| {
-        let history = web_sys::window().and_then(|w| w.history().ok());
-        match history {
-            Some(h) if h.length().unwrap_or(1) > 1 => {
-                let _ = h.back();
-            }
-            _ => navigate_sv.get_value()(&format!("/app/watch-groups/{wg_id}"), Default::default()),
-        }
-    };
 
     let on_delete_click = move |_| {
         let i = idx.get_untracked();
@@ -300,16 +216,13 @@ fn GalleryViewer(
         }
         spawn_local(async move {
             match api::delete_watch_group_file(wg_id, &path).await {
-                Ok(()) => match neighbour {
-                    Some(n) => batch(move || {
-                        all_files.update(|v| v.retain(|f| path_of(f) != path));
-                        current_path.set(n);
-                    }),
-                    None => navigate_sv.get_value()(
-                        &format!("/app/watch-groups/{wg_id}"),
-                        Default::default(),
-                    ),
-                },
+                Ok(()) => batch(move || {
+                    all_files.update(|v| v.retain(|f| path_of(f) != path));
+                    match neighbour {
+                        Some(n) => current_path.set(n),
+                        None => on_close.run(()),
+                    }
+                }),
                 Err(e) => msg.error(e),
             }
         });
@@ -322,7 +235,7 @@ fn GalleryViewer(
     view! {
         <div class="gallery-container">
             <div class="gallery-top-bar">
-                <button class="btn btn-icon btn-secondary" title="Close" on:click=on_close>
+                <button class="btn btn-icon btn-secondary" title="Close" on:click=move |_| on_close.run(())>
                     <CloseIcon />
                 </button>
                 <Message signal=msg />
@@ -362,5 +275,4 @@ fn GalleryViewer(
             </div>
         </div>
     }
-    .into_any()
 }
