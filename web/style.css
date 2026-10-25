@@ -542,6 +542,8 @@ select.form-input {
 
 /* === Filetree === */
 .filetree-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem; }
+/* Delete + Upload + both selects don't fit one line on a phone */
+.filetree-toolbar > .flex { flex-wrap: wrap; }
 
 .breadcrumb { display: flex; align-items: center; gap: 0.25rem; font-size: 0.9rem; flex-wrap: wrap; }
 .breadcrumb-sep { color: #555; }
@@ -600,6 +602,8 @@ select.form-input {
 .filetree-tile-wrapper { position: relative; }
 .filetree-tile-checkbox { position: absolute; top: 6px; left: 6px; z-index: 2; accent-color: #4a90d9; cursor: pointer; width: 16px; height: 16px; }
 .filetree-tile-selected > .filetree-tile { border-color: #4a90d9; background: rgba(74, 144, 217, 0.1); }
+/* rapid taps / long-press while selecting must not start a text selection */
+.filetree-selecting { user-select: none; -webkit-user-select: none; }
 
 /* === Mobile === */
 @media (max-width: 768px) {

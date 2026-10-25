@@ -44,8 +44,11 @@ pub fn FiletreeView(
     sort_mode: RwSignal<SortMode>,
     wg_id: i64,
     selected: RwSignal<HashSet<String>>,
+    select_mode: RwSignal<bool>,
     gallery: RwSignal<Option<String>>,
 ) -> impl IntoView {
+    // `select_mode` is deliberately not read here: flipping it must not rebuild every row/tile
+    // (and re-request their thumbnails), only the checkboxes and click handlers react to it
     move || {
         let dir = current_path.get();
         let (dirs, mut files_here) = all_files.with(|all| files_at_depth(all, &dir));
@@ -57,41 +60,96 @@ pub fn FiletreeView(
         }
 
         match view_mode.get() {
-            ViewMode::List => {
-                file_tree_list_view(dirs, files_here, current_path, wg_id, selected, gallery)
-                    .into_any()
-            }
-            ViewMode::Tile => {
-                file_tree_tile_view(dirs, files_here, current_path, wg_id, selected, gallery)
-                    .into_any()
-            }
+            ViewMode::List => file_tree_list_view(
+                dirs,
+                files_here,
+                current_path,
+                wg_id,
+                selected,
+                select_mode,
+                gallery,
+            )
+            .into_any(),
+            ViewMode::Tile => file_tree_tile_view(
+                dirs,
+                files_here,
+                current_path,
+                wg_id,
+                selected,
+                select_mode,
+                gallery,
+            )
+            .into_any(),
         }
     }
 }
 
-/// Media opens the gallery overlay; everything else opens the raw file in a new tab. The href
-/// is the raw file either way, so a modified click (new tab, long-press) still gets the file.
+fn toggle_selected(selected: RwSignal<HashSet<String>>, path: &str) {
+    selected.update(|s| {
+        if !s.remove(path) {
+            s.insert(path.to_string());
+        }
+    });
+}
+
+/// In select mode a click toggles the file's selection and nothing opens. Otherwise media opens
+/// the gallery overlay and everything else the raw file in a new tab. The href is the raw file
+/// either way, so a modified click (new tab, long-press) still gets the file.
 #[component]
 fn FileLink(
     wg_id: i64,
     path: String,
     is_media: bool,
     gallery: RwSignal<Option<String>>,
+    selected: RwSignal<HashSet<String>>,
+    select_mode: RwSignal<bool>,
     class: &'static str,
     children: Children,
 ) -> impl IntoView {
     let href = api::watch_group_file_preview_url(wg_id, &path);
-    if is_media {
-        let on_click = move |ev: web_sys::MouseEvent| {
-            if ev.button() != 0 || ev.ctrl_key() || ev.meta_key() || ev.shift_key() {
-                return;
-            }
+    let on_click = move |ev: web_sys::MouseEvent| {
+        if select_mode.get_untracked() {
             ev.prevent_default();
-            gallery.set(Some(path.clone()));
-        };
-        view! { <a class=class href=href on:click=on_click>{children()}</a> }.into_any()
-    } else {
-        view! { <a class=class href=href target="_blank">{children()}</a> }.into_any()
+            toggle_selected(selected, &path);
+            return;
+        }
+        if !is_media || ev.button() != 0 || ev.ctrl_key() || ev.meta_key() || ev.shift_key() {
+            return;
+        }
+        ev.prevent_default();
+        gallery.set(Some(path.clone()));
+    };
+    view! {
+        <a class=class href=href target=(!is_media).then_some("_blank") on:click=on_click>
+            {children()}
+        </a>
+    }
+}
+
+/// Only present in select mode. A sibling of the file link, not a child, so clicking it
+/// toggles once instead of also triggering the link's own select-mode handler.
+#[component]
+fn SelectBox(
+    path: String,
+    selected: RwSignal<HashSet<String>>,
+    select_mode: RwSignal<bool>,
+    class: &'static str,
+) -> impl IntoView {
+    view! {
+        <Show when=move || select_mode.get()>
+            <input
+                type="checkbox"
+                class=class
+                prop:checked={
+                    let path = path.clone();
+                    move || selected.get().contains(&path)
+                }
+                on:change={
+                    let path = path.clone();
+                    move |_| toggle_selected(selected, &path)
+                }
+            />
+        </Show>
     }
 }
 
@@ -101,10 +159,11 @@ fn file_tree_list_view(
     current_path: RwSignal<Vec<String>>,
     wg_id: i64,
     selected: RwSignal<HashSet<String>>,
+    select_mode: RwSignal<bool>,
     gallery: RwSignal<Option<String>>,
 ) -> impl IntoView {
     view! {
-        <ul class="filetree-list">
+        <ul class="filetree-list" class:filetree-selecting=move || select_mode.get()>
             {dirs
                 .into_iter()
                 .map(|name| {
@@ -132,37 +191,28 @@ fn file_tree_list_view(
                     let file_name = file.file_name.clone();
                     let size = format_size(file.size_in_bytes);
                     let p_link = path_str.clone();
-                    let p_class = path_str.clone();
-                    let p_check = path_str.clone();
-                    let p_toggle = path_str;
+                    let p_box = path_str.clone();
+                    let p_class = path_str;
                     let is_selected_class = move || selected.get().contains(&p_class);
-                    let is_selected_check = move || selected.get().contains(&p_check);
-                    let on_toggle = move |_| {
-                        selected.update(|s| {
-                            if s.contains(&p_toggle) {
-                                s.remove(&p_toggle);
-                            } else {
-                                s.insert(p_toggle.clone());
-                            }
-                        });
-                    };
                     view! {
                         <li>
                             <div
                                 class="filetree-row-selectable"
                                 class:filetree-row-selected=is_selected_class
                             >
-                                <input
-                                    type="checkbox"
+                                <SelectBox
+                                    path=p_box
+                                    selected
+                                    select_mode
                                     class="filetree-checkbox"
-                                    prop:checked=is_selected_check
-                                    on:change=on_toggle
                                 />
                                 <FileLink
                                     wg_id
                                     path=p_link
                                     is_media
                                     gallery
+                                    selected
+                                    select_mode
                                     class="filetree-row"
                                 >
                                     <FileIcon />
@@ -184,10 +234,11 @@ fn file_tree_tile_view(
     current_path: RwSignal<Vec<String>>,
     wg_id: i64,
     selected: RwSignal<HashSet<String>>,
+    select_mode: RwSignal<bool>,
     gallery: RwSignal<Option<String>>,
 ) -> impl IntoView {
     view! {
-        <div class="filetree-tile-grid">
+        <div class="filetree-tile-grid" class:filetree-selecting=move || select_mode.get()>
             {dirs
                 .into_iter()
                 .map(|name| {
@@ -253,32 +304,29 @@ fn file_tree_tile_view(
                     };
                     let file_name = file.file_name.clone();
                     let p_link = path_str.clone();
-                    let p_class = path_str.clone();
-                    let p_check = path_str.clone();
-                    let p_toggle = path_str;
+                    let p_box = path_str.clone();
+                    let p_class = path_str;
                     let is_selected_class = move || selected.get().contains(&p_class);
-                    let is_selected_check = move || selected.get().contains(&p_check);
-                    let on_toggle = move |_| {
-                        selected.update(|s| {
-                            if s.contains(&p_toggle) {
-                                s.remove(&p_toggle);
-                            } else {
-                                s.insert(p_toggle.clone());
-                            }
-                        });
-                    };
                     view! {
                         <div
                             class="filetree-tile-wrapper"
                             class:filetree-tile-selected=is_selected_class
                         >
-                            <input
-                                type="checkbox"
+                            <SelectBox
+                                path=p_box
+                                selected
+                                select_mode
                                 class="filetree-tile-checkbox"
-                                prop:checked=is_selected_check
-                                on:change=on_toggle
                             />
-                            <FileLink wg_id path=p_link is_media gallery class="filetree-tile">
+                            <FileLink
+                                wg_id
+                                path=p_link
+                                is_media
+                                gallery
+                                selected
+                                select_mode
+                                class="filetree-tile"
+                            >
                                 <div
                                     class="filetree-tile-preview"
                                     class:filetree-tile-preview-video=is_video

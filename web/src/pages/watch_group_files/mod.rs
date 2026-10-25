@@ -6,7 +6,7 @@ use std::collections::HashSet;
 
 use crate::api;
 use crate::components::{
-    EmptyState, HomeIcon, Loading, Message, ToastSignal, TrashIcon, UploadIcon,
+    CheckIcon, EmptyState, HomeIcon, Loading, Message, ToastSignal, TrashIcon, UploadIcon,
 };
 
 mod file_tree_view;
@@ -61,6 +61,8 @@ pub fn WatchGroupFilesPage() -> impl IntoView {
 
     let (refresh_trigger, set_refresh_trigger) = signal(0u32);
     let selected: RwSignal<HashSet<String>> = RwSignal::new(HashSet::new());
+    // on: clicking a file toggles its selection instead of opening it, checkboxes are shown
+    let select_mode: RwSignal<bool> = RwSignal::new(false);
     let msg = ToastSignal::new();
     let current_path: RwSignal<Vec<String>> = RwSignal::new(vec![]);
     let view_mode: RwSignal<ViewMode> = RwSignal::new(ViewMode::List);
@@ -73,6 +75,13 @@ pub fn WatchGroupFilesPage() -> impl IntoView {
     Effect::new(move |_| {
         let _ = current_path.get();
         selected.update(|s| s.clear());
+    });
+
+    // a selection must never outlive select mode: it would be invisible but still deletable
+    Effect::new(move |_| {
+        if !select_mode.get() {
+            selected.update(|s| s.clear());
+        }
     });
 
     let files = LocalResource::new(move || {
@@ -141,7 +150,7 @@ pub fn WatchGroupFilesPage() -> impl IntoView {
                                 let all_files = RwSignal::new(file_list);
                                 view! {
                                     <div class="filetree-toolbar">
-                                        <Breadcrumb current_path />
+                                        <Breadcrumb current_path select_mode />
                                         <div class="flex gap-1">
                                             <Show when=move || !selected.get().is_empty()>
                                                 <button
@@ -196,6 +205,7 @@ pub fn WatchGroupFilesPage() -> impl IntoView {
                                         sort_mode
                                         wg_id=id
                                         selected
+                                        select_mode
                                         gallery
                                     />
                                     <Show when=move || gallery_open.get()>
@@ -229,7 +239,12 @@ pub fn WatchGroupFilesPage() -> impl IntoView {
 }
 
 #[component]
-fn Breadcrumb(current_path: RwSignal<Vec<String>>) -> impl IntoView {
+fn Breadcrumb(
+    current_path: RwSignal<Vec<String>>,
+    /// the Select toggle is only shown where there are files to select
+    #[prop(optional)]
+    select_mode: Option<RwSignal<bool>>,
+) -> impl IntoView {
     view! {
         <div class="flex-center gap-1">
             <A href="/app/watch-groups" attr:class="btn btn-secondary">"← Back"</A>
@@ -240,6 +255,21 @@ fn Breadcrumb(current_path: RwSignal<Vec<String>>) -> impl IntoView {
                 <HomeIcon />
                 "Root"
             </button>
+            {select_mode
+                .map(|mode| {
+                    view! {
+                        <button
+                            class=move || {
+                                if mode.get() { "btn btn-primary gap-1" } else { "btn btn-secondary gap-1" }
+                            }
+                            aria-pressed=move || mode.get().to_string()
+                            on:click=move |_| mode.update(|m| *m = !*m)
+                        >
+                            <CheckIcon />
+                            "Select"
+                        </button>
+                    }
+                })}
             <div class="breadcrumb">
                 {move || {
                     let path = current_path.get();
